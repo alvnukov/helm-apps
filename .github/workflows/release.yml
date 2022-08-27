@@ -18,32 +18,27 @@ jobs:
       run: |
         git config user.name "$GITHUB_ACTOR"
         git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
     - name: Set lib version
       run: |
         LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
         sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
-
     - name: Install werf CLI
       with:
         channel: ea
       uses: werf/actions/install@v1.2
-
+    # For deploy and distributed locks.
+    - name: Create kube config
+      run: |
+        KUBECONFIG=$(mktemp -d)/config
+        base64 -d <(printf "%s" $KUBE_CONFIG_BASE64_DATA) > $KUBECONFIG
+        echo KUBECONFIG=$KUBECONFIG >> $GITHUB_ENV
+      env:
+        KUBE_CONFIG_BASE64_DATA: ${{ secrets.KUBE_CONFIG_BASE64_DATA }}
     - name: Render
       run: |
         source $(werf ci-env github --as-file)
-        pushd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=test
-        popd
-
-    - name: Install Helm
-      uses: azure/setup-helm@v1
-      with:
-        version: v3.8.1
-
+        cd tests && werf render --validate --dev --set "global._includes.apps-defaults.enabled=true"
     - name: Run chart-releaser
-      uses: helm/chart-releaser-action@v1.4.0
-      with:
-        charts_dir: charts
-        config: cr.yaml
+      uses: helm/chart-releaser-action@v1.1.0
       env:
         CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
