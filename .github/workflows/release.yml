@@ -18,25 +18,29 @@ jobs:
       run: |
         git config user.name "$GITHUB_ACTOR"
         git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
+
     - name: Set lib version
       run: |
         LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
         sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
+
     - name: Install werf CLI
       with:
         channel: ea
       uses: werf/actions/install@v1.2
-    # For deploy and distributed locks.
+
     - name: Kubernetes KinD Cluster
       uses: container-tools/kind-action@v1
       with:
         knative_serving: v1.0.0
         knative_kourier: v1.0.0
         knative_eventing: v1.0.0
+
     - name: Render
       run: |
         source $(werf ci-env github --as-file)
         cd tests && werf render --validate --dev --set "global._includes.apps-defaults.enabled=true"
+        
     - name: Run chart-releaser
       uses: helm/chart-releaser-action@v1.1.0
       env:
