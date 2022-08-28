@@ -27,13 +27,12 @@ jobs:
         channel: ea
       uses: werf/actions/install@v1.2
     # For deploy and distributed locks.
-    - name: Create kube config
-      run: |
-        KUBECONFIG=$(mktemp -d)/config
-        base64 -d <(printf "%s" $KUBE_CONFIG_BASE64_DATA) > $KUBECONFIG
-        echo KUBECONFIG=$KUBECONFIG >> $GITHUB_ENV
-      env:
-        KUBE_CONFIG_BASE64_DATA: ${{ secrets.KUBE_CONFIG_BASE64_DATA }}
+    - name: Kubernetes KinD Cluster
+      uses: container-tools/kind-action@v1
+      with:
+        knative_serving: v1.0.0
+        knative_kourier: v1.0.0
+        knative_eventing: v1.0.0
     - name: Render
       run: |
         source $(werf ci-env github --as-file)
