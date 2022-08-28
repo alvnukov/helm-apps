@@ -29,12 +29,9 @@ jobs:
         channel: ea
       uses: werf/actions/install@v1.2
 
-    - name: Kubernetes KinD Cluster
-      uses: container-tools/kind-action@v1
-      with:
-        knative_serving: v1.0.0
-        knative_kourier: v1.0.0
-        knative_eventing: v1.0.0
+    - name: Install Deckhouse
+      run: |
+        bash -c "$(curl -Ls https://raw.githubusercontent.com/deckhouse/deckhouse/main/tools/kind-d8.sh)"
 
     - name: Render
       run: |
