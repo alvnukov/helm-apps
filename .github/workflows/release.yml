@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    runs-on: ubuntu-letest
+    runs-on: ubuntu-latest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
@@ -40,7 +40,7 @@ jobs:
       run: |
         source $(werf ci-env github --as-file)
         cd tests && werf render --validate --dev --set "global._includes.apps-defaults.enabled=true"
-        
+
     - name: Run chart-releaser
       uses: helm/chart-releaser-action@v1.1.0
       env:
