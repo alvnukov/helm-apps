@@ -7,7 +7,7 @@ on:
 
 jobs:
   release:
-    runs-on: self-hosted
+    runs-on: ubuntu-letest
     steps:
     - name: Checkout
       uses: actions/checkout@v2
