@@ -36,7 +36,7 @@ jobs:
     - name: Render
       run: |
         source $(werf ci-env github --as-file)
-        cd tests && werf render --validate --dev --set "global._includes.apps-defaults.enabled=true"
+        cd tests && werf render --validate  --include-crds=false --dev --set "global._includes.apps-defaults.enabled=true"
 
     - name: Run chart-releaser
       uses: helm/chart-releaser-action@v1.1.0
