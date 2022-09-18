@@ -29,14 +29,10 @@ jobs:
         channel: ea
       uses: werf/actions/install@v1.2
 
-    - name: Install Deckhouse
-      run: |
-        bash -c "$(curl -Ls https://raw.githubusercontent.com/deckhouse/deckhouse/main/tools/kind-d8.sh)"
-
     - name: Render
       run: |
         source $(werf ci-env github --as-file)
-        cd tests && werf render --validate  --include-crds=false --dev --set "global._includes.apps-defaults.enabled=true" --env=prod
+        cd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod
 
     - name: Run chart-releaser
       uses: helm/chart-releaser-action@v1.1.0
