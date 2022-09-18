@@ -36,7 +36,7 @@ jobs:
 
     - name: Run chart-releaser
       if: ${{ github.ref == 'refs/heads/main' }}
-      uses: helm/chart-releaser-action@v1.1.0
+      uses: helm/chart-releaser-action@v1.4.0
       with:
         charts_dir: charts
         config: cr.yaml
