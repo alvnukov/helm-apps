@@ -3,7 +3,7 @@ name: Release Charts
 on:
   push:
     branches:
-    - main
+    - "*"
 
 jobs:
   release:
@@ -35,6 +35,7 @@ jobs:
         cd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod
 
     - name: Run chart-releaser
+      if: ${{ github.ref == 'refs/heads/main' }}
       uses: helm/chart-releaser-action@v1.1.0
       env:
         CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
