@@ -35,7 +35,7 @@ jobs:
 
     - name: Install Dyff
       run: |
-        snap install dyff
+        sudo snap install dyff
         
 
     - name: Render
