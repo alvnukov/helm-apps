@@ -2,6 +2,18 @@ apiVersion: v1
 entries:
   helm-apps:
   - apiVersion: v2
+    created: "2022-10-17T15:25:49.425370817Z"
+    description: A Helm applications library
+    digest: 70df85a88f393225e38787d05e90b2f02e5daccaf6e6e109ce1ccb76e276c6f3
+    maintainers:
+    - name: alvnukov
+      url: https://github.com/alvnukov
+    name: helm-apps
+    type: library
+    urls:
+    - https://github.com/alvnukov/helm-apps/releases/download/helm-apps-1.2.0/helm-apps-1.2.0.tgz
+    version: 1.2.0
+  - apiVersion: v2
     created: "2022-10-16T14:45:25.372207879Z"
     description: A Helm applications library
     digest: f5c0b5c9a151ca177c17b04f388c769ec9cfb28126d0fc845c238d61caa7e7de
@@ -65,4 +77,4 @@ entries:
     urls:
     - https://github.com/alvnukov/helm-apps/releases/download/helm-apps-1.0.4/helm-apps-1.0.4.tgz
     version: 1.0.4
-generated: "2022-10-16T14:45:25.372233979Z"
+generated: "2022-10-17T15:25:49.425394517Z"
