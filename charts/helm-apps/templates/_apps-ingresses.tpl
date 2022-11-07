@@ -22,9 +22,11 @@ metadata:
     {{- with .dexAuth }}
     {{- if (include "fl.isTrue" (list $ $.CurrentApp .enabled)) }}
     {{- include "apps-utils.enterScope" (list $ "dexAuth") }}
+    {{- if $.Values.werf  }}
     nginx.ingress.kubernetes.io/auth-signin: https://$host/dex-authenticator/sign_in
     nginx.ingress.kubernetes.io/auth-url: https://{{ $.CurrentApp.name }}-dex-authenticator.{{ $.Values.werf.namespace }}.svc.{{ include "apps-utils.requiredValue" (list $ . "clusterDomain") }}/dex-authenticator/auth
     nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-User,X-Auth-Request-Email,Authorization
+    {{- end }}
     {{- include "apps-utils.leaveScope" $ }}
     {{- end }}
     {{- end }}
