@@ -7,6 +7,8 @@
   {{- if include "fl.value" (list $ . $imageConfig.staticTag) }}
     {{- $imageName }}:{{ include "fl.value" (list $ . $imageConfig.staticTag) }}
   {{- else -}}
-    {{- index $.Values.werf.image $imageName }}
+    {{- with $.Values.werf }}
+    {{- index .image $imageName }}
+    {{- end }}
   {{- end }}
 {{- end }}

@@ -32,7 +32,7 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: {{ $serviceAccountName }}
-  namespace: {{ $.Values.werf.namespace }}
+  namespace: {{ $.Release.Namespace }}
 {{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 {{- include "apps-utils.leaveScope" $ }}
