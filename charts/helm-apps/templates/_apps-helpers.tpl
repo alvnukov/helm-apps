@@ -342,9 +342,17 @@ metadata:
 {{- end }}
 
 {{- define "apps-helpers.generateConfigYAML" }}
+
+  {{- include "apps-helpers._generateConfigYAML" . }}
+  {{- $content := index . 2 }}
+  {{- $indicatorMap := dict "indicator" false }}
+  {{- include "apps-helpers._generateConfigYAML.clean" (list $content $indicatorMap) }}
+{{- end }}
+{{- define "apps-helpers._generateConfigYAML" }}
     {{- $ := index . 0 }}
     {{- $owner := index . 1 }}
     {{- $content := index . 2 }}
+    {{- $contentName := index . 3 }}
     {{- range $CurrentKey, $CurrentDict := $content }}
     {{- include "apps-utils.enterScope" (list $ $CurrentKey) }}
     {{- if kindIs "map" $CurrentDict }}
@@ -356,14 +364,40 @@ metadata:
     {{- if kindIs "string" $val }}
     {{- $_ := set $content $CurrentKey (include "fl.value" (list $ . $CurrentDict))}}
     {{- else if kindIs "invalid" $val }}
-    {{- $_ := unset $content $CurrentKey}}
+    {{- $_ := unset $content $CurrentKey }}
+    {{- if eq (len $owner) 0 }}
+    {{- $_ := unset $owner $contentName }}
+    {{- end }}
     {{- else }}
     {{- $_ := set $content $CurrentKey  $val }}
     {{- end }}
     {{- else }}
-    {{- include "apps-helpers.generateConfigYAML" (list $ $content $CurrentDict) }}
+    {{- include "apps-helpers.generateConfigYAML" (list $ $content $CurrentDict $CurrentKey) }}
     {{- end }}
     {{- end }}
     {{- include "apps-utils.leaveScope" $ }}
     {{- end }}
-    {{- end }}
+{{- end }}
+{{- define "apps-helpers._generateConfigYAML.clean" }}
+{{- $content := index . 0 }}
+{{- $indicatorMap := index . 1 }}
+{{- range $CurrentKey, $CurrentDict := $content }}
+{{-   if kindIs "map" $CurrentDict }}
+{{-   if eq (len $CurrentDict) 0 }}
+{{-     $_ := set $indicatorMap "indicator" true }}
+{{-     $_ = unset $content $CurrentKey }}
+{{-   else }}
+{{-    $i := dict "indicator" true }}
+{{-    range $_,$_ := until 10 }}
+{{-      if $i.indicator }}
+{{-         $_ := set $i "indicator" false }}
+{{-         include "apps-helpers._generateConfigYAML.clean" (list $CurrentDict $i) }}
+{{-         if $i.indicator }}
+{{-           $_ := set $indicatorMap.indicator true }}
+{{-         end }}
+{{-      end }}
+{{-    end }}
+{{-    end }}
+{{-    end }}
+{{- end }}
+{{- end }}
