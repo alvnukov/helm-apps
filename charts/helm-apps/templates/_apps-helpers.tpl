@@ -342,8 +342,9 @@ metadata:
 {{- end }}
 
 {{- define "apps-helpers.generateConfigYAML" }}
-    {{- $ := . }}
-    {{- $content := $.CurrentConfigYAML.content }}
+    {{- $ := index . 0 }}
+    {{- $owner := index . 1 }}
+    {{- $content := index . 2 }}
     {{- range $CurrentKey, $CurrentDict := $content }}
     {{- include "apps-utils.enterScope" (list $ $CurrentKey) }}
     {{- if kindIs "map" $CurrentDict }}
@@ -354,12 +355,13 @@ metadata:
     {{- end }}
     {{- if kindIs "string" $val }}
     {{- $_ := set $content $CurrentKey (include "fl.value" (list $ . $CurrentDict))}}
+    {{- else if kindIs "invalid" $val }}
+    {{- $_ := unset $content $CurrentKey}}
     {{- else }}
     {{- $_ := set $content $CurrentKey  $val }}
     {{- end }}
     {{- else }}
-    {{- $_ := set $.CurrentConfigYAML "content" $CurrentDict }}
-    {{- include "apps-helpers.generateConfigYAML" $ }}
+    {{- include "apps-helpers.generateConfigYAML" (list $ $content $CurrentDict) }}
     {{- end }}
     {{- end }}
     {{- include "apps-utils.leaveScope" $ }}

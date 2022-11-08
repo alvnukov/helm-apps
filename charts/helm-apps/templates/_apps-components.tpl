@@ -224,8 +224,7 @@ metadata:
   {{- end }}
   labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 data:
-{{- $_ := set $ "CurrentConfigYAML" (dict "local" . "content" .) }}
-{{- include "apps-helpers.generateConfigYAML" $ }}
+{{- include "apps-helpers.generateConfigYAML" (list $ .content .content) }}
   {{ $configFileName | quote }}: | {{ toYaml .content | trim | nindent 4 }}
 {{-           include "apps-utils.leaveScope" $ }}
 {{-           end }}
@@ -306,8 +305,7 @@ data: {{ include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) | trim | n
 {{-           print (include "fl.value" (list $ . $configFile.content)) }}
 {{-         end }}
 {{-         range $_, $configFile :=  $.CurrentContainer.configFilesYAML }}
-{{- $_ := set $ "CurrentConfigYAML" (dict "local" $.CurrentApp "content" $configFile.content) }}
-{{- include "apps-helpers.generateConfigYAML" $ }}
+{{- include "apps-helpers.generateConfigYAML" (list $ $configFile.content $configFile.content) }}
 {{- $configFile.content | toYaml }}
 {{-         end }}
 {{- end }}

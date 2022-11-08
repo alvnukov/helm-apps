@@ -31,3 +31,6 @@ level1:
     test3:
       _default: 1
       prod: 3
+    deletedInProd:
+      _default: test
+      prod: null
