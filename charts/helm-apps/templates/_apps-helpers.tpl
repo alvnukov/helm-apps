@@ -342,6 +342,7 @@ metadata:
 {{- end }}
 
 {{- define "apps-helpers.generateConfigYAML" }}
+
   {{- include "apps-helpers._generateConfigYAML" . }}
   {{- $content := index . 2 }}
   {{- $indicatorMap := dict "indicator" false }}
