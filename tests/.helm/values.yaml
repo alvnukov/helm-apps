@@ -54,7 +54,7 @@ apps-configmaps:
     data:
       nginx.conf: |
         configline1
-        configline2 
+        configline2
 
 ## Имя чарта. Ниже перечисляются CronJob'ы для развертывания.
 # Указано в .helm/requirements.yaml в репозитории приложения в ключах dependencies.name или dependencies.alias.
@@ -1904,7 +1904,7 @@ apps-services:
         port: 80
     selector: |
       app: test-app
-      
+
 test-env-yaml:
   __GroupVars__:
     type: apps-stateless
@@ -1976,3 +1976,80 @@ test-env-yaml:
                     prod: 3v
                   test3:
                     _default: 2v
+
+# Дополнительные примеры для покрытия кейсов, которые не были описаны выше.
+# Все примеры ниже выключены (enabled: false), чтобы не влиять на текущий рендер тестов.
+
+apps-dex-authenticators:
+  dex-auth-example:
+    _include: ["apps-default-library-app"]
+    enabled: false
+    applicationDomain: "example.org"
+    applicationIngressClassName: "nginx"
+    applicationIngressCertificateSecretName: "example-tls"
+    allowedGroups: |
+      - team-admins
+      - team-devops
+    sendAuthorizationHeader:
+      _default: "false"
+      production: "true"
+
+apps-grafana-dashboards:
+  dashboard-example:
+    _include: ["apps-default-library-app"]
+    enabled: false
+    folder: "Custom"
+
+apps-infra:
+  node-users:
+    infra-user-example:
+      enabled: false
+      uid: 2001
+      isSudoer: true
+      sshPublicKeys: |
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDemoKey1
+        - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDemoKey2
+      extraGroups: |
+        - wheel
+        - docker
+      nodeGroups: |
+        - worker
+      annotations: |
+        owner: platform-team
+      labels: |
+        role: ops
+  node-groups:
+    infra-group-example:
+      enabled: false
+
+test-env-overrides:
+  __GroupVars__:
+    type: apps-stateless
+  env-overrides-app:
+    _include: ["apps-stateless-defaultApp"]
+    enabled: false
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+        envVars:
+          SIMPLE_VALUE:
+            _default: "from-default"
+            production: "from-production"
+          REGEX_ENV_VALUE:
+            _default: "fallback"
+            "^prod.*$": "from-regex-prod"
+            "^dev.*$": "from-regex-dev"
+          DELETE_IN_PROD:
+            _default: "value-exists"
+            production: ""
+        envYAML:
+          nested:
+            level1:
+              timeoutSeconds:
+                _default: 30
+                production: 60
+              retries:
+                _default: 3
+                "^dev.*$": 1
