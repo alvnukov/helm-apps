@@ -71,6 +71,20 @@
     "scalar": {
       "type": ["string", "number", "integer", "boolean", "null"]
     },
+    "envStringValue": {
+      "description": "Строка или map по окружениям, где значения строковые.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "yamlScalar": {
       "oneOf": [
         {
@@ -91,12 +105,9 @@
           "$ref": "#/$defs/scalar"
         },
         {
-          "type": "array"
-        },
-        {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/yamlScalar"
+            "$ref": "#/$defs/scalar"
           }
         }
       ]
@@ -182,10 +193,10 @@
           "$ref": "#/$defs/image"
         },
         "command": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "args": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "envVars": {
           "$ref": "#/$defs/envMap"
@@ -207,37 +218,37 @@
           }
         },
         "env": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "envFrom": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "resources": {
           "$ref": "#/$defs/resources"
         },
         "lifecycle": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "livenessProbe": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "readinessProbe": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "startupProbe": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "securityContext": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "volumeMounts": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "volumes": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "ports": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "configFiles": {
           "type": "object",
@@ -272,7 +283,7 @@
                 "$ref": "#/$defs/envValue"
               },
               "accessModes": {
-                "$ref": "#/$defs/yamlScalar"
+                "$ref": "#/$defs/envStringValue"
               }
             },
             "required": ["mountPath", "size", "storageClass"],
@@ -292,7 +303,7 @@
           "$ref": "#/$defs/envValue"
         },
         "resourcePolicy": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         }
       },
       "additionalProperties": true
@@ -310,7 +321,7 @@
           "$ref": "#/$defs/envValue"
         },
         "behavior": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "metrics": {
           "$ref": "#/$defs/yamlScalar"
@@ -368,13 +379,13 @@
           "$ref": "#/$defs/envValue"
         },
         "ports": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "selector": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "annotations": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         }
       },
       "additionalProperties": true
@@ -395,7 +406,7 @@
               "$ref": "#/$defs/envValue"
             },
             "rules": {
-              "$ref": "#/$defs/yamlScalar"
+              "$ref": "#/$defs/envStringValue"
             }
           },
           "required": ["name", "rules"],
@@ -444,13 +455,13 @@
           "$ref": "#/$defs/envValue"
         },
         "annotations": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "labels": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "selector": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "containers": {
           "type": "object",
@@ -507,22 +518,22 @@
           "$ref": "#/$defs/envValue"
         },
         "affinity": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "tolerations": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "nodeSelector": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "topologySpreadConstraints": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "volumes": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "imagePullSecrets": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "ingressClassName": {
           "$ref": "#/$defs/envValue"
@@ -534,10 +545,10 @@
           "$ref": "#/$defs/envValue"
         },
         "hosts": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "paths": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "tls": {
           "$ref": "#/$defs/tls"
@@ -558,25 +569,25 @@
           "$ref": "#/$defs/envValue"
         },
         "data": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "binaryData": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "envVars": {
           "$ref": "#/$defs/envMap"
         },
         "limits": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "storageClassName": {
           "$ref": "#/$defs/envValue"
         },
         "accessModes": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "resources": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "clusterIssuer": {
           "$ref": "#/$defs/envValue"
@@ -589,7 +600,7 @@
           "$ref": "#/$defs/envValue"
         },
         "redirectURIs": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "applicationDomain": {
           "$ref": "#/$defs/envValue"
@@ -601,7 +612,7 @@
           "$ref": "#/$defs/envValue"
         },
         "allowedGroups": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "sendAuthorizationHeader": {
           "$ref": "#/$defs/envValue"
@@ -658,10 +669,10 @@
           "type": "string"
         },
         "_preRenderGroupHook": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "_preRenderAppHook": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         }
       },
       "required": ["type"],
@@ -698,22 +709,22 @@
           "$ref": "#/$defs/envValue"
         },
         "sshPublicKeys": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "extraGroups": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "nodeGroups": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "isSudoer": {
           "$ref": "#/$defs/envValue"
         },
         "labels": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         },
         "annotations": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/envStringValue"
         }
       },
       "required": ["uid"],
@@ -751,7 +762,7 @@
           "$ref": "#/$defs/envValue"
         },
         "env": {
-          "$ref": "#/$defs/envValue"
+          "type": "string"
         },
         "_includes": {
           "type": "object",

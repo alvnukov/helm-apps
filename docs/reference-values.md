@@ -1,7 +1,24 @@
 # Helm Apps Library: Reference по values
+<a id="top"></a>
 
 Документ описывает практический референс структуры `values.yaml`.
 Он дополняет `docs/library-guide.md` и должен читаться вместе с ним.
+
+Быстрая навигация:
+- [Старт docs](README.md)
+- [Handbook](library-guide.md)
+- [Cookbook](cookbook.md)
+- [Parameter Index](parameter-index.md)
+
+Оглавление:
+- [1. Top-level ключи](#1-top-level-ключи)
+- [2. global](#2-global)
+- [5. containers / initContainers](#5-containers--initcontainers)
+- [8. Config files](#8-config-files)
+- [9. Service block](#9-service-block)
+- [10. Ingress block](#10-ingress-block)
+- [11. Autoscaling blocks](#11-autoscaling-blocks)
+- [17. Cheat sheet](#17-тип-поля---поведение-рендера-cheat-sheet)
 
 ## 1. Top-level ключи
 
@@ -30,6 +47,7 @@
 - `helm-apps`
 
 ## 2. `global`
+<a id="param-global"></a>
 
 Типичные поля:
 - `env`: текущее окружение (`dev`, `prod`, `production`, etc.);
@@ -50,6 +68,8 @@ global:
 ```
 
 ### 2.1 `global._includes` + `_include`: примеры merge
+<a id="param-global-includes"></a>
+<a id="param-include"></a>
 
 Ниже примеры, как библиотека объединяет include-профили.
 
@@ -136,6 +156,8 @@ apps-stateless:
 
 Вывод: для env-map обязательно проверяйте финальный рендер в нужном окружении.
 
+Навигация: [Parameter Index](parameter-index.md#core) | [Наверх](#top)
+
 #### Пример E: `_include`-списки конкатенируются
 
 ```yaml
@@ -153,6 +175,10 @@ apps-stateless:
 ```
 
 Итоговый include-chain для приложения объединяет `base-a` и `base-b`.
+
+Важно:
+- это поведение относится к служебному ключу `_include`;
+- обычные списковые параметры библиотеки, как правило, задаются строковым YAML-блоком (`|`), поэтому их merge как native list обычно не применяется.
 
 ## 3. Общая форма приложения в `apps-*`
 
@@ -228,6 +254,7 @@ Stateful-specific:
 - `failedJobsHistoryLimit`
 
 ## 5. `containers` / `initContainers`
+<a id="param-containers"></a>
 
 Форма:
 
@@ -245,6 +272,10 @@ containers:
 ```
 
 Поддерживаемые поля контейнера:
+<a id="param-envvars"></a>
+<a id="param-secretenvvars"></a>
+<a id="param-fromsecretsenvvars"></a>
+<a id="param-envyaml"></a>
 - `enabled`
 - `name`
 - `image.name`
@@ -272,7 +303,10 @@ containers:
 - `secretConfigFiles`
 - `persistantVolumes`
 
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
 ## 6. Env-паттерн
+<a id="param-global-env"></a>
 
 Любое поле, поддерживающее env-map:
 
@@ -306,6 +340,8 @@ resources:
 Поддержка env-map также применима к этим полям.
 
 ## 8. Config files
+<a id="param-configfiles"></a>
+<a id="param-configfilesyaml"></a>
 
 ### 8.1 `configFiles`
 
@@ -338,7 +374,10 @@ secretConfigFiles:
     content: super-secret
 ```
 
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
 ## 9. Service block
+<a id="param-service"></a>
 
 Используется:
 - как nested `service` у workload;
@@ -354,7 +393,10 @@ secretConfigFiles:
 - `sessionAffinity`
 - `annotations`
 
+Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
+
 ## 10. Ingress block
+<a id="param-ingress"></a>
 
 `apps-ingresses.<name>`:
 - `class`
@@ -370,7 +412,11 @@ secretConfigFiles:
 - `enabled`
 - `clusterDomain`
 
+Навигация: [Parameter Index](parameter-index.md#networking-and-scaling) | [Наверх](#top)
+
 ## 11. Autoscaling blocks
+<a id="param-vpa"></a>
+<a id="param-hpa"></a>
 
 ### 11.1 `verticalPodAutoscaler`
 
@@ -386,6 +432,7 @@ secretConfigFiles:
 - `behavior`
 - `metrics`
 - `customMetricResources`
+<a id="param-hpa-metrics"></a>
 
 `customMetricResources.<name>`:
 - `enabled`
@@ -393,7 +440,10 @@ secretConfigFiles:
 - `name` (optional)
 - `query`
 
+Навигация: [Parameter Index](parameter-index.md#networking-and-scaling) | [Наверх](#top)
+
 ## 12. `podDisruptionBudget`
+<a id="param-pdb"></a>
 
 Поля:
 - `enabled`
@@ -401,6 +451,7 @@ secretConfigFiles:
 - `minAvailable`
 
 ## 13. `serviceAccount`
+<a id="param-serviceaccount"></a>
 
 Поля:
 - `enabled`
@@ -410,6 +461,8 @@ secretConfigFiles:
 `clusterRole`:
 - `name`
 - `rules`
+
+Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
 
 ## 14. Прочие `apps-*` секции
 
@@ -535,7 +588,31 @@ group-name:
 
 ## 16. Полезные ссылки
 
-- Общая концепция: `docs/library-guide.md`
-- Практические рецепты: `docs/cookbook.md`
-- Рабочие примеры: `tests/.helm/values.yaml`
-- JSON Schema: `tests/.helm/values.schema.json`
+- Общая концепция: [docs/library-guide.md](library-guide.md)
+- Практические рецепты: [docs/cookbook.md](cookbook.md)
+- Индекс параметров: [docs/parameter-index.md](parameter-index.md)
+- Рабочие примеры: [tests/.helm/values.yaml](../tests/.helm/values.yaml)
+- JSON Schema: [tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
+
+## 17. Тип поля -> поведение рендера (cheat sheet)
+
+Ниже быстрый справочник по самым частым типам полей.
+
+| Поле/группа | Ожидаемый тип в values | Как используется при рендере |
+|---|---|---|
+| `_include` | `array[string]` | Конкатенируется между include-профилями, затем применяется merge.
+| `global.env` | `string` | Выбирает env-значение из map (`_default`, `production`, regex).
+| `replicas`, `enabled`, `werfWeight`, `priorityClassName` | scalar или env-map scalar | Резолвится через `fl.value` как скаляр.
+| `envVars.<KEY>` / `secretEnvVars.<KEY>` | scalar или env-map scalar | Рендерится как env var value.
+| `command`, `args`, `ports`, `envFrom`, `affinity`, `tolerations`, `nodeSelector`, `volumes`, `paths`, `rules`, `resourcePolicy` | string или env-map string | Обычно передаются как YAML block string (`|`) и вставляются в манифест.
+| `horizontalPodAutoscaler.metrics` | string или object | Поддерживает 2 режима: raw YAML строка или map-конфиг метрик.
+| `configFiles.<name>.content` | string (обычно) | Контент ConfigMap/файла.
+| `configFilesYAML.<name>.content` | object | Рекурсивно обрабатывается как YAML-дерево (с `_default` в узлах).
+| `apps-*.<app>.data` / `binaryData` (ConfigMap/Secret) | string или object | Для ConfigMap/Secret может быть raw YAML string или map.
+
+Практика:
+- если поле описано как Kubernetes-блок, используйте YAML строку (`|`);
+- для env-значений используйте scalar/env-map;
+- итог всегда проверяйте через `helm template ... --set global.env=<env>`.
+
+Навигация: [Parameter Index](parameter-index.md) | [Наверх](#top)

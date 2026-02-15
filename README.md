@@ -14,8 +14,8 @@
 - Единый стандарт деплоя для всех сервисов команды.
 - Меньше копипаста и ручных Kubernetes-манифестов.
 - Быстрее ревью: одинаковая структура конфигов между проектами.
-- Переиспользование через `_include` и `global._includes`.
-- Поддержка окружений (`_default`, env overrides, regex env keys).
+- Переиспользование через [`_include`](docs/parameter-index.md#core) и [`global._includes`](docs/parameter-index.md#core).
+- Поддержка окружений через [`global.env`](docs/parameter-index.md#core) (`_default`, env overrides, regex env keys).
 - Поддержка связанных ресурсов (Service, Ingress, ConfigMap, Secret, HPA, VPA, PDB и др.) в одной модели.
 
 ## Какие ресурсы поддерживаются
@@ -108,6 +108,7 @@ apps-ingresses:
       enabled: true
 ```
 
+<a id="example-global-includes-merge"></a>
 ## Ключевая механика: `global._includes` и рекурсивный merge
 
 `global._includes` — это библиотека переиспользуемых конфигурационных блоков.
@@ -245,6 +246,7 @@ apps-stateless:
 - всегда проверяйте итоговый рендер в целевом env (`helm template ... --set global.env=<env>`);
 - для критичных env-map лучше держать все нужные env-ключи явно в финальном профиле.
 
+<a id="example-include-concat"></a>
 #### Пример 5: `_include`-списки конкатенируются
 
 Если include-профиль сам содержит `_include`, итоговый список объединяется.
@@ -267,12 +269,16 @@ apps-stateless:
 
 Итоговый include-chain для `api` объединяет оба списка (`base-a` + `base-b`) и затем применяет локальные поля.
 
-#### Пример 6: Осторожно со списками в include (кроме `_include`)
+#### Пример 6: Что со списками
 
-Для обычных YAML-массивов (не `_include`) merge может быть неочевидным.
-Рекомендация:
-- задавайте такие поля финально в более приоритетном include или локально в app;
-- для сложных структур используйте проверку через `helm template`.
+Важный нюанс библиотеки:
+- специальные списки `_include` конкатенируются;
+- обычные “списковые” параметры в большинстве случаев задаются как YAML-строки (`|`), а не как native list.
+
+Поэтому merge для обычных списков как list-поведение обычно не используется.
+Практика:
+- задавайте списковые Kubernetes-блоки строкой YAML;
+- итог проверяйте через `helm template`.
 
 ### 5. Проверить рендер
 
@@ -289,6 +295,8 @@ helm template my-app .helm --set global.env=prod
 Подробные документы:
 - Концепция и архитектура: [docs/library-guide.md](docs/library-guide.md)
 - Полный справочник полей: [docs/reference-values.md](docs/reference-values.md)
+- Быстрый индекс параметров (описание + примеры): [docs/parameter-index.md](docs/parameter-index.md)
+- Use-case карта (задача -> параметр -> пример -> проверка): [docs/use-case-map.md](docs/use-case-map.md)
 - Готовые шаблоны для типовых сценариев: [docs/cookbook.md](docs/cookbook.md)
 - Эксплуатация, triage, rollback: [docs/operations.md](docs/operations.md)
 - Краткие правила helper-паттернов: [docs/usage.md](docs/usage.md)
@@ -297,6 +305,12 @@ helm template my-app .helm --set global.env=prod
 - Полный рабочий пример values: [tests/.helm/values.yaml](tests/.helm/values.yaml)
 - JSON Schema валидации values: [tests/.helm/values.schema.json](tests/.helm/values.schema.json)
 - Готовый пример проекта: [docs/example](docs/example)
+
+Быстрые ссылки на параметры:
+- Индекс параметров: [docs/parameter-index.md](docs/parameter-index.md)
+- `global.env`: [описание + пример](docs/parameter-index.md#core)
+- `_include` / `global._includes`: [описание + примеры merge](docs/parameter-index.md#core)
+- `containers` / `envVars` / `secretEnvVars`: [описание + примеры](docs/parameter-index.md#containers-envconfig)
 
 ## Для контрибьюторов библиотеки
 

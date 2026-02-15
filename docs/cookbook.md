@@ -1,9 +1,26 @@
 # Helm Apps Library Cookbook
+<a id="top"></a>
 
 Готовые рецепты для типовых сценариев.
 Все примеры можно адаптировать под ваш `global._includes`.
 
+Быстрая навигация:
+- [Старт docs](README.md)
+- [Parameter Index](parameter-index.md)
+- [Reference](reference-values.md)
+
+Оглавление (часто используемое):
+- [1. Базовый HTTP API](#1-базовый-http-api-stateless)
+- [2. API + Ingress + TLS](#2-api--ingress--tls)
+- [4. CronJob](#4-cronjob)
+- [6. Секреты через secretEnvVars](#6-секреты-через-secretenvvars)
+- [9. configFilesYAML](#9-yaml-конфиг-с-env-override-configfilesyaml)
+- [10. HPA](#10-hpa-для-api)
+- [11. ServiceAccount + ClusterRole](#11-serviceaccount--clusterrole)
+- [20. Как использовать cookbook](#20-как-использовать-cookbook)
+
 ## 1. Базовый HTTP API (stateless)
+<a id="example-basic-api"></a>
 
 ```yaml
 apps-stateless:
@@ -39,7 +56,11 @@ apps-stateless:
           targetPort: 8080
 ```
 
+Параметры: [containers](reference-values.md#param-containers), [service](reference-values.md#param-service), [envVars](reference-values.md#param-envvars)
+Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
+
 ## 2. API + Ingress + TLS
+<a id="example-ingress-tls"></a>
 
 ```yaml
 apps-ingresses:
@@ -58,6 +79,9 @@ apps-ingresses:
     tls:
       enabled: true
 ```
+
+Параметры: [ingress](reference-values.md#param-ingress), [global.env](reference-values.md#param-global-env)
+Навигация: [Parameter Index](parameter-index.md#networking-and-scaling) | [Наверх](#top)
 
 ## 3. Worker без Service
 
@@ -79,6 +103,7 @@ apps-stateless:
 ```
 
 ## 4. CronJob
+<a id="example-cronjob"></a>
 
 ```yaml
 apps-cronjobs:
@@ -95,6 +120,9 @@ apps-cronjobs:
         envVars:
           LOG_LEVEL: info
 ```
+
+Параметры: [containers](reference-values.md#param-containers), [global._includes/_include](reference-values.md#param-global-includes)
+Навигация: [Parameter Index](parameter-index.md#core) | [Наверх](#top)
 
 ## 5. One-shot Job (migration)
 
@@ -113,6 +141,7 @@ apps-jobs:
 ```
 
 ## 6. Секреты через `secretEnvVars`
+<a id="example-secretenvvars"></a>
 
 ```yaml
 apps-stateless:
@@ -130,7 +159,11 @@ apps-stateless:
             production: prod-secret
 ```
 
+Параметры: [secretEnvVars](reference-values.md#param-secretenvvars)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
 ## 7. Из внешнего Secret через `fromSecretsEnvVars`
+<a id="example-fromsecretsenvvars"></a>
 
 ```yaml
 apps-stateless:
@@ -147,7 +180,11 @@ apps-stateless:
             APP_API_TOKEN: api_token
 ```
 
+Параметры: [fromSecretsEnvVars](reference-values.md#param-fromsecretsenvvars)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
 ## 8. Файлы конфигурации (ConfigMap mount)
+<a id="example-configfiles"></a>
 
 ```yaml
 apps-stateless:
@@ -166,7 +203,11 @@ apps-stateless:
               events { worker_connections 1024; }
 ```
 
+Параметры: [configFiles](reference-values.md#param-configfiles)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
 ## 9. YAML-конфиг с env override (`configFilesYAML`)
+<a id="example-configfilesyaml"></a>
 
 ```yaml
 apps-stateless:
@@ -191,7 +232,11 @@ apps-stateless:
                   production: 300
 ```
 
+Параметры: [configFilesYAML](reference-values.md#param-configfilesyaml), [global.env](reference-values.md#param-global-env)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
 ## 10. HPA для API
+<a id="example-hpa"></a>
 
 ```yaml
 apps-stateless:
@@ -221,7 +266,11 @@ apps-stateless:
           averageUtilization: 80
 ```
 
+Параметры: [horizontalPodAutoscaler](reference-values.md#param-hpa), [hpa.metrics](reference-values.md#param-hpa-metrics)
+Навигация: [Parameter Index](parameter-index.md#networking-and-scaling) | [Наверх](#top)
+
 ## 11. ServiceAccount + ClusterRole
+<a id="example-serviceaccount"></a>
 
 ```yaml
 apps-stateless:
@@ -244,7 +293,11 @@ apps-stateless:
             verbs: ["get"]
 ```
 
+Параметры: [serviceAccount](reference-values.md#param-serviceaccount)
+Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
+
 ## 12. Stateful сервис с PVC
+<a id="example-stateful-pvc"></a>
 
 ```yaml
 apps-stateful:
@@ -329,6 +382,7 @@ payment:
 ```
 
 ## 16. Рецепт с `_default` + regex env
+<a id="example-global-env"></a>
 
 ```yaml
 apps-stateless:
@@ -348,6 +402,9 @@ apps-stateless:
             _default: "false"
             "^dev-.*$": "true"
 ```
+
+Параметры: [global.env](reference-values.md#param-global-env), [envVars](reference-values.md#param-envvars)
+Навигация: [Parameter Index](parameter-index.md#core) | [Наверх](#top)
 
 ## 17. apps-infra: NodeUser
 
@@ -406,6 +463,9 @@ apps-custom-prometheus-rules:
 5. Прогоните `helm template` с нужным окружением через `global.env`.
 
 Связанные документы:
-- `docs/library-guide.md`
-- `docs/reference-values.md`
-- `tests/.helm/values.yaml`
+- [docs/library-guide.md](library-guide.md)
+- [docs/reference-values.md](reference-values.md)
+- [docs/parameter-index.md](parameter-index.md)
+- [tests/.helm/values.yaml](../tests/.helm/values.yaml)
+
+Навигация: [Наверх](#top)

@@ -1,10 +1,24 @@
 # Helm Apps Library Operations Playbook
+<a id="top"></a>
 
 Документ для эксплуатации и поддержки деплоев на `helm-apps`:
 - как быстро диагностировать проблемы;
 - как локализовать источник ошибки;
 - какие команды и чеклисты использовать в CI/CD и при релизах;
 - как откатываться безопасно.
+
+Быстрая навигация:
+- [Старт docs](README.md)
+- [Parameter Index](parameter-index.md)
+- [Reference](reference-values.md)
+
+Оглавление:
+- [2. Быстрый triage](#2-быстрый-triage-по-слоям)
+- [3. Команды диагностики](#3-стандартные-команды-диагностики)
+- [4. Частые ошибки](#4-частые-ошибки-и-что-делать)
+- [5. Чеклист перед merge](#5-чеклист-изменения-values-перед-merge)
+- [6. Чеклист релиза](#6-чеклист-релиза)
+- [7. Rollback стратегия](#7-rollback-стратегия)
 
 ## 1. Operational Mindset
 
@@ -80,6 +94,8 @@ helm template my-app .helm --set global.env=prod
 - ingress controller events;
 - метрики HPA/VPA.
 
+Навигация: [Наверх](#top)
+
 ## 3. Стандартные команды диагностики
 
 ### 3.1 Helm
@@ -106,6 +122,8 @@ kubectl -n <ns> get events --sort-by=.metadata.creationTimestamp
 kubectl -n <ns> get endpoints <service-name>
 kubectl -n <ns> describe ingress <ingress-name>
 ```
+
+Навигация: [Наверх](#top)
 
 ## 4. Частые ошибки и что делать
 
@@ -200,6 +218,8 @@ __GroupVars__:
 2. Проверить policy.
 3. Согласовать autoscaling стратегию.
 
+Навигация: [Reference](reference-values.md) | [Parameter Index](parameter-index.md) | [Наверх](#top)
+
 ## 5. Чеклист изменения values перед merge
 
 1. Изменения проходят schema (`helm lint`).
@@ -209,6 +229,8 @@ __GroupVars__:
 5. Для ingress/service проверены имена backend и порты.
 6. Для секретов исключены plaintext утечки в git (используйте `secret-values` или внешние хранилища).
 7. Для HPA/VPA согласованы min/max/updateMode и metrics.
+
+Навигация: [Наверх](#top)
 
 ## 6. Чеклист релиза
 
@@ -221,6 +243,8 @@ __GroupVars__:
 - ServiceAccount/RBAC.
 4. Подготовлен rollback-план.
 
+Навигация: [Наверх](#top)
+
 ## 7. Rollback стратегия
 
 При регрессии:
@@ -231,6 +255,8 @@ __GroupVars__:
 Рекомендации:
 - держите small-batch изменения в values;
 - не смешивайте в одном MR массовый refactor и функциональные изменения.
+
+Навигация: [Наверх](#top)
 
 ## 8. Incident response шаблон
 
@@ -274,3 +300,5 @@ __GroupVars__:
 - Концепция: `docs/library-guide.md`
 - Reference: `docs/reference-values.md`
 - Cookbook: `docs/cookbook.md`
+
+Навигация: [Наверх](#top)
