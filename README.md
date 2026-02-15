@@ -5,7 +5,9 @@
 `helm-apps` позволяет описывать приложения через `values.yaml` без копирования шаблонов между сервисами.
 Логика рендера централизована в библиотеке, а сервисные репозитории хранят только конфигурацию.
 
-> :warning: На текущий момент основной и проверенный сценарий использования — через [werf](https://werf.io).
+> Библиотека полностью поддерживает Helm и совместима с werf.  
+> Практически, для командного daily workflow werf часто удобнее: он объединяет рендер и процесс поставки в единый поток, снижая количество ручных шагов в CI/CD.  
+> При этом весь функционал библиотеки доступен и через чистый Helm.
 
 ## Зачем использовать библиотеку
 
@@ -61,8 +63,8 @@ dependencies:
 ### 3. Обновить зависимости
 
 ```bash
-werf helm repo add --force-update helm-apps https://alvnukov.github.io/helm-apps
-werf helm dependency update .helm
+helm repo add --force-update helm-apps https://alvnukov.github.io/helm-apps
+helm dependency update .helm
 ```
 
 ### 4. Описать приложение в values
@@ -71,6 +73,7 @@ werf helm dependency update .helm
 
 ```yaml
 global:
+  env: prod
   ci_url: example.org
 
 apps-stateless:
@@ -238,7 +241,8 @@ apps-stateless:
 - для env без явного ключа будет использовано `_default: 1` (из `canary._default`).
 
 Практика:
-- всегда проверяйте итоговый рендер в целевом env (`werf render --env=<env>`);
+- окружение передавайте через `global.env`;
+- всегда проверяйте итоговый рендер в целевом env (`helm template ... --set global.env=<env>`);
 - для критичных env-map лучше держать все нужные env-ключи явно в финальном профиле.
 
 #### Пример 5: `_include`-списки конкатенируются
@@ -268,13 +272,13 @@ apps-stateless:
 Для обычных YAML-массивов (не `_include`) merge может быть неочевидным.
 Рекомендация:
 - задавайте такие поля финально в более приоритетном include или локально в app;
-- для сложных структур используйте проверку через `werf render`.
+- для сложных структур используйте проверку через `helm template`.
 
 ### 5. Проверить рендер
 
 ```bash
 helm lint .helm
-werf render --env=prod --dev
+helm template my-app .helm --set global.env=prod
 ```
 
 ## Маршрут по документации

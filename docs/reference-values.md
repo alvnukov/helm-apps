@@ -27,7 +27,6 @@
 - произвольные custom-группы с `__GroupVars__`
 
 Служебные ключи, которые могут появляться в merged values:
-- `werf`
 - `helm-apps`
 
 ## 2. `global`

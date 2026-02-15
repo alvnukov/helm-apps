@@ -403,10 +403,9 @@ apps-custom-prometheus-rules:
 2. Скопируйте блок в `values.yaml`.
 3. Подключите ваш include-профиль.
 4. Добавьте env-overrides.
-5. Прогоните `werf render`.
+5. Прогоните `helm template` с нужным окружением через `global.env`.
 
 Связанные документы:
 - `docs/library-guide.md`
 - `docs/reference-values.md`
 - `tests/.helm/values.yaml`
-

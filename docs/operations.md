@@ -46,7 +46,7 @@ helm lint tests/.helm --values tests/.helm/values.yaml
 Проверки:
 
 ```bash
-werf render --env=prod --dev
+helm template my-app .helm --set global.env=prod
 ```
 
 Если рендер падает:
@@ -82,12 +82,12 @@ werf render --env=prod --dev
 
 ## 3. Стандартные команды диагностики
 
-### 3.1 Helm/Werf
+### 3.1 Helm
 
 ```bash
-werf helm dependency update .helm
+helm dependency update .helm
 helm lint .helm
-werf render --env=prod --dev
+helm template my-app .helm --set global.env=prod
 ```
 
 ### 3.2 Kubernetes runtime
@@ -203,7 +203,7 @@ __GroupVars__:
 ## 5. Чеклист изменения values перед merge
 
 1. Изменения проходят schema (`helm lint`).
-2. Изменения рендерятся в target env (`werf render --env=<env> --dev`).
+2. Изменения рендерятся в target env (`helm template ... --set global.env=<env>`).
 3. Проверены include-конфликты и приоритет override.
 4. Для env-ключей нет неоднозначных regex.
 5. Для ingress/service проверены имена backend и порты.
@@ -247,7 +247,7 @@ __GroupVars__:
 
 ## 9. Hardening practices
 
-1. Обязательный `helm lint` + `werf render` в CI.
+1. Обязательный `helm lint` + `helm template` в CI.
 2. Обязательный code-review для include-профилей.
 3. Запрет на “широкие” regex для env без необходимости.
 4. Разделение common include-профилей по доменам:
@@ -274,4 +274,3 @@ __GroupVars__:
 - Концепция: `docs/library-guide.md`
 - Reference: `docs/reference-values.md`
 - Cookbook: `docs/cookbook.md`
-
