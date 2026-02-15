@@ -1,0 +1,7 @@
+apiVersion: v2
+name: contracts
+version: 1.0.0
+dependencies:
+  - name: helm-apps
+    repository: "file://../../charts/helm-apps/"
+    version: ~1
