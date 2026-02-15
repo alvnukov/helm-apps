@@ -1,24 +1,19 @@
-name: Release Charts
+name: CI
 
 on:
+  pull_request:
   push:
-    branches:
+    branches-ignore:
       - main
-  workflow_dispatch:
 
 jobs:
-  release:
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v2
         with:
           fetch-depth: 0
-
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
 
       - name: Set lib version
         run: |
@@ -52,7 +47,7 @@ jobs:
           source $(werf ci-env github --as-file)
           cd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod
 
-      - name: Test render
+      - name: Test render snapshot
         run: |
           set -e
           source $(werf ci-env github --as-file)
@@ -61,20 +56,29 @@ jobs:
           check_tests=$(sed 1,7d /tmp/test_render_check | wc -l)
           if [ $check_tests -gt "7" ]; then exit 1; fi
 
-      - name: Run chart-releaser
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: helm/chart-releaser-action@v1.4.0
-        with:
-          charts_dir: charts
-          config: cr.yaml
-        env:
-          CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+      - name: Update contract chart dependencies
+        run: |
+          helm dependency update tests/contracts
 
-#    - name: Publish to CR
-#      env:
-#        CR_PAT: ${{ secrets.CR_PAT }}
-#      run: |
-#        echo $CR_PAT | helm registry login -u alvnukov  --password-stdin ghcr.io
-#        find .cr-release-packages -mindepth 1 -maxdepth 1 -type f -name '*.tgz' -exec sh -c 'basename "$0"' '{}' \; | while read PACKAGE; do
-#        helm push .cr-release-packages/$PACKAGE oci://ghcr.io/${GITHUB_REPOSITORY}
-#        done
+      - name: Contract test for include merge behavior
+        run: |
+          set -euo pipefail
+          helm template contracts tests/contracts > /tmp/contracts_render.yaml
+
+          # Include order override and local override precedence.
+          grep -q '"A": "2"' /tmp/contracts_render.yaml
+          grep -q '"LOCAL": "ok"' /tmp/contracts_render.yaml
+          grep -q '"key2": "local-value-2"' /tmp/contracts_render.yaml
+
+          # Recursive merge and _include list concatenation from base-a/base-b.
+          grep -q '"key1": "value-1"' /tmp/contracts_render.yaml
+          grep -q '"fromBaseA": "A"' /tmp/contracts_render.yaml
+          grep -q '"fromBaseB": "B"' /tmp/contracts_render.yaml
+
+          # Env-map behavior:
+          # production resolves explicit env key from base profile.
+          grep -q '"ENV_SWITCH": "base-production"' /tmp/contracts_render.yaml
+
+          # non-production resolves _default from higher-priority include.
+          helm template contracts tests/contracts --set global.env=dev > /tmp/contracts_render_dev.yaml
+          grep -q '"ENV_SWITCH": "override-default"' /tmp/contracts_render_dev.yaml

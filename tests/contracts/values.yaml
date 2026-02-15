@@ -1,0 +1,39 @@
+global:
+  env: production
+  _includes:
+    base-a:
+      data:
+        fromBaseA: "A"
+    base-b:
+      data:
+        fromBaseB: "B"
+    profile-base:
+      enabled: true
+      _include: ["base-a"]
+      envVars:
+        A: "1"
+        ENV_SWITCH:
+          _default: "base-default"
+          production: "base-production"
+      data:
+        key1: "value-1"
+        key2: "base-value-2"
+    profile-override:
+      _include: ["base-b"]
+      envVars:
+        A: "2"
+        ENV_SWITCH:
+          _default: "override-default"
+      data:
+        key2: "override-value-2"
+        key4: "value-4"
+
+apps-configmaps:
+  merge-contract:
+    _include: ["profile-base", "profile-override"]
+    enabled: true
+    envVars:
+      LOCAL: "ok"
+    data:
+      key2: "local-value-2"
+      key3: "value-3"
