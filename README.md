@@ -1,102 +1,88 @@
-## Репозиторий библиотеки для развертывания приложений в Kubernetes.
-1. Позволяет:
-   *  упростить структуру описания приложения.
-   *  переиспользовать шаблоны одного приложения для множества других
-2. Ускоряет:
-   * процесс ревью изменений приложения за счет стандартизирования подхода и уменьшению количества кода.
-   * развертывание новых приложений за счет лаконичного синтаксиса, сокращения повторяемого кода
-   * редактирование и добавление новых ресурсов к приложению
-3. Упрощает:
-   * работу с сущностями Kubernetes (не нужно описывать все поля приложения, не нужно думать как правильно выглядит конструкции сущностей).
-   * связывание сущностей Kubernetes за счет использования хелперов
+# Helm Apps Library
 
->  :warning: **На данный момент корректная работа чартов гарантируется только с утилитой** [**Werf**](https://werf.io)
+Библиотека Helm-шаблонов для стандартизированного деплоя приложений в Kubernetes.
 
-## Для подключения библиотеки необходимо:
-### Инструкция по использованию
-#### Использовать пример:
-* Скопировать содержимое папки [docs/example](/docs/example) в корень нового проекта
-* настроить файлы под свой проект
-#### Вручную:
-* Добавить в .gitlab-ci.yml строку подключения библиотеки общих чартов
-  ```bash
-     werf helm repo add --force-update  helm-apps https://alvnukov.github.io/helm-apps
-  ```
-  + к примеру так:
-    ```yaml
-    before_script:
-    - type trdl && source $(trdl use werf ${WERF_VERSION:-1.2 ea})
-    - type werf && source $(werf ci-env gitlab --as-file)
-    - werf helm repo add --force-update  helm-apps https://alvnukov.github.io/helm-apps
-    ```
-    у себя на компьютере добавляем репозиторий helm-apps:
-    ```yaml
-    werf helm repo add --force-update  helm-apps https://alvnukov.github.io/helm-apps
-    ```
-    и обновляем зависимости:
-    ```yaml
-    werf helm dependency update .helm
-    ```
-* Добавить в папку .helm/templates файл [init-helm-apps.yaml](tests/.helm/templates/init-helm-apps.yaml) для инициализаци библиотеки, содержимое файла:
-  ```yaml
-    {{- /* Подключаем библиотеку */}}
-    {{- include "apps-utils.init-library" $ }}
-  ```
-* В Chart.yaml в секцию **dependencies**:
-  ```yaml
-  apiVersion: v2
-  name: test-app
-  version: 1.0.0
-  dependencies:
+`helm-apps` позволяет описывать приложения через `values.yaml` без копирования шаблонов между сервисами.
+Логика рендера централизована в библиотеке, а сервисные репозитории хранят только конфигурацию.
+
+> :warning: На текущий момент основной и проверенный сценарий использования — через [werf](https://werf.io).
+
+## Зачем использовать библиотеку
+
+- Единый стандарт деплоя для всех сервисов команды.
+- Меньше копипаста и ручных Kubernetes-манифестов.
+- Быстрее ревью: одинаковая структура конфигов между проектами.
+- Переиспользование через `_include` и `global._includes`.
+- Поддержка окружений (`_default`, env overrides, regex env keys).
+- Поддержка связанных ресурсов (Service, Ingress, ConfigMap, Secret, HPA, VPA, PDB и др.) в одной модели.
+
+## Какие ресурсы поддерживаются
+
+- `apps-stateless` (`Deployment`)
+- `apps-stateful` (`StatefulSet`)
+- `apps-jobs` (`Job`)
+- `apps-cronjobs` (`CronJob`)
+- `apps-services` (`Service`)
+- `apps-ingresses` (`Ingress`)
+- `apps-configmaps` (`ConfigMap`)
+- `apps-secrets` (`Secret`)
+- `apps-pvcs` (`PersistentVolumeClaim`)
+- `apps-limit-range` (`LimitRange`)
+- `apps-certificates` (`Certificate`)
+- `apps-dex-clients`, `apps-dex-authenticators`
+- `apps-custom-prometheus-rules`, `apps-grafana-dashboards`
+- `apps-kafka-strimzi`
+- `apps-infra`
+
+## Быстрый старт
+
+### 1. Подключить dependency
+
+В `.helm/Chart.yaml`:
+
+```yaml
+apiVersion: v2
+name: my-app
+version: 1.0.0
+dependencies:
   - name: helm-apps
     version: ~1
     repository: "@helm-apps"
-  ```
-* В [values.yaml](docs/example/.helm/values.yaml) отредактировать секцию global._includes с параметрами по умолчанию для хелперов.
+```
 
-На данный момент актуальная документация находится в файле  [tests/.helm/values.yaml](tests/.helm/values.yaml). Ведется дополнительная работа над созданием расширенной версии документации.
+### 2. Добавить инициализацию библиотеки
 
-[О хелперах]( docs/usage.md)
+Создать `.helm/templates/init-helm-apps-library.yaml`:
 
-## Пример простейшего деплоймента Nginx на библиотеке:
-<details>
-<summary>values.yaml секция приложений</summary>
+```yaml
+{{- include "apps-utils.init-library" $ }}
+```
+
+### 3. Обновить зависимости
+
+```bash
+werf helm repo add --force-update helm-apps https://alvnukov.github.io/helm-apps
+werf helm dependency update .helm
+```
+
+### 4. Описать приложение в values
+
+Минимальный пример:
 
 ```yaml
 global:
-  ci_url: example.com
-# ...
+  ci_url: example.org
+
 apps-stateless:
-  # Приложение из примера в документации
-  nginx:
+  api:
     _include: ["apps-stateless-defaultApp"]
-    replicas: 1
     containers:
-      nginx:
+      main:
         image:
           name: nginx
         ports: |
           - name: http
             containerPort: 80
-        configFiles:
-          default.conf:
-            mountPath: /etc/nginx/templates/default.conf.template
-            content: |
-              server {
-                listen         80 default_server;
-                listen         [::]:80 default_server;
-                server_name    {{ $.Values.global.ci_url }} {{ $.Values.global.ci_url }};
-                root           /var/www/{{ $.Values.global.ci_url }};
-                index          index.html;
-                try_files $uri /index.html;
-                location / {
-                  proxy_set_header Authorization "Bearer ${SECRET_TOKEN}";
-                  proxy_pass_header Authorization;
-                  proxy_pass https://backend:3000;
-                }
-              }
-        secretEnvVars:
-          SECRET_TOKEN: "!!!secret-token-for-backend!!!"
     service:
       enabled: true
       ports: |
@@ -104,240 +90,213 @@ apps-stateless:
           port: 80
 
 apps-ingresses:
-  nginx:
+  api:
     _include: ["apps-ingresses-defaultIngress"]
-    host:  '{{ $.Values.global.ci_url }}'
+    host: "{{ $.Values.global.ci_url }}"
     paths: |
       - path: /
         pathType: Prefix
         backend:
           service:
-            name: nginx
+            name: api
             port:
               number: 80
     tls:
       enabled: true
 ```
-</details>
-<details>
-<summary>Сгенерирует следующее...</summary>
+
+## Ключевая механика: `global._includes` и рекурсивный merge
+
+`global._includes` — это библиотека переиспользуемых конфигурационных блоков.
+Приложение подключает их через `_include`, после чего библиотека делает рекурсивный merge.
+
+Базовый пример:
 
 ```yaml
-# Helm Apps Library: apps-stateless.nginx.podDisruptionBudget
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  name: "nginx"
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-  annotations:
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-spec:
-  selector:
-    matchLabels:
-      app: "nginx"
-  maxUnavailable: "15%"
----
-# Helm Apps Library: apps-stateless.nginx.containers.nginx.secretEnvVars
-apiVersion: v1
-kind: Secret
-metadata:
-  name: "envs-containers-nginx-nginx"
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-  annotations:
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-type: Opaque
-data:
-  "SECRET_TOKEN": "ISEhc2VjcmV0LXRva2VuLWZvci1iYWNrZW5kISEh"
----
-# Helm Apps Library: apps-stateless.nginx.containers.nginx.configFiles.default.conf
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: "config-containers-nginx-nginx-default-conf"
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-  annotations:
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-data:
-  "default.conf": |
-    server {
-      listen         80 default_server;
-      listen         [::]:80 default_server;
-      server_name    example.com example.com;
-      root           /var/www/example.com;
-      index          index.html;
-      try_files $uri /index.html;
-      location / {
-        proxy_set_header Authorization "Bearer ${SECRET_TOKEN}";
-        proxy_pass_header Authorization;
-        proxy_pass https://backend:3000;
-      }
-    }
----
-# Helm Apps Library: apps-stateless.nginx.service
-apiVersion: v1
-kind: Service
-metadata:
-  name: "nginx"
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-  annotations:
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-spec:
-  selector:
-    app: "nginx"
-  ports:
-    - name: http
-      port: 80
----
-# Source: tests/templates/init-flant-apps-library.yaml
-# Helm Apps Library: apps-stateless.nginx
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: "nginx"
-  annotations:
-    checksum/config: "19812d5210967fd69097dc991263af171c4071ebb455357bd49be2a0ca05acdd"
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-spec:
-  strategy:
-    rollingUpdate:
-      maxSurge: 20%
-      maxUnavailable: 50%
-    type: RollingUpdate
-  template:
-    metadata:
-      name: "nginx"
-      annotations:
-        checksum/config: "19812d5210967fd69097dc991263af171c4071ebb455357bd49be2a0ca05acdd"
-      labels:
-        app: "nginx"
-        chart: "tests"
-        repo: ""
-    spec:
+global:
+  _includes:
+    profile-base:
+      replicas: 2
+      service:
+        enabled: true
+        ports: |
+          - name: http
+            port: 80
       containers:
-        - name: "nginx"
-          image: REPO:TAG
-          envFrom:
-            - secretRef:
-                name: "envs-containers-nginx-nginx"
+        main:
           resources:
-          volumeMounts:
-            - name: "config-containers-nginx-nginx-default-conf"
-              subPath: "default.conf"
-              mountPath: "/etc/nginx/templates/default.conf.template"
-          ports:
-            - name: http
-              containerPort: 80
-      imagePullSecrets:
-        - name: registrysecret
-      volumes:
-        - name: "config-containers-nginx-nginx-default-conf"
-          configMap:
-            name: "config-containers-nginx-nginx-default-conf"
-  selector:
-    matchLabels:
-      app: "nginx"
-  revisionHistoryLimit: 3
-  replicas: 1
----
-# Source: tests/templates/init-flant-apps-library.yaml
-# Helm Apps Library: apps-ingresses.nginx
-apiVersion: networking.k8s.io/v1
-kind: Ingress
-metadata:
-  name: "nginx"
-  annotations:
-    kubernetes.io/ingress.class: "nginx"
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-spec:
-  tls:
-    - secretName: nginx
-  rules:
-    - host: "example.com"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: nginx
-                port:
-                  number: 80
----
-# Helm Apps Library: apps-ingresses.nginx.tls
-apiVersion: cert-manager.io/v1
-kind: Certificate
-metadata:
-  name: nginx
-  annotations:
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-spec:
-  secretName: nginx
-  issuerRef:
-    kind: ClusterIssuer
-    name: letsencrypt
-  dnsNames:
-    - "example.com"
----
-# Helm Apps Library: apps-stateless.nginx.verticalPodAutoscaler
-apiVersion: autoscaling.k8s.io/v1
-kind: VerticalPodAutoscaler
-metadata:
-  name: "nginx"
-  labels:
-    app: "nginx"
-    chart: "tests"
-    repo: ""
-  annotations:
-    project.werf.io/env: ""
-    project.werf.io/name: test
-    werf.io/version: v1.2.162
-spec:
-  targetRef:
-    apiVersion: "apps/v1"
-    kind: Deployment
-    name: "nginx"
-  updatePolicy:
-    updateMode: "Off"
-  resourcePolicy: {}
-```
-</details>
+            requests:
+              mcpu: 100
+              memoryMb: 128
+    profile-prod:
+      replicas: 4
+      containers:
+        main:
+          resources:
+            limits:
+              memoryMb: 512
 
-Самостоятельно можно отрендерить следующей командой:
+apps-stateless:
+  api:
+    _include: ["profile-base", "profile-prod"]
+    containers:
+      main:
+        image:
+          name: nginx
+```
+
+Что важно:
+
+1. Merge рекурсивный: вложенные map-структуры не заменяются целиком, а объединяются по ключам.
+2. Порядок `_include` важен: каждый следующий профиль может переопределять предыдущий.
+3. Локальные поля приложения имеют приоритет над значениями из include-блоков.
+4. Это главный механизм DRY в библиотеке: стандартные профили задаются один раз и переиспользуются во всех сервисах.
+
+### Примеры merge-поведения
+
+#### Пример 1: Рекурсивный merge map
+
+```yaml
+global:
+  _includes:
+    base:
+      service:
+        enabled: true
+        headless: false
+    net:
+      service:
+        ports: |
+          - name: http
+            port: 80
+
+apps-stateless:
+  api:
+    _include: ["base", "net"]
+```
+
+Итог для `api.service`:
+- `enabled: true`
+- `headless: false`
+- `ports: ...`
+
+#### Пример 2: Порядок include (последний имеет приоритет)
+
+```yaml
+global:
+  _includes:
+    base:
+      replicas: 2
+    prod:
+      replicas: 5
+
+apps-stateless:
+  api:
+    _include: ["base", "prod"]
+```
+
+Итог: `replicas: 5`.
+
+#### Пример 3: Локальный override сильнее include
+
+```yaml
+global:
+  _includes:
+    base:
+      replicas: 2
+
+apps-stateless:
+  api:
+    _include: ["base"]
+    replicas: 3
+```
+
+Итог: `replicas: 3`.
+
+#### Пример 4: Env-map (`_default`) как атомарный блок
+
+Для значений окружений используйте один полный блок в более приоритетном месте:
+
+```yaml
+global:
+  _includes:
+    base:
+      replicas:
+        _default: 2
+        production: 4
+    canary:
+      replicas:
+        _default: 1
+        production: 2
+
+apps-stateless:
+  api:
+    _include: ["base", "canary"]
+```
+
+Итог: берется блок `canary.replicas`, то есть:
+- `_default: 1`
+- `production: 2`
+
+Практика: для env-map не “достраивайте” куски из нескольких include, задавайте целиком в одном профиле.
+
+#### Пример 5: `_include`-списки конкатенируются
+
+Если include-профиль сам содержит `_include`, итоговый список объединяется.
+
+```yaml
+global:
+  _includes:
+    profile-a:
+      _include: ["base-a"]
+      replicas: 2
+    profile-b:
+      _include: ["base-b"]
+      service:
+        enabled: true
+
+apps-stateless:
+  api:
+    _include: ["profile-a", "profile-b"]
+```
+
+Итоговый include-chain для `api` объединяет оба списка (`base-a` + `base-b`) и затем применяет локальные поля.
+
+#### Пример 6: Осторожно со списками в include (кроме `_include`)
+
+Для обычных YAML-массивов (не `_include`) merge может быть неочевидным.
+Рекомендация:
+- задавайте такие поля финально в более приоритетном include или локально в app;
+- для сложных структур используйте проверку через `werf render`.
+
+### 5. Проверить рендер
 
 ```bash
-$ cd tests && werf render --dev --set "apps-ingresses.nginx.enabled=true" --set "apps-stateless.nginx.enabled=true"
+helm lint .helm
+werf render --env=prod --dev
 ```
+
+## Маршрут по документации
+
+Стартовая точка:
+- [docs/README.md](docs/README.md)
+
+Подробные документы:
+- Концепция и архитектура: [docs/library-guide.md](docs/library-guide.md)
+- Полный справочник полей: [docs/reference-values.md](docs/reference-values.md)
+- Готовые шаблоны для типовых сценариев: [docs/cookbook.md](docs/cookbook.md)
+- Эксплуатация, triage, rollback: [docs/operations.md](docs/operations.md)
+- Краткие правила helper-паттернов: [docs/usage.md](docs/usage.md)
+
+Практические артефакты:
+- Полный рабочий пример values: [tests/.helm/values.yaml](tests/.helm/values.yaml)
+- JSON Schema валидации values: [tests/.helm/values.schema.json](tests/.helm/values.schema.json)
+- Готовый пример проекта: [docs/example](docs/example)
+
+## Для контрибьюторов библиотеки
+
+При изменении возможностей библиотеки обновляйте синхронно:
+
+1. шаблоны в `charts/helm-apps/templates`;
+2. примеры в `tests/.helm/values.yaml`;
+3. схему в `tests/.helm/values.schema.json`;
+4. документацию в `docs/reference-values.md` и `docs/cookbook.md`.
