@@ -231,6 +231,9 @@
         "sharedEnvSecrets": {
           "$ref": "#/$defs/sharedEnvSecretsSelection"
         },
+        "sharedEnvConfigMaps": {
+          "$ref": "#/$defs/sharedEnvConfigMapsSelection"
+        },
         "resources": {
           "$ref": "#/$defs/resources"
         },
@@ -461,6 +464,27 @@
       "description": "List of apps-secrets names to mount via envFrom.secretRef.",
       "items": {
         "$ref": "#/$defs/sharedEnvSecretNameValue"
+      }
+    },
+    "sharedEnvConfigMapNameValue": {
+      "description": "ConfigMap name or env-map of ConfigMap names.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "sharedEnvConfigMapsSelection": {
+      "type": "array",
+      "description": "List of apps-configmaps names to mount via envFrom.configMapRef.",
+      "items": {
+        "$ref": "#/$defs/sharedEnvConfigMapNameValue"
       }
     },
     "app": {

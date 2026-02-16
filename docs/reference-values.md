@@ -340,6 +340,7 @@ containers:
 
 Поддерживаемые поля контейнера:
 <a id="param-envvars"></a>
+<a id="param-sharedenvconfigmaps"></a>
 <a id="param-sharedenvsecrets"></a>
 <a id="param-secretenvvars"></a>
 <a id="param-fromsecretsenvvars"></a>
@@ -354,6 +355,7 @@ containers:
 - `envVars`
 - `envYAML`
 - `env`
+- `sharedEnvConfigMaps` (список имён ConfigMap из `apps-configmaps`, подключается как `envFrom.configMapRef`)
 - `sharedEnvSecrets` (список имён Secret из `apps-secrets`, подключается как `envFrom.secretRef`)
 - `envFrom`
 - `secretEnvVars`
@@ -402,14 +404,45 @@ sharedEnvSecrets:
 - `sharedEnvSecrets` указывается только на уровне контейнера (`containers.*` / `initContainers.*`);
 - Secret может быть как из текущего релиза, так и внешним (из другого релиза/namespace), если имя известно.
 
-Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+### 5.2 `sharedEnvConfigMaps`
+
+Назначение:
+- подключить один или несколько общих ConfigMap в env контейнера через `envFrom`;
+- избежать дублирования `envFrom` между приложениями.
+
+Формат:
+
+```yaml
+sharedEnvConfigMaps:
+  - common-runtime-cm
+  - platform-observability-cm
+```
+
+Типы значений:
+- элемент списка: `string`;
+- также поддерживается env-map со строковыми значениями (для env-aware выбора имени ConfigMap).
+
+Пример env-map:
+
+```yaml
+sharedEnvConfigMaps:
+  - _default: common-runtime-cm
+    production: common-runtime-cm-prod
+```
+
+Важно:
+- `sharedEnvConfigMaps` указывается только на уровне контейнера (`containers.*` / `initContainers.*`);
+- ConfigMap может быть как из текущего релиза, так и внешним (из другого релиза/namespace), если имя известно.
 
 Порядок объединения `envFrom`-источников (низкий -> высокий приоритет):
+- `sharedEnvConfigMaps`
 - `sharedEnvSecrets`
 - `envFrom`
 - auto-secret из `secretEnvVars`
 
-Это сохраняет прежнее поведение старых опций (`envFrom -> secretEnvVars`) и добавляет `sharedEnvSecrets` как базовый слой.
+Это сохраняет прежнее поведение старых опций (`envFrom -> secretEnvVars`) и добавляет `sharedEnvConfigMaps`/`sharedEnvSecrets` как базовый слой.
+
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
 ## 6. Env-паттерн
 <a id="param-global-env"></a>
@@ -573,11 +606,14 @@ secretConfigFiles:
 ## 14. Прочие `apps-*` секции
 
 ### 14.1 `apps-configmaps`
+<a id="param-apps-configmaps"></a>
 
 Поля app:
 - `data`
 - `binaryData`
 - `envVars`
+
+Часто используется как источник для `sharedEnvConfigMaps` в контейнерах.
 
 ### 14.2 `apps-secrets`
 <a id="param-apps-secrets"></a>
@@ -769,6 +805,7 @@ data:
 | `global.env` | `string` | Выбирает env-значение из map (`_default`, `production`, regex).
 | `replicas`, `enabled`, `werfWeight`, `priorityClassName` | scalar или env-map scalar | Резолвится через `fl.value` как скаляр.
 | `envVars.<KEY>` / `secretEnvVars.<KEY>` | scalar или env-map scalar | Рендерится как env var value.
+| `sharedEnvConfigMaps[]` | `string` или env-map string | Преобразуется в `envFrom.configMapRef.name` на уровне контейнера.
 | `sharedEnvSecrets[]` | `string` или env-map string | Преобразуется в `envFrom.secretRef.name` на уровне контейнера.
 | `command`, `args`, `ports`, `envFrom`, `affinity`, `tolerations`, `nodeSelector`, `volumes`, `paths`, `rules`, `resourcePolicy` | string или env-map string | Обычно передаются как YAML block string (`|`) и вставляются в манифест.
 | `horizontalPodAutoscaler.metrics` | string или object | Поддерживает 2 режима: raw YAML строка или map-конфиг метрик.
@@ -778,7 +815,7 @@ data:
 
 Практика:
 - если поле описано как Kubernetes-блок, используйте YAML строку (`|`);
-- native YAML list в values запрещены, кроме явно разрешенных путей (`_include`, `_include_files`, `*.containers.*.sharedEnvSecrets`, `*.initContainers.*.sharedEnvSecrets` и т.д.);
+- native YAML list в values запрещены, кроме явно разрешенных путей (`_include`, `_include_files`, `*.containers.*.sharedEnvConfigMaps`, `*.initContainers.*.sharedEnvConfigMaps`, `*.containers.*.sharedEnvSecrets`, `*.initContainers.*.sharedEnvSecrets` и т.д.);
 - для env-значений используйте scalar/env-map;
 - итог всегда проверяйте через `helm template ... --set global.env=<env>`.
 

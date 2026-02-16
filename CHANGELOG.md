@@ -10,6 +10,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.6.6] - 2026-02-16
+
+### Added
+- Container-level shared ConfigMap references via `sharedEnvConfigMaps` list (`envFrom.configMapRef`).
+- Contract examples for reusable `apps-configmaps` + container-level `envFrom` wiring.
+
+### Changed
+- Extended values schema with `sharedEnvConfigMaps` validation (string names / env-map of strings).
+- Native-list guard updated to allow `*.containers.*.sharedEnvConfigMaps` and `*.initContainers.*.sharedEnvConfigMaps`.
+- Documentation expanded with detailed `sharedEnvConfigMaps` contract, precedence, and examples.
+
 ## [1.6.5] - 2026-02-16
 
 ### Changed

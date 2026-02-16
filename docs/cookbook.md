@@ -15,7 +15,8 @@
 - [4. CronJob](#4-cronjob)
 - [6. Секреты через secretEnvVars](#6-секреты-через-secretenvvars)
 - [6.1 Общие Secret через sharedEnvSecrets](#61-общие-secret-через-sharedenvsecrets)
-- [6.2 Приоритет sharedEnvSecrets/envFrom/secretEnvVars](#62-приоритет-sharedenvsecretsenvfromsecretenvvars)
+- [6.2 Общие ConfigMap через sharedEnvConfigMaps](#62-общие-configmap-через-sharedenvconfigmaps)
+- [6.3 Приоритет sharedEnvConfigMaps/sharedEnvSecrets/envFrom/secretEnvVars](#63-приоритет-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvars)
 - [9. configFilesYAML](#9-yaml-конфиг-с-env-override-configfilesyaml)
 - [10. HPA](#10-hpa-для-api)
 - [11. ServiceAccount + ClusterRole](#11-serviceaccount--clusterrole)
@@ -194,7 +195,37 @@ apps-stateless:
 Параметры: [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [apps-secrets](reference-values.md#param-apps-secrets)
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
-## 6.2 Приоритет `sharedEnvSecrets`/`envFrom`/`secretEnvVars`
+## 6.2 Общие ConfigMap через `sharedEnvConfigMaps`
+<a id="example-sharedenvconfigmaps"></a>
+
+```yaml
+apps-configmaps:
+  common-runtime-cm:
+    envVars:
+      APP_MODE: runtime
+      TZ: UTC
+
+apps-stateless:
+  api:
+    _include: ["apps-stateless-defaultApp"]
+    containers:
+      main:
+        image:
+          name: api
+          staticTag: "1.0.0"
+        sharedEnvConfigMaps:
+          - common-runtime-cm
+```
+
+Что важно:
+- `sharedEnvConfigMaps` задается списком;
+- элементы списка должны быть строковыми именами ConfigMap (или env-map со строками);
+- список поддерживается только в `containers.*` / `initContainers.*`.
+
+Параметры: [sharedEnvConfigMaps](reference-values.md#param-sharedenvconfigmaps), [apps-configmaps](reference-values.md#param-apps-configmaps)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
+## 6.3 Приоритет `sharedEnvConfigMaps`/`sharedEnvSecrets`/`envFrom`/`secretEnvVars`
 <a id="example-sharedenvsecrets-priority"></a>
 
 ```yaml
@@ -202,6 +233,10 @@ apps-secrets:
   common-runtime:
     envVars:
       ORDER_KEY: from-shared
+apps-configmaps:
+  common-runtime-cm:
+    envVars:
+      ORDER_KEY: from-shared-cm
   manual-env:
     envVars:
       ORDER_KEY: from-manual
@@ -214,6 +249,8 @@ apps-stateless:
         image:
           name: api
           staticTag: "1.0.0"
+        sharedEnvConfigMaps:
+          - common-runtime-cm
         sharedEnvSecrets:
           - common-runtime
         envFrom: |
@@ -224,13 +261,14 @@ apps-stateless:
 ```
 
 Порядок применения (низкий -> высокий приоритет):
+- `sharedEnvConfigMaps`
 - `sharedEnvSecrets`
 - `envFrom`
 - auto-secret из `secretEnvVars`
 
-Старый контракт сохранен: без `sharedEnvSecrets` поведение `envFrom -> secretEnvVars` не меняется.
+Старый контракт сохранен: без `sharedEnvConfigMaps`/`sharedEnvSecrets` поведение `envFrom -> secretEnvVars` не меняется.
 
-Параметры: [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [envFrom](reference-values.md#param-containers)
+Параметры: [sharedEnvConfigMaps](reference-values.md#param-sharedenvconfigmaps), [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [envFrom](reference-values.md#param-containers)
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
 ## 7. Из внешнего Secret через `fromSecretsEnvVars`

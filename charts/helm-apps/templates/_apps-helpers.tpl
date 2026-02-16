@@ -206,6 +206,9 @@ spec:
     {{- $ := index . 0 }}
     {{- $RelatedScope := index . 1 }}
     {{- with $RelatedScope }}
+    {{- with (include "apps-helpers.generateSharedEnvConfigMapsEnvFrom" (list $ .) | trim) }}
+    {{- . | nindent 0 }}
+    {{- end }}
     {{- with (include "apps-helpers.generateSharedEnvSecretsEnvFrom" (list $ .) | trim) }}
     {{- . | nindent 0 }}
     {{- end }}
@@ -216,6 +219,20 @@ spec:
     name: {{ print "envs-" $.CurrentApp._currentContainersType "-" $.CurrentApp.name "-" .name | include "fl.formatStringAsDNSLabel" | quote }}
     {{- end }}
     {{- end }}
+{{- end }}
+
+{{- define "apps-helpers.generateSharedEnvConfigMapsEnvFrom" }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- if and (hasKey $RelatedScope "sharedEnvConfigMaps") (kindIs "slice" $RelatedScope.sharedEnvConfigMaps) }}
+{{- range $_, $configMapRef := $RelatedScope.sharedEnvConfigMaps }}
+{{- $configMapName := include "fl.value" (list $ $RelatedScope $configMapRef) }}
+{{- if $configMapName }}
+- configMapRef:
+    name: {{ $configMapName | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- define "apps-helpers.generateSharedEnvSecretsEnvFrom" }}

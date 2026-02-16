@@ -40,6 +40,13 @@ _include_files:
   - deployments-values.yaml
 
 apps-configmaps:
+  common-runtime-cm:
+    enabled: true
+    envVars:
+      APP_MODE: runtime
+      APP_ZONE:
+        _default: eu-west-1
+        production: eu-central-1
   merge-contract:
     _include: ["profile-base", "profile-override"]
     enabled: true
@@ -94,6 +101,8 @@ apps-stateless:
               restartPolicy: NotRequired
         sharedEnvSecrets:
           - common-runtime
+        sharedEnvConfigMaps:
+          - common-runtime-cm
     service:
       enabled: true
       type: LoadBalancer

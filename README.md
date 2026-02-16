@@ -393,7 +393,7 @@ helm template my-app .helm --set global.env=prod
 - Индекс параметров: [docs/parameter-index.md](docs/parameter-index.md)
 - `global.env`: [описание + пример](docs/parameter-index.md#core)
 - `_include` / `global._includes`: [описание + примеры merge](docs/parameter-index.md#core)
-- `containers` / `sharedEnvSecrets` / `envFrom` / `secretEnvVars`: [описание + примеры](docs/parameter-index.md#containers-envconfig)
+- `containers` / `sharedEnvConfigMaps` / `sharedEnvSecrets` / `envFrom` / `secretEnvVars`: [описание + примеры](docs/parameter-index.md#containers-envconfig)
 
 ## Для контрибьюторов библиотеки
 

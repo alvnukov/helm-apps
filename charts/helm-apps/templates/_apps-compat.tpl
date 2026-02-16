@@ -88,10 +88,12 @@
   {{- $isAllowedGlobalInclude := regexMatch "^Values\\.global\\._includes\\..*" $pathString -}}
   {{- $isAllowedConfigFilesYAMLContent := regexMatch "^Values\\..*\\.configFilesYAML\\..*\\.content\\..*" $pathString -}}
   {{- $isAllowedEnvYAML := regexMatch "^Values\\..*\\.envYAML\\..*" $pathString -}}
+  {{- $isAllowedContainerSharedEnvConfigMaps := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvConfigMaps$" $pathString -}}
+  {{- $isAllowedInitContainerSharedEnvConfigMaps := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvConfigMaps$" $pathString -}}
   {{- $isAllowedContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
   {{- $isAllowedInitContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
-  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets) -}}
-    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files, global._includes.*, *.configFilesYAML.*.content.*, *.envYAML.*, *.containers.*.sharedEnvSecrets, *.initContainers.*.sharedEnvSecrets, apps-kafka-strimzi.*.kafka.brokers.hosts.*, apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*." (join "." $path)) -}}
+  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedContainerSharedEnvConfigMaps $isAllowedInitContainerSharedEnvConfigMaps $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets) -}}
+    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files, global._includes.*, *.configFilesYAML.*.content.*, *.envYAML.*, *.containers.*.sharedEnvConfigMaps, *.initContainers.*.sharedEnvConfigMaps, *.containers.*.sharedEnvSecrets, *.initContainers.*.sharedEnvSecrets, apps-kafka-strimzi.*.kafka.brokers.hosts.*, apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*." (join "." $path)) -}}
   {{- end -}}
 {{- else if kindIs "map" $value -}}
   {{- range $k, $v := $value -}}

@@ -26,6 +26,7 @@
 | Параметр | Описание | Пример |
 |---|---|---|
 | `envVars` | [Описание](reference-values.md#param-envvars) | [Пример](cookbook.md#example-basic-api) |
+| `sharedEnvConfigMaps` | [Описание](reference-values.md#param-sharedenvconfigmaps) | [Пример](cookbook.md#example-sharedenvconfigmaps) |
 | `sharedEnvSecrets` | [Описание](reference-values.md#param-sharedenvsecrets) | [Пример](cookbook.md#example-sharedenvsecrets) |
 | `envFrom` | [Описание](reference-values.md#param-containers) | [Пример](cookbook.md#example-sharedenvsecrets-priority) |
 | `secretEnvVars` | [Описание](reference-values.md#param-secretenvvars) | [Пример](cookbook.md#example-secretenvvars) |

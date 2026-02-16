@@ -278,7 +278,7 @@ ports: |
 `containers` и `initContainers` поддерживают:
 - image: `name`, `staticTag`, `generateSignatureBasedTag`;
 - process: `command`, `args`, `workingDir`;
-- env: `envVars`, `sharedEnvSecrets`, `secretEnvVars`, `envFrom`, `envYAML`, `fromSecretsEnvVars`;
+- env: `envVars`, `sharedEnvConfigMaps`, `sharedEnvSecrets`, `secretEnvVars`, `envFrom`, `envYAML`, `fromSecretsEnvVars`;
 - resources: `requests/limits` (`mcpu`, `memoryMb`, `ephemeralStorageMb`);
 - configs: `configFiles`, `configFilesYAML`, `secretConfigFiles`;
 - probes/lifecycle/security: `livenessProbe`, `readinessProbe`, `startupProbe`, `lifecycle`, `securityContext`;
@@ -286,11 +286,13 @@ ports: |
 
 Особенности:
 - `secretEnvVars` автоматически создают Secret и подключают его в `envFrom`;
+- `sharedEnvConfigMaps` добавляют общие ConfigMap (из `apps-configmaps`) в `envFrom`;
 - `sharedEnvSecrets` добавляют общие Secret (из `apps-secrets`) в `envFrom`;
 - `configFiles*` автоматически создают ConfigMap/Secret и монтируются в контейнер;
 - `alwaysRestart` добавляет псевдослучайный env `FL_APP_ALWAYS_RESTART`.
 
 Порядок `envFrom`-источников (низкий -> высокий приоритет):
+- `sharedEnvConfigMaps`
 - `sharedEnvSecrets`
 - `envFrom`
 - auto-secret из `secretEnvVars`
@@ -302,18 +304,25 @@ apps-secrets:
   common-runtime:
     envVars:
       TZ: UTC
+apps-configmaps:
+  common-runtime-cm:
+    envVars:
+      APP_MODE: runtime
 
 apps-stateless:
   api:
     containers:
       main:
+        sharedEnvConfigMaps:
+          - common-runtime-cm
         sharedEnvSecrets:
           - common-runtime
 ```
 
 Ограничения:
+- `sharedEnvConfigMaps` задается списком только в контейнере (`containers.*`/`initContainers.*`);
 - `sharedEnvSecrets` задается списком только в контейнере (`containers.*`/`initContainers.*`);
-- элементы списка: строковые имена Secret (допускается env-map со строками).
+- элементы списков: строковые имена ConfigMap/Secret (допускается env-map со строками).
 
 ## 9. Слой Pod/Workload
 

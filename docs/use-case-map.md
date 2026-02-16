@@ -34,15 +34,16 @@
 - Пример: [CronJob](cookbook.md#example-cronjob)
 - Проверки: schedule, backoffLimit, restartPolicy, image tag
 
-## 4. Нужны секреты в env
+## 4. Нужны переменные окружения из ConfigMap/Secret
 
-- Параметры: [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [fromSecretsEnvVars](reference-values.md#param-fromsecretsenvvars)
+- Параметры: [sharedEnvConfigMaps](reference-values.md#param-sharedenvconfigmaps), [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [fromSecretsEnvVars](reference-values.md#param-fromsecretsenvvars)
 - Примеры:
+  - [sharedEnvConfigMaps](cookbook.md#example-sharedenvconfigmaps)
   - [sharedEnvSecrets](cookbook.md#example-sharedenvsecrets)
-  - [priority sharedEnvSecrets/envFrom/secretEnvVars](cookbook.md#example-sharedenvsecrets-priority)
+  - [priority sharedEnvConfigMaps/sharedEnvSecrets/envFrom/secretEnvVars](cookbook.md#example-sharedenvsecrets-priority)
   - [secretEnvVars](cookbook.md#example-secretenvvars)
   - [fromSecretsEnvVars](cookbook.md#example-fromsecretsenvvars)
-- Проверки: отсутствие plaintext в git, корректность ключей в Secret, ожидаемый приоритет `sharedEnvSecrets -> envFrom -> secretEnvVars`
+- Проверки: отсутствие plaintext в git, корректность ключей в Secret/ConfigMap, ожидаемый приоритет `sharedEnvConfigMaps -> sharedEnvSecrets -> envFrom -> secretEnvVars`
 
 ## 5. Нужны файловые конфиги в контейнере
 
