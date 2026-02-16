@@ -237,3 +237,196 @@ apps-routes-contract:
     enabled: true
     host: route.example.com
     service: "compat-service"
+
+apps-stateful:
+  compat-stateful:
+    enabled: true
+    replicas: 1
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        ports: |
+          - name: http
+            containerPort: 8081
+    service:
+      enabled: true
+      ports: |
+        - name: http
+          port: 81
+          targetPort: 8081
+
+apps-cronjobs:
+  compat-cron:
+    enabled: true
+    schedule: "*/10 * * * *"
+    successfulJobsHistoryLimit: 1
+    failedJobsHistoryLimit: 1
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - echo cron
+
+apps-services:
+  compat-standalone-service:
+    enabled: true
+    selector: |
+      app: compat-service
+    ports: |
+      - name: metrics
+        port: 9090
+        targetPort: 9090
+
+apps-limit-range:
+  compat-limit-range:
+    enabled: true
+    limits: |
+      - type: Container
+        default:
+          memory: 256Mi
+        defaultRequest:
+          memory: 128Mi
+
+apps-certificates:
+  compat-certificate:
+    enabled: true
+    host: compat.example.com
+
+apps-dex-authenticators:
+  compat-dex-auth:
+    enabled: true
+    applicationDomain: "compat.example.com"
+    applicationIngressClassName: "nginx"
+    applicationIngressCertificateSecretName: "compat-example-tls"
+    allowedGroups: |
+      - platform-admins
+    sendAuthorizationHeader: "true"
+
+apps-dex-clients:
+  compat-dex-client:
+    enabled: true
+    redirectURIs: |
+      - "https://compat.example.com/callback"
+
+apps-custom-prometheus-rules:
+  compat-rules:
+    enabled: true
+    groups:
+      compat-group:
+        alerts:
+          compat-alert:
+            isTemplate: false
+            content: |
+              expr: vector(1)
+              for: 1m
+              labels:
+                severity_level: "5"
+              annotations:
+                summary: "compat alert"
+
+apps-grafana-dashboards:
+  compat-dashboard:
+    enabled: true
+    folder: "Compatibility"
+
+apps-kafka-strimzi:
+  compat-kafka:
+    enabled: true
+    version: 3.7.0
+    replicas: 1
+    resources:
+      requests:
+        mcpu: 100
+        memoryMb: 512
+      limits:
+        memoryMb: 512
+    jvmOptions: |
+      -Xms: 256m
+      -Xmx: 256m
+    storage:
+      size: 1Gi
+      class: standard
+    exporter:
+      resources:
+        requests:
+          mcpu: 50
+          memoryMb: 128
+        limits:
+          memoryMb: 128
+    zookeeper:
+      replicas: 1
+      resources:
+        requests:
+          mcpu: 100
+          memoryMb: 512
+        limits:
+          memoryMb: 512
+      metricsConfig: |
+        type: jmxPrometheusExporter
+        valueFrom:
+          configMapKeyRef:
+            name: kafka-metrics
+            key: zookeeper.yml
+      jvmOptions: |
+        -Xms: 256m
+        -Xmx: 256m
+      storage:
+        size: 1Gi
+        class: standard
+      affinity: |
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/os
+                    operator: In
+                    values:
+                      - linux
+    entityOperator:
+      topicOperator:
+        resources:
+          requests:
+            mcpu: 50
+            memoryMb: 256
+          limits:
+            memoryMb: 256
+      userOperator:
+        resources:
+          requests:
+            mcpu: 50
+            memoryMb: 256
+          limits:
+            memoryMb: 256
+    topics:
+      compat-topic:
+        partitions: 1
+        replicas: 1
+        retention: 60000
+        segment_bytes: 1048576
+        min_insync_replicas: 1
+
+apps-infra:
+  node-users:
+    compat-user:
+      enabled: true
+      uid: 2001
+      isSudoer: true
+      annotations: |
+        owner: platform
+      labels: |
+        team: platform
+  node-groups:
+    compat-group:
+      enabled: true

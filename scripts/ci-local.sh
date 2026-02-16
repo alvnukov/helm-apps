@@ -162,7 +162,7 @@ if [[ "${RUN_CONTRACTS}" -eq 1 ]]; then
   werf helm dependency update tests/contracts
 
   echo "==> Contract checks"
-  werf helm template contracts tests/contracts > /tmp/contracts_render.yaml
+  werf helm template contracts tests/contracts --set global.env=production > /tmp/contracts_render.yaml
   grep -q '"A": "2"' /tmp/contracts_render.yaml
   grep -q '"LOCAL": "ok"' /tmp/contracts_render.yaml
   grep -q '"key2": "local-value-2"' /tmp/contracts_render.yaml
@@ -193,27 +193,56 @@ if [[ "${RUN_CONTRACTS}" -eq 1 ]]; then
   grep -q 'helm-apps/app-version: "3.19"' /tmp/contracts_render.yaml
   grep -q 'name: "compat-route"' /tmp/contracts_render.yaml
   grep -q 'host: "route.example.com"' /tmp/contracts_render.yaml
+  grep -q '^kind: StatefulSet$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-stateful"' /tmp/contracts_render.yaml
+  grep -q '^kind: CronJob$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-cron"' /tmp/contracts_render.yaml
+  grep -q '^kind: Service$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-standalone-service"' /tmp/contracts_render.yaml
+  grep -q '^kind: LimitRange$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-limit-range"' /tmp/contracts_render.yaml
+  grep -q '^apiVersion: cert-manager.io/v1$' /tmp/contracts_render.yaml
+  grep -q '^kind: Certificate$' /tmp/contracts_render.yaml
+  grep -q 'name: compat-certificate' /tmp/contracts_render.yaml
+  grep -q '^kind: DexAuthenticator$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-dex-auth"' /tmp/contracts_render.yaml
+  grep -q '^kind: DexClient$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-dex-client"' /tmp/contracts_render.yaml
+  grep -q '^kind: CustomPrometheusRules$' /tmp/contracts_render.yaml
+  grep -q 'name: compat-rules' /tmp/contracts_render.yaml
+  grep -q '^kind: GrafanaDashboardDefinition$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-dashboard"' /tmp/contracts_render.yaml
+  grep -q '^kind: Kafka$' /tmp/contracts_render.yaml
+  grep -q 'name: compat-kafka-' /tmp/contracts_render.yaml
+  grep -q '^kind: KafkaTopic$' /tmp/contracts_render.yaml
+  grep -q 'name: compat-topic' /tmp/contracts_render.yaml
+  grep -q '^kind: NodeUser$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-user"' /tmp/contracts_render.yaml
+  grep -q '^kind: NodeGroup$' /tmp/contracts_render.yaml
+  grep -q 'name: "compat-group"' /tmp/contracts_render.yaml
 
-  werf helm template contracts tests/contracts --set global.validation.strict=true > /tmp/contracts_render_strict.yaml
+  werf helm template contracts tests/contracts --set global.env=production --set global.validation.strict=true > /tmp/contracts_render_strict.yaml
   grep -Eq '"custom": ?"ok"|custom: ?"?ok"?' /tmp/contracts_render_strict.yaml
   ! werf helm template contracts tests/contracts \
+    --set global.env=production \
     --set global.validation.strict=true \
     --set apps-network-policies.compat-netpol.typoField=1 >/tmp/contracts_render_strict_fail.yaml
   ! werf helm template contracts tests/contracts \
+    --set global.env=production \
     --set global.validation.strict=true \
     --set apps-typo.bad.enabled=true >/tmp/contracts_render_strict_top_fail.yaml
 
-  werf helm template contracts tests/contracts --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
+  werf helm template contracts tests/contracts --set global.env=production --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
   grep -q 'loadBalancerClass: "internal-vip"' /tmp/contracts_render_129.yaml
   grep -q 'internalTrafficPolicy: "Local"' /tmp/contracts_render_129.yaml
 
-  werf helm template contracts tests/contracts --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
+  werf helm template contracts tests/contracts --set global.env=production --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
   ! grep -q 'loadBalancerClass:' /tmp/contracts_render_120.yaml
   ! grep -q 'internalTrafficPolicy:' /tmp/contracts_render_120.yaml
   grep -q 'ipFamilyPolicy: "SingleStack"' /tmp/contracts_render_120.yaml
   grep -q 'allocateLoadBalancerNodePorts: true' /tmp/contracts_render_120.yaml
 
-  werf helm template contracts tests/contracts --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
+  werf helm template contracts tests/contracts --set global.env=production --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
   ! grep -q 'loadBalancerClass:' /tmp/contracts_render_119.yaml
   ! grep -q 'internalTrafficPolicy:' /tmp/contracts_render_119.yaml
   ! grep -q 'ipFamilyPolicy:' /tmp/contracts_render_119.yaml
@@ -230,11 +259,13 @@ apps-stateless:
           targetPort: 8080
 EOF
   ! werf helm template contracts tests/contracts \
+    --set global.env=production \
     --values /tmp/contracts_invalid_native_list.yaml \
     >/tmp/contracts_invalid_native_list.out 2>/tmp/contracts_invalid_native_list.err
   grep -q "list value is not allowed at Values.apps-stateless.compat-service.service.ports" /tmp/contracts_invalid_native_list.err
 
   werf helm template contracts tests/contracts \
+    --set global.env=production \
     --values tests/contracts/values.internal-compat.yaml > /tmp/contracts_internal_like.yaml
   grep -q 'name: "compat-web"' /tmp/contracts_internal_like.yaml
   grep -q 'image: alpine:1.2.3' /tmp/contracts_internal_like.yaml
