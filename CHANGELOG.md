@@ -10,6 +10,22 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.6.3] - 2026-02-16
+
+### Added
+- Kubernetes compatibility matrix checks in CI for multiple API levels (legacy and current).
+- `kind` + server-side dry-run validation job with compatibility CRDs.
+- Contracts coverage for all built-in `apps-*` entities.
+- Property-based fuzz checks for contracts (`scripts/fuzz-contracts.sh`).
+- Entity coverage gate script (`scripts/check-entity-coverage.sh`) and CI step to enforce coverage.
+- Stability and reliability documentation:
+  - `docs/stability.md`
+  - expanded reliability section in `README.md`.
+
+### Changed
+- README branding improvements (icon + badges).
+- Local CI helper (`scripts/ci-local.sh`) updated to include coverage and fuzz checks.
+
 ## [1.6.0] - 2026-02-16
 
 ### Added

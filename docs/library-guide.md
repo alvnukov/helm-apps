@@ -28,6 +28,8 @@
 ## 2. Что такое helm-apps и зачем его использовать
 
 `helm-apps` это библиотечный Helm chart (`type: library`), который рендерит Kubernetes-ресурсы на основе унифицированной структуры `values.yaml`.
+Под капотом библиотека использует функции `fl.*` из `flant-lib` как базовый helper-слой (value-resolution, labels/annotations, include-паттерны):  
+https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 
 Ключевая идея:
 - логика рендера ресурсов живет в одной библиотеке;
