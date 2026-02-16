@@ -13,7 +13,9 @@
 - [Parameter Index](parameter-index.md)
 - [Reference](reference-values.md)
 - [Cookbook](cookbook.md)
+- [Architecture](architecture.md)
 - [Operations](operations.md)
+- [FAQ](faq.md)
 
 ## 1. Нужен обычный HTTP/API сервис
 
@@ -43,7 +45,7 @@
   - [priority sharedEnvConfigMaps/sharedEnvSecrets/envFrom/secretEnvVars](cookbook.md#example-sharedenvsecrets-priority)
   - [secretEnvVars](cookbook.md#example-secretenvvars)
   - [fromSecretsEnvVars](cookbook.md#example-fromsecretsenvvars)
-- Проверки: отсутствие plaintext в git, корректность ключей в Secret/ConfigMap, ожидаемый приоритет `sharedEnvConfigMaps -> sharedEnvSecrets -> envFrom -> secretEnvVars`
+- Проверки: отсутствие plaintext в git, корректность ключей в Secret/ConfigMap, ожидаемый порядок `envFrom`-слоя `sharedEnvConfigMaps -> sharedEnvSecrets -> envFrom -> secretEnvVars` и приоритет явных `envVars`/`env` поверх `envFrom`
 
 ## 5. Нужны файловые конфиги в контейнере
 
@@ -70,6 +72,7 @@
 
 - Параметры: [global.env](reference-values.md#param-global-env), [_include](reference-values.md#param-include), [global._includes](reference-values.md#param-global-includes)
 - Пример: [env recipe](cookbook.md#example-global-env)
+- Архитектура выбора env: [architecture.md#arch-env-resolution](architecture.md#arch-env-resolution)
 - Проверки:
   - env задается через `global.env`;
   - нет конфликтных regex ключей;
@@ -79,16 +82,28 @@
 
 - Параметры: [global._includes](reference-values.md#param-global-includes), [_include](reference-values.md#param-include)
 - Пример merge: [README merge section](../README.md#example-global-includes-merge)
+- Архитектура merge: [architecture.md#arch-include-priority](architecture.md#arch-include-priority)
 - Проверки:
   - порядок include осознанный;
   - локальные overrides минимальны и понятны;
   - финальный рендер совпадает с ожиданием.
 
-## 10. Быстрый pre-merge чеклист
+## 10. Нужно добавить custom renderer
+
+- Параметры: [custom groups](reference-values.md#param-custom-groups)
+- Концепция: [library-guide.md#param-custom-renderer](library-guide.md#param-custom-renderer)
+- Архитектура: [architecture.md#arch-custom-renderer](architecture.md#arch-custom-renderer)
+- Проверки:
+  - задан `__GroupVars__.type`;
+  - реализован `define "<type>.render"`;
+  - контракт полей в `$.CurrentApp` документирован.
+
+## 11. Быстрый pre-merge чеклист
 
 1. Сверить параметры в [Parameter Index](parameter-index.md).
 2. Прогнать `helm lint`.
 3. Прогнать `helm template ... --set global.env=<env>`.
 4. Проверить соответствующий раздел в [Operations](operations.md).
+5. Проверить релевантные FAQ: [faq.md](faq.md).
 
 Навигация: [Наверх](#top)

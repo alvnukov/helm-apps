@@ -3,10 +3,12 @@
 
 Быстрая навигация:
 - [Старт docs](README.md)
+- [Architecture](architecture.md)
 - [Parameter Index](parameter-index.md)
 - [Reference](reference-values.md)
 - [Cookbook](cookbook.md)
 - [Operations](operations.md)
+- [FAQ](faq.md)
 - [Stability](stability.md)
 
 ## 1. Для кого этот документ
@@ -125,6 +127,7 @@ payment-group:
     __AppType__: apps-ingresses
 ```
 
+<a id="param-custom-renderer"></a>
 ### 4.3 Пользовательские рендер-шаблоны через `__GroupVars__.type`
 
 Можно рендерить собственные сущности через библиотечный цикл `renderApps`.

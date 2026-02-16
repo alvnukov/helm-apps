@@ -16,7 +16,7 @@
 - [6. Секреты через secretEnvVars](#6-секреты-через-secretenvvars)
 - [6.1 Общие Secret через sharedEnvSecrets](#61-общие-secret-через-sharedenvsecrets)
 - [6.2 Общие ConfigMap через sharedEnvConfigMaps](#62-общие-configmap-через-sharedenvconfigmaps)
-- [6.3 Приоритет sharedEnvConfigMaps/sharedEnvSecrets/envFrom/secretEnvVars](#63-приоритет-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvars)
+- [6.3 Порядок источников env](#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars)
 - [9. configFilesYAML](#9-yaml-конфиг-с-env-override-configfilesyaml)
 - [10. HPA](#10-hpa-для-api)
 - [11. ServiceAccount + ClusterRole](#11-serviceaccount--clusterrole)
@@ -225,7 +225,8 @@ apps-stateless:
 Параметры: [sharedEnvConfigMaps](reference-values.md#param-sharedenvconfigmaps), [apps-configmaps](reference-values.md#param-apps-configmaps)
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
-## 6.3 Приоритет `sharedEnvConfigMaps`/`sharedEnvSecrets`/`envFrom`/`secretEnvVars`
+<a id="63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars"></a>
+## 6.3 Порядок источников env (`sharedEnvConfigMaps`/`sharedEnvSecrets`/`envFrom`/`secretEnvVars`/`envVars`)
 <a id="example-sharedenvsecrets-priority"></a>
 
 ```yaml
@@ -260,15 +261,23 @@ apps-stateless:
           ORDER_KEY: from-secret-env-vars
 ```
 
-Порядок применения (низкий -> высокий приоритет):
-- `sharedEnvConfigMaps`
-- `sharedEnvSecrets`
-- `envFrom`
-- auto-secret из `secretEnvVars`
+Порядок формирования (низкий -> высокий приоритет):
+- слой `envFrom`:
+  - `sharedEnvConfigMaps`
+  - `sharedEnvSecrets`
+  - `envFrom`
+  - auto-secret из `secretEnvVars`
+- слой явных `env`-переменных:
+  - `envYAML`
+  - `envVars`
+  - `env`
+  - `fromSecretsEnvVars`
 
-Старый контракт сохранен: без `sharedEnvConfigMaps`/`sharedEnvSecrets` поведение `envFrom -> secretEnvVars` не меняется.
+Важно:
+- для одинакового имени переменной явные `env`-переменные имеют приоритет над источниками из `envFrom` (семантика Kubernetes);
+- старый контракт сохранен: без `sharedEnvConfigMaps`/`sharedEnvSecrets` поведение `envFrom -> secretEnvVars` не меняется.
 
-Параметры: [sharedEnvConfigMaps](reference-values.md#param-sharedenvconfigmaps), [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [envFrom](reference-values.md#param-containers)
+Параметры: [sharedEnvConfigMaps](reference-values.md#param-sharedenvconfigmaps), [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [envVars](reference-values.md#param-envvars), [fromSecretsEnvVars](reference-values.md#param-fromsecretsenvvars), [envFrom](reference-values.md#param-containers)
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
 ## 7. Из внешнего Secret через `fromSecretsEnvVars`

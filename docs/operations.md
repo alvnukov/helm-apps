@@ -11,6 +11,8 @@
 - [Старт docs](README.md)
 - [Parameter Index](parameter-index.md)
 - [Reference](reference-values.md)
+- [Architecture](architecture.md)
+- [FAQ](faq.md)
 
 Оглавление:
 - [2. Быстрый triage](#2-быстрый-triage-по-слоям)

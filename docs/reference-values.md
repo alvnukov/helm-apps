@@ -18,7 +18,7 @@
 - [9. Service block](#9-service-block)
 - [10. Ingress block](#10-ingress-block)
 - [11. Autoscaling blocks](#11-autoscaling-blocks)
-- [17. Cheat sheet](#17-тип-поля---поведение-рендера-cheat-sheet)
+- [17. Cheat sheet](#param-cheat-sheet)
 
 ## 1. Top-level ключи
 
@@ -603,6 +603,7 @@ secretConfigFiles:
 
 Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
 
+<a id="param-apps-sections"></a>
 ## 14. Прочие `apps-*` секции
 
 ### 14.1 `apps-configmaps`
@@ -705,6 +706,7 @@ Dashboard definition читается из `dashboards/<name>.json`.
 - `annotations`
 - `labels`
 
+<a id="param-custom-groups"></a>
 ## 15. Custom-группы
 
 Форма:
@@ -795,6 +797,7 @@ data:
 - Рабочие примеры: [tests/.helm/values.yaml](../tests/.helm/values.yaml)
 - JSON Schema: [tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
 
+<a id="param-cheat-sheet"></a>
 ## 17. Тип поля -> поведение рендера (cheat sheet)
 
 Ниже быстрый справочник по самым частым типам полей.

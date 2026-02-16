@@ -1,63 +1,60 @@
 # Документация Helm Apps Library
 
-Этот файл — точка входа в документацию.
-Если открываете docs впервые, начните отсюда.
+Единая точка входа в документацию библиотеки.
+Цель: быстро привести пользователя от задачи к корректному `values.yaml` и предсказуемому рендеру.
 
-Примечание: библиотека полностью поддерживает `Helm` и совместима с `werf`.  
-На практике `werf` часто удобнее для продуктовых команд, потому что он объединяет рендер и delivery-процесс в один workflow.  
-При этом все сценарии библиотеки доступны через чистый `Helm`.
+## Рекомендуемый маршрут
 
-## Быстрый маршрут (15 минут)
+1. Понять концепцию и границы контрактов: [library-guide.md](library-guide.md)
+2. Посмотреть архитектуру рендера и приоритеты merge/env: [architecture.md](architecture.md)
+3. Взять рабочий рецепт под задачу: [cookbook.md](cookbook.md)
+4. Уточнить параметры и типы: [reference-values.md](reference-values.md)
+5. Найти параметр по индексу: [parameter-index.md](parameter-index.md)
+6. Проверить похожий кейс: [use-case-map.md](use-case-map.md)
+7. Свериться с операционными чеклистами: [operations.md](operations.md)
 
-1. Прочитать концепцию и зачем библиотека нужна: [docs/library-guide.md](library-guide.md)
-2. Взять готовый шаблон под свой сценарий: [docs/cookbook.md](cookbook.md)
-3. Сверить поля и типы перед merge: [docs/reference-values.md](reference-values.md)
-4. Быстро найти нужный параметр и пример: [docs/parameter-index.md](parameter-index.md)
-5. Найти решение по задаче: [docs/use-case-map.md](use-case-map.md)
-6. Проверить values по schema: [tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
-7. Сравнить с рабочими примерами: [tests/.helm/values.yaml](../tests/.helm/values.yaml)
-8. Понять модель надежности и уровень гарантий: [docs/stability.md](stability.md)
+## Навигация по ролям
 
-## Как читать документацию по роли
+| Роль | Что читать сначала | Что читать затем |
+|---|---|---|
+| Разработчик сервиса | [cookbook.md](cookbook.md) | [reference-values.md](reference-values.md), [parameter-index.md](parameter-index.md) |
+| DevOps / Platform Engineer | [library-guide.md](library-guide.md), [architecture.md](architecture.md) | [reference-values.md](reference-values.md), [operations.md](operations.md) |
+| Ревьюер MR | [reference-values.md](reference-values.md), [parameter-index.md](parameter-index.md) | [use-case-map.md](use-case-map.md), [operations.md](operations.md) |
+| On-call / Incident | [operations.md](operations.md) | [faq.md](faq.md), [reference-values.md](reference-values.md) |
 
-### Разработчик сервиса
+## Навигация по задачам
 
-1. `docs/cookbook.md`
-2. `docs/reference-values.md`
-3. `docs/parameter-index.md` (быстрый переход по параметрам)
-4. `docs/use-case-map.md` (карта решений по задачам)
-5. `docs/operations.md` (разделы triage и частые ошибки)
-
-### DevOps / Platform Engineer
-
-1. `docs/library-guide.md`
-2. `docs/reference-values.md`
-3. `docs/parameter-index.md`
-4. `docs/use-case-map.md`
-5. `docs/operations.md`
-
-### Ревьюер MR с изменениями `.helm/values.yaml`
-
-1. `docs/reference-values.md`
-2. `docs/parameter-index.md`
-3. `docs/use-case-map.md`
-4. `docs/operations.md` (чеклисты merge/release)
-5. `tests/.helm/values.schema.json`
+| Задача | Куда идти |
+|---|---|
+| Поднять новый API сервис | [cookbook.md#example-basic-api](cookbook.md#example-basic-api) |
+| Настроить Ingress/TLS | [cookbook.md#example-ingress-tls](cookbook.md#example-ingress-tls) |
+| Подключить shared env из Secret/ConfigMap | [cookbook.md#61-общие-secret-через-sharedenvsecrets](cookbook.md#61-общие-secret-через-sharedenvsecrets), [cookbook.md#62-общие-configmap-через-sharedenvconfigmaps](cookbook.md#62-общие-configmap-через-sharedenvconfigmaps) |
+| Понять порядок приоритетов env | [cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars](cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
+| Включить release matrix | [reference-values.md#param-global-release](reference-values.md#param-global-release) |
+| Сделать переиспользование через include-профили | [reference-values.md#param-global-includes](reference-values.md#param-global-includes), [../README.md#example-global-includes-merge](../README.md#example-global-includes-merge) |
+| Добавить custom renderer | [library-guide.md#param-custom-renderer](library-guide.md#param-custom-renderer) |
+| Разобраться с ошибкой рендера | [operations.md](operations.md), [faq.md](faq.md) |
 
 ## Карта документов
 
-- Архитектура и принципы: [docs/library-guide.md](library-guide.md)
-- Полный справочник полей: [docs/reference-values.md](reference-values.md)
-- Индекс параметров с примерами: [docs/parameter-index.md](parameter-index.md)
-- Карта use-cases: [docs/use-case-map.md](use-case-map.md)
-- Стабильность и модель гарантий: [docs/stability.md](stability.md)
-- Готовые практические рецепты: [docs/cookbook.md](cookbook.md)
-- Эксплуатация, triage, rollback: [docs/operations.md](operations.md)
-- Краткие правила по helper-паттернам: [docs/usage.md](usage.md)
-- Полный рабочий пример values: [tests/.helm/values.yaml](../tests/.helm/values.yaml)
-- Schema валидации values: [tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
+- Концепция и принципы: [library-guide.md](library-guide.md)
+- Архитектура рендера и приоритеты: [architecture.md](architecture.md)
+- Полный референс параметров: [reference-values.md](reference-values.md)
+- Индекс параметров: [parameter-index.md](parameter-index.md)
+- Карта use-cases: [use-case-map.md](use-case-map.md)
+- Практические рецепты: [cookbook.md](cookbook.md)
+- Эксплуатация и triage: [operations.md](operations.md)
+- Вопросы и ответы: [faq.md](faq.md)
+- Термины: [glossary.md](glossary.md)
+- Стабильность и модель гарантий: [stability.md](stability.md)
 
-## Минимальный командный чеклист
+## Практические артефакты
+
+- Полный рабочий пример values: [../tests/.helm/values.yaml](../tests/.helm/values.yaml)
+- Контрактные кейсы по сущностям: [../tests/contracts/values.yaml](../tests/contracts/values.yaml)
+- JSON schema values: [../tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
+
+## Минимальный локальный чек
 
 ```bash
 helm dependency update .helm

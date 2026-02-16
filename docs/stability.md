@@ -1,6 +1,13 @@
 # Стабильность и надежность Helm Apps Library
+<a id="top"></a>
 
 Документ объясняет, на каком уровне библиотека гарантирует стабильность, за счет каких механизмов это достигается и где проходят границы гарантий.
+
+Быстрая навигация:
+- [Старт docs](README.md)
+- [Architecture](architecture.md)
+- [Reference](reference-values.md)
+- [Operations](operations.md)
 
 ## 1. Цель по стабильности
 
@@ -26,6 +33,7 @@
 - покрыты все ключевые `apps-*` сущности;
 - проверяется рендер важных полей и ожидаемых ресурсов.
 
+<a id="param-k8s-api-compat"></a>
 ### 2.3 Совместимость Kubernetes API
 
 - CI matrix по версиям Kubernetes (legacy + current);

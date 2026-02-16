@@ -14,77 +14,32 @@
     <img src="https://img.shields.io/github/license/alvnukov/helm-apps?style=for-the-badge&label=License" alt="License" />
   </a>
   <img src="https://img.shields.io/badge/Helm-supported-0F766E?style=for-the-badge&logo=helm" alt="Helm supported" />
+  <img src="https://img.shields.io/badge/werf-compatible-1E3A8A?style=for-the-badge" alt="werf compatible" />
   <img src="https://img.shields.io/badge/Kubernetes-1.19--1.29-2563EB?style=for-the-badge&logo=kubernetes" alt="Kubernetes compatibility" />
 </p>
 
-Библиотека Helm-шаблонов для стандартизированного деплоя приложений в Kubernetes.
+Библиотека Helm-шаблонов для стандартизированного и предсказуемого деплоя приложений в Kubernetes.
 
-`helm-apps` позволяет описывать приложения через `values.yaml` без копирования шаблонов между сервисами.
-Логика рендера централизована в библиотеке, а сервисные репозитории хранят только конфигурацию.
-Под капотом библиотека использует helper-паттерны `flant-lib` (шаблонные функции `fl.*`) как базовый слой рендеринга и обработки значений:  
+`helm-apps` позволяет описывать приложения только через `values.yaml`: без копирования шаблонов между сервисами, с единым контрактом рендера и единым уровнем качества для всей платформы.
+
+Под капотом библиотека использует helper-паттерны `flant-lib` (`fl.*`) как базовый слой обработки значений и рендера:  
 https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 
-> Библиотека полностью поддерживает Helm и совместима с werf.  
-> Практически, для командного daily workflow werf часто удобнее: он объединяет рендер и процесс поставки в единый поток, снижая количество ручных шагов в CI/CD.  
-> При этом весь функционал библиотеки доступен и через чистый Helm.
+> Библиотека полностью поддерживает `Helm` и совместима с `werf`.  
+> Практически `werf` часто удобнее в daily workflow, потому что объединяет рендер и delivery в единый pipeline.  
+> При этом весь функционал библиотеки доступен и через чистый `Helm`.
 
 История изменений: [`CHANGELOG.md`](CHANGELOG.md)
 
-## Стабильность и надежность
+## Почему это удобно команде
 
-Текущий фокус библиотеки: **стабильный и предсказуемый рендер для production-деплоя**.
+- Единая модель деплоя для всех сервисов: одинаковая структура `values.yaml`.
+- Меньше копипаста и ручного YAML: логика централизована в библиотеке.
+- Предсказуемость в production: schema + контракты + совместимость Kubernetes в CI.
+- Быстрый onboarding: разработчики используют готовые профили через `global._includes` и `_include`.
+- Управляемая эволюция: в ветке `1.x` приоритет на стабильность и совместимость.
 
-Что это означает на практике:
-- есть schema-валидация values: [`tests/.helm/values.schema.json`](tests/.helm/values.schema.json);
-- есть контрактные тесты по всем `apps-*` сущностям: [`tests/contracts/values.yaml`](tests/contracts/values.yaml);
-- есть проверка API-совместимости на нескольких версиях Kubernetes (legacy + current) в CI;
-- есть server-side dry-run проверка в `kind` с CRD, чтобы проверять манифесты against live API server;
-- есть property-based fuzz проверки контрактов (случайные комбинации флагов/сущностей), чтобы снижать риск регрессий на edge-кейсах.
-
-Уровень надежности:
-- библиотека подходит для production и рассчитана на большие наборы сервисов;
-- стабильность поддерживается регрессионными и контрактными проверками в CI;
-- breaking-изменения в ветке `1.x` не являются целевым сценарием и должны быть явно обоснованы.
-
-Детально про модель стабильности и границы гарантий:
-- [`docs/stability.md`](docs/stability.md)
-
-## Зачем использовать библиотеку
-
-- Единый стандарт деплоя для всех сервисов команды.
-- Меньше копипаста и ручных Kubernetes-манифестов.
-- Быстрее ревью: одинаковая структура конфигов между проектами.
-- Переиспользование через [`_include`](docs/parameter-index.md#core) и [`global._includes`](docs/parameter-index.md#core).
-- Поддержка окружений через [`global.env`](docs/parameter-index.md#core) (`_default`, env overrides, regex env keys).
-- Режим релиз-матрицы через [`global.release`](docs/reference-values.md#param-global-release) для автоподстановки тегов и централизованного переключения версий.
-- Поддержка связанных ресурсов (Service, Ingress, ConfigMap, Secret, HPA, VPA, PDB и др.) в одной модели.
-
-## Какие ресурсы поддерживаются
-
-- `apps-stateless` (`Deployment`)
-- `apps-stateful` (`StatefulSet`)
-- `apps-jobs` (`Job`)
-- `apps-cronjobs` (`CronJob`)
-- `apps-services` (`Service`)
-- `apps-ingresses` (`Ingress`)
-- `apps-network-policies` (`NetworkPolicy`)
-- `apps-configmaps` (`ConfigMap`)
-- `apps-secrets` (`Secret`)
-- `apps-pvcs` (`PersistentVolumeClaim`)
-- `apps-limit-range` (`LimitRange`)
-- `apps-certificates` (`Certificate`)
-- `apps-dex-clients`, `apps-dex-authenticators`
-- `apps-custom-prometheus-rules`, `apps-grafana-dashboards`
-- `apps-kafka-strimzi`
-- `apps-infra`
-
-Для `apps-network-policies` можно выбрать API через `type`:
-- `kubernetes` (default) -> `networking.k8s.io/v1`, `NetworkPolicy`
-- `cilium` -> `cilium.io/v2`, `CiliumNetworkPolicy`
-- `calico` -> `projectcalico.org/v3`, `NetworkPolicy`
-- для любого другого CNI можно явно задать `apiVersion`, `kind` и `spec`.
-
-## Быстрый старт
+## Быстрый старт (5-10 минут)
 
 ### 1. Подключить dependency
 
@@ -100,7 +55,7 @@ dependencies:
     repository: "@helm-apps"
 ```
 
-### 2. Добавить инициализацию библиотеки
+### 2. Инициализировать библиотеку
 
 Создать `.helm/templates/init-helm-apps-library.yaml`:
 
@@ -115,9 +70,7 @@ helm repo add --force-update helm-apps https://alvnukov.github.io/helm-apps
 helm dependency update .helm
 ```
 
-### 4. Описать приложение в values
-
-Минимальный пример:
+### 4. Описать приложение в `values.yaml`
 
 ```yaml
 global:
@@ -156,11 +109,29 @@ apps-ingresses:
       enabled: true
 ```
 
+### 5. Проверить рендер
+
+```bash
+helm lint .helm
+helm template my-app .helm --set global.env=prod
+```
+
+## Ключевые возможности
+
+| Возможность | Что дает | Где смотреть |
+|---|---|---|
+| `global._includes` + `_include` | Переиспользование профилей, рекурсивный merge map | [README merge section](#example-global-includes-merge) |
+| `global.env` + `_default` + regex | Мульти-окружения в одном `values.yaml` | [`docs/reference-values.md#param-global-env`](docs/reference-values.md#param-global-env) |
+| Release mode (`global.release`) | Централизованная матрица версий app | [`docs/reference-values.md#param-global-release`](docs/reference-values.md#param-global-release) |
+| Shared env из Secret/ConfigMap | Подключение общих env-блоков в контейнеры | [`docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars`](docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
+| Custom renderer (`__GroupVars__.type`) | Рендер собственных сущностей через цикл библиотеки | [`docs/library-guide.md#param-custom-renderer`](docs/library-guide.md#param-custom-renderer) |
+| Контрактная стабильность | Предсказуемость и защита от регрессий | [`docs/stability.md`](docs/stability.md) |
+
 <a id="example-global-includes-merge"></a>
 ## Ключевая механика: `global._includes` и рекурсивный merge
 
-`global._includes` — это библиотека переиспользуемых конфигурационных блоков.
-Приложение подключает их через `_include`, после чего библиотека делает рекурсивный merge.
+`global._includes` это библиотека переиспользуемых конфигурационных блоков.  
+Приложение подключает блоки через `_include`, после чего библиотека объединяет значения рекурсивно.
 
 Базовый пример:
 
@@ -199,28 +170,11 @@ apps-stateless:
 
 Что важно:
 
-1. Merge рекурсивный: вложенные map-структуры не заменяются целиком, а объединяются по ключам.
-2. Порядок `_include` важен: каждый следующий профиль может переопределять предыдущий.
-3. Локальные поля приложения имеют приоритет над значениями из include-блоков.
-4. Это главный механизм DRY в библиотеке: стандартные профили задаются один раз и переиспользуются во всех сервисах.
-5. Native YAML list в values запрещены (кроме `_include` и `_include_files`): для Kubernetes list-полей используйте YAML block string (`|`).
-
-## Release mode (`global.release`)
-
-Опциональный режим для централизованного управления версиями приложений:
-- `global.release.enabled` по умолчанию `false`;
-- задаете текущий релиз в `global.release.current`;
-- храните матрицу `release -> app -> version` в `global.release.versions`;
-- ключ приложения берется из `releaseKey`, а если он не задан — из имени приложения (`app.name`);
-- `autoEnableApps` по умолчанию `true`;
-- app получает `CurrentAppVersion`, и если `image.staticTag` не задан, тег берется из релизной матрицы;
-- в рендер добавляются аннотации `helm-apps/release` и `helm-apps/app-version`.
-
-Важно:
-- если для app не найдена версия в `global.release.versions.<current>`, приложение рендерится по обычной логике;
-- если не задан ни `image.staticTag`, ни `CurrentAppVersion`, используется стандартный путь через `Values.werf.image`.
-
-Практический референс и пример: [`docs/reference-values.md#param-global-release`](docs/reference-values.md#param-global-release)
+1. Merge рекурсивный для map-структур.
+2. Порядок `_include` важен: следующий профиль может переопределять предыдущий.
+3. Локальные поля приложения имеют приоритет над include-профилями.
+4. Основной DRY-механизм библиотеки строится именно на `_include`.
+5. Native YAML list в values запрещены (кроме `_include` и `_include_files`): для list-полей Kubernetes используйте YAML block string (`|`).
 
 ### Примеры merge-поведения
 
@@ -282,9 +236,7 @@ apps-stateless:
 
 Итог: `replicas: 3`.
 
-#### Пример 4: Env-map merge с `_default` и конкретным env
-
-Пример:
+#### Пример 4: Env-map merge с `_default` и явным env
 
 ```yaml
 global:
@@ -304,13 +256,12 @@ apps-stateless:
 ```
 
 Итоговое поведение:
-- для `production` будет использовано значение `4` (из `base.production`);
-- для env без явного ключа будет использовано `_default: 1` (из `canary._default`).
+- для `production` будет использовано `4` (из `base.production`);
+- для остальных env будет `_default: 1` (из `canary._default`).
 
 Практика:
 - окружение передавайте через `global.env`;
-- всегда проверяйте итоговый рендер в целевом env (`helm template ... --set global.env=<env>`);
-- для критичных env-map лучше держать все нужные env-ключи явно в финальном профиле.
+- всегда проверяйте итоговый рендер в target env (`helm template ... --set global.env=<env>`).
 
 <a id="example-include-concat"></a>
 #### Пример 5: `_include`-списки конкатенируются
@@ -335,71 +286,82 @@ apps-stateless:
 
 Итоговый include-chain для `api` объединяет оба списка (`base-a` + `base-b`) и затем применяет локальные поля.
 
-#### Пример 6: Что со списками
+## Release mode (`global.release`)
 
-Важный нюанс библиотеки:
-- специальные списки `_include` конкатенируются;
-- обычные “списковые” параметры в большинстве случаев задаются как YAML-строки (`|`), а не как native list.
+Опциональный режим для централизованного управления версиями:
+- `global.release.enabled` по умолчанию `false`;
+- текущий релиз задается в `global.release.current`;
+- матрица версий хранится в `global.release.versions`;
+- app key берется из `releaseKey`, а если он не задан — из имени app;
+- при `autoEnableApps=true` app включается автоматически, когда версия найдена;
+- если `image.staticTag` не задан, используется версия из релизной матрицы.
 
-Поэтому merge для обычных списков как list-поведение обычно не используется.
-Практика:
-- задавайте списковые Kubernetes-блоки строкой YAML;
-- итог проверяйте через `helm template`.
+Практический референс и пример: [`docs/reference-values.md#param-global-release`](docs/reference-values.md#param-global-release)
 
-### 5. Проверить рендер
+## Custom renderer: расширение библиотеки своими типами
 
-```bash
-helm lint .helm
-helm template my-app .helm --set global.env=prod
-```
+Библиотека поддерживает пользовательские группы через `__GroupVars__.type`.
+Это позволяет рендерить custom-ресурсы в том же цикле, где рендерятся встроенные `apps-*`.
 
-### 6. Совместимость с версиями Kubernetes
+Ключевые моменты:
+- в группе задается `__GroupVars__.type: <custom-type>`;
+- в chart приложения объявляется `define "<custom-type>.render"`;
+- значения приложения доступны в `$.CurrentApp.*`.
 
-Библиотека автоматически учитывает версию Kubernetes через `.Capabilities`:
-- выбирает подходящий `apiVersion` для `CronJob`, `PodDisruptionBudget`, `HorizontalPodAutoscaler`, `VerticalPodAutoscaler`;
-- учитывает различия в полях `spec` между версиями (например, в `Service` и `StatefulSet`).
-- поддерживает passthrough для редких/новых полей через:
-  - `extraSpec` (ресурсный `spec`);
-  - `podSpecExtra` (Pod template `spec`);
-  - `jobTemplateExtraSpec` (`Job.spec` / `CronJob.spec.jobTemplate.spec`);
-  - `extraFields` (top-level поля ресурса/контейнера).
+Пример и полный контракт контекста:
+- [`docs/library-guide.md#param-custom-renderer`](docs/library-guide.md#param-custom-renderer)
 
-Практика для проверки:
-- новый кластер: `helm template ... --kube-version 1.29.0`
-- legacy-кластер: `helm template ... --kube-version 1.20.15`
+## Shared env и приоритеты переменных
 
-Текущий CI также проверяет рендер на нескольких версиях Kubernetes.
+Лицевая страница оставляет только общий ориентир: библиотека поддерживает подключение общих `ConfigMap/Secret` и предсказуемый контракт приоритетов переменных.
 
-## Маршрут по документации
+Детальный технический порядок источников (`sharedEnvConfigMaps`, `sharedEnvSecrets`, `envFrom`, `secretEnvVars`, `envVars`) вынесен в профильные документы:
+- [`docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars`](docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars)
+- [`docs/architecture.md#arch-container-env-order`](docs/architecture.md#arch-container-env-order)
 
-Стартовая точка:
-- [docs/README.md](docs/README.md)
+## Стабильность и надежность
 
-Подробные документы:
-- Концепция и архитектура: [docs/library-guide.md](docs/library-guide.md)
-- Полный справочник полей: [docs/reference-values.md](docs/reference-values.md)
-- Быстрый индекс параметров (описание + примеры): [docs/parameter-index.md](docs/parameter-index.md)
-- Use-case карта (задача -> параметр -> пример -> проверка): [docs/use-case-map.md](docs/use-case-map.md)
-- Готовые шаблоны для типовых сценариев: [docs/cookbook.md](docs/cookbook.md)
-- Эксплуатация, triage, rollback: [docs/operations.md](docs/operations.md)
-- Краткие правила helper-паттернов: [docs/usage.md](docs/usage.md)
+Текущий фокус: **стабильный production-рендер и контролируемая эволюция**.
+
+Что обеспечивает надежность:
+- schema-валидация values: [`tests/.helm/values.schema.json`](tests/.helm/values.schema.json);
+- контрактные сценарии: [`tests/contracts/values.yaml`](tests/contracts/values.yaml);
+- CI matrix совместимости Kubernetes (legacy + current);
+- `kind` + `kubectl apply --dry-run=server` с CRD;
+- property-based fuzz проверки контрактов.
+
+Детально: [`docs/stability.md`](docs/stability.md)
+
+## Совместимость
+
+- Helm: полностью поддерживается.
+- werf: полностью совместим, часто удобнее как единый delivery workflow.
+- Kubernetes: совместимость проверяется в CI по нескольким версиям.
+
+## Карта документации
+
+- Точка входа: [`docs/README.md`](docs/README.md)
+- Концепция и handbook: [`docs/library-guide.md`](docs/library-guide.md)
+- Архитектура рендера и приоритеты: [`docs/architecture.md`](docs/architecture.md)
+- Полный reference по параметрам: [`docs/reference-values.md`](docs/reference-values.md)
+- Индекс параметров (описание + пример): [`docs/parameter-index.md`](docs/parameter-index.md)
+- Карта сценариев (задача -> решение): [`docs/use-case-map.md`](docs/use-case-map.md)
+- Cookbook с рабочими рецептами: [`docs/cookbook.md`](docs/cookbook.md)
+- Operations playbook: [`docs/operations.md`](docs/operations.md)
+- FAQ: [`docs/faq.md`](docs/faq.md)
+- Глоссарий: [`docs/glossary.md`](docs/glossary.md)
+- Модель стабильности: [`docs/stability.md`](docs/stability.md)
 
 Практические артефакты:
-- Полный рабочий пример values: [tests/.helm/values.yaml](tests/.helm/values.yaml)
-- JSON Schema валидации values: [tests/.helm/values.schema.json](tests/.helm/values.schema.json)
-- Готовый пример проекта: [docs/example](docs/example)
+- полный пример values: [`tests/.helm/values.yaml`](tests/.helm/values.yaml)
+- schema values: [`tests/.helm/values.schema.json`](tests/.helm/values.schema.json)
+- контрактный набор сущностей: [`tests/contracts/values.yaml`](tests/contracts/values.yaml)
 
-Быстрые ссылки на параметры:
-- Индекс параметров: [docs/parameter-index.md](docs/parameter-index.md)
-- `global.env`: [описание + пример](docs/parameter-index.md#core)
-- `_include` / `global._includes`: [описание + примеры merge](docs/parameter-index.md#core)
-- `containers` / `sharedEnvConfigMaps` / `sharedEnvSecrets` / `envFrom` / `secretEnvVars`: [описание + примеры](docs/parameter-index.md#containers-envconfig)
-
-## Для контрибьюторов библиотеки
+## Для контрибьюторов
 
 При изменении возможностей библиотеки обновляйте синхронно:
 
 1. шаблоны в `charts/helm-apps/templates`;
-2. примеры в `tests/.helm/values.yaml`;
-3. схему в `tests/.helm/values.schema.json`;
-4. документацию в `docs/reference-values.md` и `docs/cookbook.md`.
+2. примеры в `tests/.helm/values.yaml` и/или `tests/contracts/values.yaml`;
+3. schema в `tests/.helm/values.schema.json`;
+4. документацию в `docs/reference-values.md`, `docs/cookbook.md`, `docs/parameter-index.md`.
