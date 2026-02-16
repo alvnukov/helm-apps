@@ -1,4 +1,18 @@
-# Helm Apps Library
+# <img src="docs/assets/icon.png" alt="Helm Apps Library icon" width="42" valign="middle" /> Helm Apps Library
+
+<p align="center">
+  <a href="https://github.com/alvnukov/helm-apps/actions/workflows/ci.yml">
+    <img src="https://img.shields.io/github/actions/workflow/status/alvnukov/helm-apps/ci.yml?branch=main&style=for-the-badge&logo=githubactions&label=CI" alt="CI status" />
+  </a>
+  <a href="https://github.com/alvnukov/helm-apps/releases">
+    <img src="https://img.shields.io/github/v/tag/alvnukov/helm-apps?style=for-the-badge&label=Latest%20Release&color=0A84FF" alt="Latest release" />
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/github/license/alvnukov/helm-apps?style=for-the-badge&label=License" alt="License" />
+  </a>
+  <img src="https://img.shields.io/badge/Helm-supported-0F766E?style=for-the-badge&logo=helm" alt="Helm supported" />
+  <img src="https://img.shields.io/badge/Kubernetes-1.19--1.29-2563EB?style=for-the-badge&logo=kubernetes" alt="Kubernetes compatibility" />
+</p>
 
 Библиотека Helm-шаблонов для стандартизированного деплоя приложений в Kubernetes.
 
