@@ -1,0 +1,326 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: certificates.cert-manager.io
+spec:
+  group: cert-manager.io
+  scope: Namespaced
+  names:
+    plural: certificates
+    singular: certificate
+    kind: Certificate
+    listKind: CertificateList
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: verticalpodautoscalers.autoscaling.k8s.io
+  annotations:
+    api-approved.kubernetes.io: "https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler"
+spec:
+  group: autoscaling.k8s.io
+  scope: Namespaced
+  names:
+    plural: verticalpodautoscalers
+    singular: verticalpodautoscaler
+    kind: VerticalPodAutoscaler
+    listKind: VerticalPodAutoscalerList
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kafkas.kafka.strimzi.io
+spec:
+  group: kafka.strimzi.io
+  scope: Namespaced
+  names:
+    plural: kafkas
+    singular: kafka
+    kind: Kafka
+    listKind: KafkaList
+  versions:
+    - name: v1beta2
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kafkatopics.kafka.strimzi.io
+spec:
+  group: kafka.strimzi.io
+  scope: Namespaced
+  names:
+    plural: kafkatopics
+    singular: kafkatopic
+    kind: KafkaTopic
+    listKind: KafkaTopicList
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: ciliumnetworkpolicies.cilium.io
+spec:
+  group: cilium.io
+  scope: Namespaced
+  names:
+    plural: ciliumnetworkpolicies
+    singular: ciliumnetworkpolicy
+    kind: CiliumNetworkPolicy
+    listKind: CiliumNetworkPolicyList
+  versions:
+    - name: v2
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: networkpolicies.projectcalico.org
+spec:
+  group: projectcalico.org
+  scope: Namespaced
+  names:
+    plural: networkpolicies
+    singular: networkpolicy
+    kind: NetworkPolicy
+    listKind: NetworkPolicyList
+  versions:
+    - name: v3
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: customprometheusrules.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Namespaced
+  names:
+    plural: customprometheusrules
+    singular: customprometheusrule
+    kind: CustomPrometheusRules
+    listKind: CustomPrometheusRulesList
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: grafanadashboarddefinitions.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Namespaced
+  names:
+    plural: grafanadashboarddefinitions
+    singular: grafanadashboarddefinition
+    kind: GrafanaDashboardDefinition
+    listKind: GrafanaDashboardDefinitionList
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: dexauthenticators.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Namespaced
+  names:
+    plural: dexauthenticators
+    singular: dexauthenticator
+    kind: DexAuthenticator
+    listKind: DexAuthenticatorList
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: dexclients.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Namespaced
+  names:
+    plural: dexclients
+    singular: dexclient
+    kind: DexClient
+    listKind: DexClientList
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: nodeusers.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Cluster
+  names:
+    plural: nodeusers
+    singular: nodeuser
+    kind: NodeUser
+    listKind: NodeUserList
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: nodegroups.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Cluster
+  names:
+    plural: nodegroups
+    singular: nodegroup
+    kind: NodeGroup
+    listKind: NodeGroupList
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: podmetrics.deckhouse.io
+spec:
+  group: deckhouse.io
+  scope: Namespaced
+  names:
+    plural: podmetrics
+    singular: podmetric
+    kind: PodMetric
+    listKind: PodMetricList
+  versions:
+    - name: v1beta1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              x-kubernetes-preserve-unknown-fields: true
+            status:
+              x-kubernetes-preserve-unknown-fields: true
