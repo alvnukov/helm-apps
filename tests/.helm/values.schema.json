@@ -78,9 +78,12 @@
           "type": "string"
         },
         {
+          "type": "null"
+        },
+        {
           "type": "object",
           "additionalProperties": {
-            "type": "string"
+            "type": ["string", "null"]
           }
         }
       ]
