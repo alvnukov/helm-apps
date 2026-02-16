@@ -55,6 +55,9 @@
     "apps-services": {
       "$ref": "#/$defs/appMap"
     },
+    "apps-network-policies": {
+      "$ref": "#/$defs/appMap"
+    },
     "apps-infra": {
       "$ref": "#/$defs/appsInfra"
     },

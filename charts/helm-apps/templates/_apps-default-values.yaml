@@ -163,4 +163,12 @@ global:
       enabled: true
     apps-configmaps-defaultConfigmap:
       _include: ["apps-default-library-app"]
+    apps-network-policies-defaultNetworkPolicy:
+      _include: ["apps-default-library-app"]
+      # CNI-agnostic baseline: use standard Kubernetes NetworkPolicy spec only.
+      type: kubernetes
+      policyTypes: |
+        - Ingress
+      ingress: |
+        - {}
 {{- end }}

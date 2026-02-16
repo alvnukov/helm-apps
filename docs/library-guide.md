@@ -79,6 +79,7 @@ helm template my-app .helm --set global.env=prod
 - `apps-cronjobs` (`CronJob`);
 - `apps-ingresses` (`Ingress`, optional `Certificate`, optional `DexAuthenticator`);
 - `apps-services` (`Service`);
+- `apps-network-policies` (`NetworkPolicy`);
 - `apps-configmaps` (`ConfigMap`);
 - `apps-secrets` (`Secret`);
 - `apps-pvcs` (`PersistentVolumeClaim`);

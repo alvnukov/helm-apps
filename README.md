@@ -26,6 +26,7 @@
 - `apps-cronjobs` (`CronJob`)
 - `apps-services` (`Service`)
 - `apps-ingresses` (`Ingress`)
+- `apps-network-policies` (`NetworkPolicy`)
 - `apps-configmaps` (`ConfigMap`)
 - `apps-secrets` (`Secret`)
 - `apps-pvcs` (`PersistentVolumeClaim`)
@@ -35,6 +36,12 @@
 - `apps-custom-prometheus-rules`, `apps-grafana-dashboards`
 - `apps-kafka-strimzi`
 - `apps-infra`
+
+Для `apps-network-policies` можно выбрать API через `type`:
+- `kubernetes` (default) -> `networking.k8s.io/v1`, `NetworkPolicy`
+- `cilium` -> `cilium.io/v2`, `CiliumNetworkPolicy`
+- `calico` -> `projectcalico.org/v3`, `NetworkPolicy`
+- для любого другого CNI можно явно задать `apiVersion`, `kind` и `spec`.
 
 ## Быстрый старт
 

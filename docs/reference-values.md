@@ -30,6 +30,7 @@
 - `apps-cronjobs`
 - `apps-services`
 - `apps-ingresses`
+- `apps-network-policies`
 - `apps-configmaps`
 - `apps-secrets`
 - `apps-pvcs`

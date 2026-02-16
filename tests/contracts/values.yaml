@@ -121,6 +121,53 @@ apps-ingresses:
           port:
             number: 80
 
+apps-network-policies:
+  compat-netpol:
+    enabled: true
+    type: kubernetes
+    podSelector: |
+      matchLabels:
+        app: compat-service
+    policyTypes: |
+      - Ingress
+      - Egress
+    ingress: |
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: ingress-nginx
+    egress: |
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+        ports:
+          - protocol: UDP
+            port: 53
+  compat-cilium-netpol:
+    enabled: true
+    type: cilium
+    spec: |
+      endpointSelector:
+        matchLabels:
+          app: compat-service
+      egress:
+        - toEndpoints:
+            - matchLabels:
+                k8s:io.kubernetes.pod.namespace: kube-system
+  compat-calico-netpol:
+    enabled: true
+    type: calico
+    selector: "app == 'compat-service'"
+    ingress: |
+      - action: Allow
+        source:
+          selector: "kubernetes.io/metadata.name == 'ingress-nginx'"
+    egress: |
+      - action: Allow
+        destination:
+          selector: "kubernetes.io/metadata.name == 'kube-system'"
+
 apps-pvcs:
   compat-pvc:
     enabled: true

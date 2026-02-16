@@ -225,6 +225,7 @@
 "pvcs"
 "certificates"
 "services"
+"network-policies"
 }}
 {{-     range $app := $Library }}
 {{-         include (printf "apps-%s" $app) (list $ (index $.Values (printf "apps-%s" $app))) }}

@@ -2000,6 +2000,44 @@ apps-grafana-dashboards:
     enabled: false
     folder: "Custom"
 
+apps-network-policies:
+  netpol-example:
+    _include: ["apps-network-policies-defaultNetworkPolicy"]
+    enabled: false
+    type: kubernetes
+    # CNI-agnostic policy: only Kubernetes standard NetworkPolicy fields.
+    podSelector: |
+      matchLabels:
+        app: demo
+    policyTypes: |
+      - Ingress
+      - Egress
+    ingress: |
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: ingress-nginx
+    egress: |
+      - to:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: kube-system
+        ports:
+          - protocol: UDP
+            port: 53
+  cilium-netpol-example:
+    enabled: false
+    type: cilium
+    # For Cilium/other CNI-specific policies pass native spec directly.
+    spec: |
+      endpointSelector:
+        matchLabels:
+          app: demo
+      egress:
+        - toEndpoints:
+            - matchLabels:
+                k8s:io.kubernetes.pod.namespace: kube-system
+
 apps-infra:
   node-users:
     infra-user-example:
