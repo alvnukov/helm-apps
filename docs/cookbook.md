@@ -14,6 +14,8 @@
 - [2. API + Ingress + TLS](#2-api--ingress--tls)
 - [4. CronJob](#4-cronjob)
 - [6. Секреты через secretEnvVars](#6-секреты-через-secretenvvars)
+- [6.1 Общие Secret через sharedEnvSecrets](#61-общие-secret-через-sharedenvsecrets)
+- [6.2 Приоритет sharedEnvSecrets/envFrom/secretEnvVars](#62-приоритет-sharedenvsecretsenvfromsecretenvvars)
 - [9. configFilesYAML](#9-yaml-конфиг-с-env-override-configfilesyaml)
 - [10. HPA](#10-hpa-для-api)
 - [11. ServiceAccount + ClusterRole](#11-serviceaccount--clusterrole)
@@ -160,6 +162,75 @@ apps-stateless:
 ```
 
 Параметры: [secretEnvVars](reference-values.md#param-secretenvvars)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
+## 6.1 Общие Secret через `sharedEnvSecrets`
+<a id="example-sharedenvsecrets"></a>
+
+```yaml
+apps-secrets:
+  common-runtime:
+    envVars:
+      LOG_FORMAT: json
+      TZ: UTC
+
+apps-stateless:
+  api:
+    _include: ["apps-stateless-defaultApp"]
+    containers:
+      main:
+        image:
+          name: api
+          staticTag: "1.0.0"
+        sharedEnvSecrets:
+          - common-runtime
+```
+
+Что важно:
+- `sharedEnvSecrets` задается списком;
+- элементы списка должны быть строковыми именами Secret (или env-map со строками);
+- список поддерживается только в `containers.*` / `initContainers.*`.
+
+Параметры: [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [apps-secrets](reference-values.md#param-apps-secrets)
+Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
+## 6.2 Приоритет `sharedEnvSecrets`/`envFrom`/`secretEnvVars`
+<a id="example-sharedenvsecrets-priority"></a>
+
+```yaml
+apps-secrets:
+  common-runtime:
+    envVars:
+      ORDER_KEY: from-shared
+  manual-env:
+    envVars:
+      ORDER_KEY: from-manual
+
+apps-stateless:
+  api:
+    _include: ["apps-stateless-defaultApp"]
+    containers:
+      main:
+        image:
+          name: api
+          staticTag: "1.0.0"
+        sharedEnvSecrets:
+          - common-runtime
+        envFrom: |
+          - secretRef:
+              name: "manual-env"
+        secretEnvVars:
+          ORDER_KEY: from-secret-env-vars
+```
+
+Порядок применения (низкий -> высокий приоритет):
+- `sharedEnvSecrets`
+- `envFrom`
+- auto-secret из `secretEnvVars`
+
+Старый контракт сохранен: без `sharedEnvSecrets` поведение `envFrom -> secretEnvVars` не меняется.
+
+Параметры: [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [envFrom](reference-values.md#param-containers)
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
 ## 7. Из внешнего Secret через `fromSecretsEnvVars`

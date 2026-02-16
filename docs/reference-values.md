@@ -340,6 +340,7 @@ containers:
 
 Поддерживаемые поля контейнера:
 <a id="param-envvars"></a>
+<a id="param-sharedenvsecrets"></a>
 <a id="param-secretenvvars"></a>
 <a id="param-fromsecretsenvvars"></a>
 <a id="param-envyaml"></a>
@@ -353,7 +354,7 @@ containers:
 - `envVars`
 - `envYAML`
 - `env`
-- `sharedEnvSecrets` (list of Secret names from `apps-secrets`, mounted via `envFrom.secretRef`)
+- `sharedEnvSecrets` (список имён Secret из `apps-secrets`, подключается как `envFrom.secretRef`)
 - `envFrom`
 - `secretEnvVars`
 - `fromSecretsEnvVars`
@@ -370,6 +371,36 @@ containers:
 - `configFilesYAML`
 - `secretConfigFiles`
 - `persistantVolumes`
+
+### 5.1 `sharedEnvSecrets`
+
+Назначение:
+- подключить один или несколько общих Secret в env контейнера через `envFrom`;
+- избежать дублирования `envFrom` между приложениями.
+
+Формат:
+
+```yaml
+sharedEnvSecrets:
+  - common-runtime
+  - platform-observability
+```
+
+Типы значений:
+- элемент списка: `string`;
+- также поддерживается env-map со строковыми значениями (для env-aware выбора имени Secret).
+
+Пример env-map:
+
+```yaml
+sharedEnvSecrets:
+  - _default: common-runtime
+    production: common-runtime-prod
+```
+
+Важно:
+- `sharedEnvSecrets` указывается только на уровне контейнера (`containers.*` / `initContainers.*`);
+- Secret может быть как из текущего релиза, так и внешним (из другого релиза/namespace), если имя известно.
 
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 
@@ -549,6 +580,7 @@ secretConfigFiles:
 - `envVars`
 
 ### 14.2 `apps-secrets`
+<a id="param-apps-secrets"></a>
 
 Поля app:
 - `type`
@@ -737,6 +769,7 @@ data:
 | `global.env` | `string` | Выбирает env-значение из map (`_default`, `production`, regex).
 | `replicas`, `enabled`, `werfWeight`, `priorityClassName` | scalar или env-map scalar | Резолвится через `fl.value` как скаляр.
 | `envVars.<KEY>` / `secretEnvVars.<KEY>` | scalar или env-map scalar | Рендерится как env var value.
+| `sharedEnvSecrets[]` | `string` или env-map string | Преобразуется в `envFrom.secretRef.name` на уровне контейнера.
 | `command`, `args`, `ports`, `envFrom`, `affinity`, `tolerations`, `nodeSelector`, `volumes`, `paths`, `rules`, `resourcePolicy` | string или env-map string | Обычно передаются как YAML block string (`|`) и вставляются в манифест.
 | `horizontalPodAutoscaler.metrics` | string или object | Поддерживает 2 режима: raw YAML строка или map-конфиг метрик.
 | `configFiles.<name>.content` | string (обычно) | Контент ConfigMap/файла.
@@ -745,7 +778,7 @@ data:
 
 Практика:
 - если поле описано как Kubernetes-блок, используйте YAML строку (`|`);
-- native YAML list в values запрещены (исключения: `_include`, `_include_files`);
+- native YAML list в values запрещены, кроме явно разрешенных путей (`_include`, `_include_files`, `*.containers.*.sharedEnvSecrets`, `*.initContainers.*.sharedEnvSecrets` и т.д.);
 - для env-значений используйте scalar/env-map;
 - итог всегда проверяйте через `helm template ... --set global.env=<env>`.
 

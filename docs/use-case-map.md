@@ -36,11 +36,13 @@
 
 ## 4. Нужны секреты в env
 
-- Параметры: [secretEnvVars](reference-values.md#param-secretenvvars), [fromSecretsEnvVars](reference-values.md#param-fromsecretsenvvars)
+- Параметры: [sharedEnvSecrets](reference-values.md#param-sharedenvsecrets), [secretEnvVars](reference-values.md#param-secretenvvars), [fromSecretsEnvVars](reference-values.md#param-fromsecretsenvvars)
 - Примеры:
+  - [sharedEnvSecrets](cookbook.md#example-sharedenvsecrets)
+  - [priority sharedEnvSecrets/envFrom/secretEnvVars](cookbook.md#example-sharedenvsecrets-priority)
   - [secretEnvVars](cookbook.md#example-secretenvvars)
   - [fromSecretsEnvVars](cookbook.md#example-fromsecretsenvvars)
-- Проверки: отсутствие plaintext в git, корректность ключей в Secret
+- Проверки: отсутствие plaintext в git, корректность ключей в Secret, ожидаемый приоритет `sharedEnvSecrets -> envFrom -> secretEnvVars`
 
 ## 5. Нужны файловые конфиги в контейнере
 
@@ -89,4 +91,3 @@
 4. Проверить соответствующий раздел в [Operations](operations.md).
 
 Навигация: [Наверх](#top)
-

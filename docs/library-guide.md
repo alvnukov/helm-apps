@@ -278,7 +278,7 @@ ports: |
 `containers` и `initContainers` поддерживают:
 - image: `name`, `staticTag`, `generateSignatureBasedTag`;
 - process: `command`, `args`, `workingDir`;
-- env: `envVars`, `secretEnvVars`, `envFrom`, `envYAML`, `fromSecretsEnvVars`;
+- env: `envVars`, `sharedEnvSecrets`, `secretEnvVars`, `envFrom`, `envYAML`, `fromSecretsEnvVars`;
 - resources: `requests/limits` (`mcpu`, `memoryMb`, `ephemeralStorageMb`);
 - configs: `configFiles`, `configFilesYAML`, `secretConfigFiles`;
 - probes/lifecycle/security: `livenessProbe`, `readinessProbe`, `startupProbe`, `lifecycle`, `securityContext`;
@@ -294,6 +294,26 @@ ports: |
 - `sharedEnvSecrets`
 - `envFrom`
 - auto-secret из `secretEnvVars`
+
+Минимальный пример:
+
+```yaml
+apps-secrets:
+  common-runtime:
+    envVars:
+      TZ: UTC
+
+apps-stateless:
+  api:
+    containers:
+      main:
+        sharedEnvSecrets:
+          - common-runtime
+```
+
+Ограничения:
+- `sharedEnvSecrets` задается списком только в контейнере (`containers.*`/`initContainers.*`);
+- элементы списка: строковые имена Secret (допускается env-map со строками).
 
 ## 9. Слой Pod/Workload
 
