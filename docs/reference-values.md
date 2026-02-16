@@ -75,6 +75,10 @@ global:
 - В ветке `1.x` значение по умолчанию — `false` (совместимость).
 - Флаг добавлен как контракт для постепенного перехода к более строгой валидации без breaking changes.
 - Текущая реализация strict-check сначала покрывает `apps-network-policies` (неизвестные ключи дают fail).
+- На top-level strict-check валидирует только `apps-*` имена:
+  - встроенные `apps-*` группы разрешены;
+  - custom-группы разрешены через `__GroupVars__.type`;
+  - неизвестная `apps-*` секция без `__GroupVars__` даёт fail.
 
 ### 2.1 `global._includes` + `_include`: примеры merge
 <a id="param-global-includes"></a>

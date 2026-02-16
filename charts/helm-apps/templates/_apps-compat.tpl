@@ -57,3 +57,18 @@
 {{- end }}
 {{- end }}
 {{- end -}}
+
+{{- define "apps-compat.validateTopLevelStrict" -}}
+{{- $ := index . 0 -}}
+{{- $values := index . 1 -}}
+{{- $knownTopLevel := index . 2 -}}
+{{- if kindIs "map" $values -}}
+{{- range $key, $val := $values }}
+{{- if has $key $knownTopLevel }}
+{{- else if and (kindIs "map" $val) (hasKey $val "__GroupVars__") }}
+{{- else if hasPrefix "apps-" $key }}
+{{- fail (printf "Strict mode: unknown top-level apps group '%s'. Use built-in apps-* group or define custom group with __GroupVars__.type" $key) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}

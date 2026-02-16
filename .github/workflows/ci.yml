@@ -133,11 +133,15 @@ jobs:
           grep -q 'port: 53' /tmp/contracts_render.yaml
 
           # Strict mode (opt-in) for network policies:
-          # valid config should render, unknown key should fail.
+          # valid config should render, unknown keys should fail.
           werf helm template contracts tests/contracts --set global.validation.strict=true > /tmp/contracts_render_strict.yaml
+          grep -Eq '"custom": ?"ok"|custom: ?"?ok"?' /tmp/contracts_render_strict.yaml
           ! werf helm template contracts tests/contracts \
             --set global.validation.strict=true \
             --set apps-network-policies.compat-netpol.typoField=1 >/tmp/contracts_render_strict_fail.yaml
+          ! werf helm template contracts tests/contracts \
+            --set global.validation.strict=true \
+            --set apps-typo.bad.enabled=true >/tmp/contracts_render_strict_top_fail.yaml
 
           # Service spec compatibility by Kubernetes version.
           werf helm template contracts tests/contracts --kube-version 1.29.0 > /tmp/contracts_render_129.yaml

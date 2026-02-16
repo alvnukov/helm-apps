@@ -185,3 +185,11 @@ apps-secrets:
     extraFields: |
       stringData:
         token: value
+
+custom-group-contract:
+  __GroupVars__:
+    type: apps-configmaps
+  custom-group-cm:
+    enabled: true
+    data:
+      custom: "ok"

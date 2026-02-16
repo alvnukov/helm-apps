@@ -227,6 +227,21 @@
 "services"
 "network-policies"
 }}
+{{-     $knownTopLevel := list "global" "enabled" "_include" "werf" "helm-apps" }}
+{{-     range $app := $Library }}
+{{-         $knownTopLevel = append $knownTopLevel (printf "apps-%s" $app) }}
+{{-     end }}
+{{-     $strict := false }}
+{{-     with $.Values.global }}
+{{-         with .validation }}
+{{-             if include "fl.isTrue" (list $ . .strict) }}
+{{-                 $strict = true }}
+{{-             end }}
+{{-         end }}
+{{-     end }}
+{{-     if $strict }}
+{{-         include "apps-compat.validateTopLevelStrict" (list $ $.Values $knownTopLevel) }}
+{{-     end }}
 {{-     range $app := $Library }}
 {{-         include (printf "apps-%s" $app) (list $ (index $.Values (printf "apps-%s" $app))) }}
 {{-     end }}
