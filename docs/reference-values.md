@@ -93,6 +93,8 @@ global:
 
 Связанные app-параметры:
 - `releaseKey` — ключ приложения в `global.release.versions.<current>`.
+  - параметр опционален;
+  - если `releaseKey` не задан, библиотека использует `app.name`.
 <a id="param-releasekey"></a>
 
 Пример:

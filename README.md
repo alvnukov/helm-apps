@@ -171,6 +171,7 @@ apps-stateless:
 Опциональный режим для централизованного управления версиями приложений:
 - задаете текущий релиз в `global.release.current`;
 - храните матрицу `release -> app -> version` в `global.release.versions`;
+- ключ приложения берется из `releaseKey`, а если он не задан — из имени приложения (`app.name`);
 - app получает `CurrentAppVersion`, и если `image.staticTag` не задан, тег берется из релизной матрицы;
 - в рендер добавляются аннотации `helm-apps/release` и `helm-apps/app-version`.
 
