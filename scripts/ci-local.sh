@@ -158,6 +158,9 @@ if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
 fi
 
 if [[ "${RUN_CONTRACTS}" -eq 1 ]]; then
+  echo "==> Entity coverage checks"
+  bash scripts/check-entity-coverage.sh
+
   echo "==> Update contract chart dependencies"
   werf helm dependency update tests/contracts
 

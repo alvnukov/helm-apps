@@ -8,3 +8,5 @@ ci_local:
 	bash scripts/ci-local.sh
 fuzz_contracts:
 	bash scripts/fuzz-contracts.sh --iterations 40 --seed 20260216
+coverage_entities:
+	bash scripts/check-entity-coverage.sh

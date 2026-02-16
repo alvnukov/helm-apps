@@ -7,6 +7,9 @@
   <a href="https://github.com/alvnukov/helm-apps/releases">
     <img src="https://img.shields.io/github/v/tag/alvnukov/helm-apps?style=for-the-badge&label=Latest%20Release&color=0A84FF" alt="Latest release" />
   </a>
+  <a href="tests/contracts/values.yaml">
+    <img src="https://img.shields.io/badge/Apps%20Entity%20Coverage-100%25-16A34A?style=for-the-badge" alt="Apps entity coverage" />
+  </a>
   <a href="LICENSE">
     <img src="https://img.shields.io/github/license/alvnukov/helm-apps?style=for-the-badge&label=License" alt="License" />
   </a>

@@ -92,6 +92,11 @@ jobs:
         run: |
           werf helm dependency update tests/contracts
 
+      - name: Check apps entity coverage in contracts
+        run: |
+          set -euo pipefail
+          bash scripts/check-entity-coverage.sh
+
       - name: Contract test for include merge behavior
         run: |
           set -euo pipefail
