@@ -99,12 +99,18 @@ helm template my-app .helm --set global.env=prod
 ```yaml
 payment-group:
   __GroupVars__:
-    type: apps-stateless
+    type:
+      _default: apps-stateless
+      prod: apps-stateful
   api:
     _include: ["apps-stateless-defaultApp"]
   worker:
     _include: ["apps-stateless-defaultApp"]
 ```
+
+`__GroupVars__.type` поддерживает:
+- строку (`apps-stateless`, `apps-ingresses`, ...);
+- env-map с выбором через `global.env`.
 
 Для отдельного приложения можно переопределить тип:
 

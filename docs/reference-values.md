@@ -91,6 +91,11 @@ global:
 - `autoEnableApps`: автоматически включает app, если для него найдена версия;
 - `versions`: матрица `релиз -> appKey -> tag/version`.
 
+Дефолты и поведение:
+- `enabled`: `false` по умолчанию;
+- `autoEnableApps`: `true` по умолчанию;
+- если версия для app не найдена в `versions.<current>`, библиотека не проставляет `CurrentAppVersion` и не меняет стандартную логику рендера.
+
 Связанные app-параметры:
 - `releaseKey` — ключ приложения в `global.release.versions.<current>`.
   - параметр опционален;
@@ -122,6 +127,7 @@ apps-stateless:
 Поведение:
 - библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion`;
 - если `image.staticTag` не задан, используется `CurrentAppVersion`;
+- если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
 - в metadata добавляются аннотации:
   - `helm-apps/release`
   - `helm-apps/app-version`
@@ -641,7 +647,7 @@ group-name:
 ```
 
 Важные поля `__GroupVars__`:
-- `type` (required)
+- `type` (required, может быть как строкой, так и env-map через `global.env`)
 - `enabled`
 - `_include`
 - `_preRenderGroupHook`
