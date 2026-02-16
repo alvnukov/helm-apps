@@ -23,6 +23,7 @@ jobs:
       - name: Set lib version
         run: |
           LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
+          echo "LIB_VERSION=${LIB_VERSION}" >> "$GITHUB_ENV"
           sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
 
       - name: Install werf CLI
@@ -101,6 +102,38 @@ jobs:
           config: cr.yaml
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Generate and update GitHub release notes
+        if: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          set -euo pipefail
+
+          TAG="helm-apps-${LIB_VERSION}"
+
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} not found (nothing new to publish), skipping notes update."
+            exit 0
+          fi
+
+          GENERATED_BODY=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+            -f tag_name="${TAG}" \
+            -f target_commitish="${GITHUB_SHA}" \
+            --jq '.body')
+
+          {
+            echo "## Helm chart"
+            echo
+            echo "- Chart: \`helm-apps\`"
+            echo "- Version: \`${LIB_VERSION}\`"
+            echo
+            echo "${GENERATED_BODY}"
+          } > /tmp/release_notes.md
+
+          gh release edit "${TAG}" \
+            --title "helm-apps ${LIB_VERSION}" \
+            --notes-file /tmp/release_notes.md
 
 #    - name: Publish to CR
 #      env:
