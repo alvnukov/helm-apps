@@ -225,6 +225,11 @@ jobs:
           grep -q 'name: "compat-route"' /tmp/contracts_internal_like.yaml
           grep -q 'host: "compat.example.com"' /tmp/contracts_internal_like.yaml
 
+      - name: Property-based fuzz checks for contracts
+        run: |
+          set -euo pipefail
+          bash scripts/fuzz-contracts.sh --iterations 40 --seed 20260216
+
   kube-compatibility-matrix:
     runs-on: ubuntu-latest
     strategy:

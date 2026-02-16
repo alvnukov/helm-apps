@@ -273,6 +273,9 @@ EOF
   grep -q 'helm-apps/app-version: "1.2.3"' /tmp/contracts_internal_like.yaml
   grep -q 'name: "compat-route"' /tmp/contracts_internal_like.yaml
   grep -q 'host: "compat.example.com"' /tmp/contracts_internal_like.yaml
+
+  echo "==> Property-based fuzz checks"
+  bash scripts/fuzz-contracts.sh --iterations 20 --seed 20260216
 fi
 
 echo "Local CI validate checks passed."
