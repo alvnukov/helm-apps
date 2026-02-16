@@ -42,6 +42,9 @@ spec:
   {{- $_ = set $specs "Strings" (list "apps-specs.serviceName" "podManagementPolicy") }}
   {{- $_ = set $specs "Lists" (list "apps-specs.volumeClaimTemplates") }}
   {{- include "apps-utils.generateSpecs" (list $ . $specs) | nindent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- $_ = unset . "__annotations__" -}}
 
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}

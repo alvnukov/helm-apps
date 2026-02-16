@@ -19,5 +19,8 @@ spec:
   {{- $_ := set $specsPVCs "Maps" (list "resources" ) }}
   {{- $_ := set $specsPVCs "Strings" (list "storageClassName") }}
   {{- include "apps-utils.generateSpecs" (list $ . $specsPVCs) | indent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 {{- end }}
 {{- end }}

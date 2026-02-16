@@ -14,6 +14,9 @@
 apiVersion: v1
 kind: ConfigMap
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
+{{- with include "apps-compat.renderRaw" (list $ . .extraFields) | trim }}
+{{- . | nindent 0 }}
+{{- end }}
 {{- $data :=  "" }}
 {{- with include "apps.generateConfigMapEnvVars" (list $ . .envVars) }}
 {{- $data = printf "%s\n%s" $data . | trim }}

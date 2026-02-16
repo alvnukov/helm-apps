@@ -292,6 +292,11 @@ helm template my-app .helm --set global.env=prod
 Библиотека автоматически учитывает версию Kubernetes через `.Capabilities`:
 - выбирает подходящий `apiVersion` для `CronJob`, `PodDisruptionBudget`, `HorizontalPodAutoscaler`, `VerticalPodAutoscaler`;
 - учитывает различия в полях `spec` между версиями (например, в `Service` и `StatefulSet`).
+- поддерживает passthrough для редких/новых полей через:
+  - `extraSpec` (ресурсный `spec`);
+  - `podSpecExtra` (Pod template `spec`);
+  - `jobTemplateExtraSpec` (`Job.spec` / `CronJob.spec.jobTemplate.spec`);
+  - `extraFields` (top-level поля ресурса/контейнера).
 
 Практика для проверки:
 - новый кластер: `helm template ... --kube-version 1.29.0`

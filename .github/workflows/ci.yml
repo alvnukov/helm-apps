@@ -115,6 +115,15 @@ jobs:
           werf helm template contracts tests/contracts --set global.env=dev > /tmp/contracts_render_dev.yaml
           grep -q '"ENV_SWITCH": "override-default"' /tmp/contracts_render_dev.yaml
 
+          # Generic passthrough fields support.
+          grep -q 'paused: true' /tmp/contracts_render.yaml
+          grep -q 'resizePolicy:' /tmp/contracts_render.yaml
+          grep -q 'podFailurePolicy:' /tmp/contracts_render.yaml
+          grep -q 'defaultBackend:' /tmp/contracts_render.yaml
+          grep -q 'volumeMode: Filesystem' /tmp/contracts_render.yaml
+          grep -q 'immutable: true' /tmp/contracts_render.yaml
+          grep -q 'stringData:' /tmp/contracts_render.yaml
+
           # Service spec compatibility by Kubernetes version.
           werf helm template contracts tests/contracts --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
           grep -q 'loadBalancerClass: "internal-vip"' /tmp/contracts_render_129.yaml

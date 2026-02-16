@@ -16,6 +16,9 @@
 {{- if not .containers }}
 {{- fail (printf "Установлено значение enabled для не настроенной '%s' в %s джобы!" $.CurrentApp.name "apps-jobs") }}
 {{- end }}
+{{- if and (kindIs "invalid" .jobTemplateExtraSpec) (not (kindIs "invalid" .extraSpec)) }}
+{{- $_ := set . "jobTemplateExtraSpec" .extraSpec }}
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 {{- include "apps-helpers.metadataGenerator" (list $ .) -}}

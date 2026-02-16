@@ -30,3 +30,16 @@
   {{- end -}}
 {{- end -}}
 {{- end -}}
+
+{{- define "apps-compat.renderRaw" -}}
+{{- $ := index . 0 -}}
+{{- $scope := index . 1 -}}
+{{- $value := index . 2 -}}
+{{- if kindIs "string" $value -}}
+{{ include "fl.value" (list $ $scope $value) }}
+{{- else if or (kindIs "map" $value) (kindIs "slice" $value) -}}
+{{ toYaml $value }}
+{{- else -}}
+{{ include "fl.value" (list $ $scope $value) }}
+{{- end -}}
+{{- end -}}

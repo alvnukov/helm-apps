@@ -48,6 +48,9 @@ spec:
   - host: {{ include "fl.valueQuoted" (list $ . .host) }}
     http:
       paths: {{- include "fl.value" (list $ . .paths) | nindent 6 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 {{- if .tls }}
 {{- if include "fl.isTrue" (list $ . .tls.enabled) }}
 {{- if not (include "fl.value" (list $ . .tls.secret_name)) }}

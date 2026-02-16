@@ -23,6 +23,9 @@ spec:
 {{-       else }}
   resourcePolicy: {}
 {{-       end }}
+{{-       with include "apps-compat.renderRaw" (list $ . $verticalPodAutoscaler.extraSpec) | trim }}
+  {{- . | nindent 2 }}
+{{-       end }}
 {{-     end }}
 {{-   end }}
 {{-   include "apps-utils.leaveScope" $ }}
@@ -78,6 +81,9 @@ spec:
 {{- with include "fl.value" (list $ . .minAvailable) }}
   minAvailable: {{ . }}
 {{- end }}
+  {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 {{-     end }}
 {{-   end }}
 {{-   include "apps-utils.leaveScope" $ }}
@@ -122,6 +128,9 @@ spec:
   {{- $_ = set $specs "Numbers" (list "healthCheckNodePort") }}
   {{- $_ = set $specs "Maps" (list "sessionAffinityConfig" "selector") }}
   {{- include "apps-utils.generateSpecs" (list $ $RelatedScope $specs) | nindent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ $RelatedScope $RelatedScope.extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 {{- end }}
 
 
@@ -154,6 +163,9 @@ spec:
 {{-             include "apps-helpers.generateHPAMetrics" (list $ $RelatedScope) | trim | nindent 2 }}
 {{-           end }}
 {{-         end }}
+  {{-         with include "apps-compat.renderRaw" (list $ . $.CurrentApp.horizontalPodAutoscaler.extraSpec) | trim }}
+  {{-           . | nindent 2 }}
+  {{-         end }}
 
 {{-         range $_customMetricResourceName, $_customMetricResource := $.CurrentApp.horizontalPodAutoscaler.customMetricResources }}
 {{-           include "apps-utils.enterScope" (list $ $_customMetricResourceName) }}

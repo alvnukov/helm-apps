@@ -37,6 +37,9 @@ spec:
   {{- $_ = set $specs "Numbers" (list "minReadySeconds" "progressDeadlineSeconds" "revisionHistoryLimit" "replicas") }}
   {{- $_ = set $specs "Maps" (list "strategy" "apps-helpers.podTemplate" "apps-specs.selector") }}
   {{- include "apps-utils.generateSpecs" (list $ . $specs) | indent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 
 {{- $_ = unset . "__annotations__" }}
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}

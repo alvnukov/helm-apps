@@ -14,6 +14,9 @@
 apiVersion: v1
 kind: Secret
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
+{{- with include "apps-compat.renderRaw" (list $ . .extraFields) | trim }}
+{{- . | nindent 0 }}
+{{- end }}
 type: {{- include "fl.value" (list $ . .type) | default "Opaque" | nindent 2 }}
 data:
 {{- if (include "fl.value" (list $ . .data)) }}

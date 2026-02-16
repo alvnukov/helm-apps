@@ -37,10 +37,21 @@ apps-configmaps:
     data:
       key2: "local-value-2"
       key3: "value-3"
+  compat-config:
+    enabled: true
+    extraFields: |
+      immutable: true
+    data:
+      key: value
 
 apps-stateless:
   compat-service:
     enabled: true
+    extraSpec: |
+      paused: true
+    podSpecExtra: |
+      os:
+        name: linux
     containers:
       main:
         image:
@@ -54,6 +65,10 @@ apps-stateless:
         ports: |
           - name: http
             containerPort: 8080
+        extraFields: |
+          resizePolicy:
+            - resourceName: cpu
+              restartPolicy: NotRequired
     service:
       enabled: true
       type: LoadBalancer
@@ -67,3 +82,59 @@ apps-stateless:
         - name: http
           port: 80
           targetPort: 8080
+      extraSpec: |
+        externalTrafficPolicy: Local
+
+apps-jobs:
+  compat-job:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - echo test
+    jobTemplateExtraSpec: |
+      podFailurePolicy:
+        rules: []
+
+apps-ingresses:
+  compat-ingress:
+    enabled: true
+    host: app.example.com
+    paths: |
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: compat-service
+            port:
+              number: 80
+    extraSpec: |
+      defaultBackend:
+        service:
+          name: compat-service
+          port:
+            number: 80
+
+apps-pvcs:
+  compat-pvc:
+    enabled: true
+    accessModes: |
+      - ReadWriteOnce
+    resources: |
+      requests:
+        storage: 1Gi
+    extraSpec: |
+      volumeMode: Filesystem
+
+apps-secrets:
+  compat-secret:
+    enabled: true
+    extraFields: |
+      stringData:
+        token: value

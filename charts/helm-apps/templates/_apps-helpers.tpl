@@ -130,6 +130,9 @@
   {{- $_ = set $specsContainers "Strings" (list "imagePullPolicy" "terminationMessagePath" "terminationMessagePolicy" "workingDir") }}
   {{- $_ = set $specsContainers "Bools" (list "stdin" "stdinOnce" "tty" "workingDir" ) }}
   {{- include "apps-utils.generateSpecs" (list $ . $specsContainers) | trim | nindent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .extraFields) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 {{- end }}
 {{- include "apps-utils.leaveScope" $ }}
 {{- end }}
@@ -158,6 +161,9 @@ spec:
   {{- $_ = set $specsTemplate "Numbers" (list "activeDeadlineSeconds" "priority" "terminationGracePeriodSeconds") }}
   {{- $_ = set $specsTemplate "Bools" (list "automountServiceAccountToken" "enableServiceLinks" "hostIPC" "hostNetwork" "hostPID" "setHostnameAsFQDN" "shareProcessNamespace") }}
   {{- include "apps-utils.generateSpecs" (list $ . $specsTemplate) | trim | nindent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .podSpecExtra) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 {{- $_ := set . "__specName__" "template"}}
 {{- end }}
 {{- end -}}
@@ -220,6 +226,9 @@ spec:
   {{- $_ = set $specs "Numbers" (list "activeDeadlineSeconds" "backoffLimit" "completions" "parallelism" "ttlSecondsAfterFinished") }}
   {{- $_ = set $specs "Bools" (list "manualSelector" "suspend") }}
 {{ include "apps-utils.generateSpecs" (list $ . $specs) | trim | indent 2 }}
+  {{- with include "apps-compat.renderRaw" (list $ . .jobTemplateExtraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   template: {{ include "apps-helpers.podTemplate" (list $ .) | trim | nindent 4 }}
 {{- end }}
 {{- end -}}
