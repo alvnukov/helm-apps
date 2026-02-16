@@ -43,3 +43,17 @@
 {{ include "fl.value" (list $ $scope $value) }}
 {{- end -}}
 {{- end -}}
+
+{{- define "apps-compat.enforceAllowedKeys" -}}
+{{- $ := index . 0 -}}
+{{- $scope := index . 1 -}}
+{{- $allowed := index . 2 -}}
+{{- $scopePath := index . 3 -}}
+{{- if kindIs "map" $scope -}}
+{{- range $key, $_ := $scope }}
+{{- if and (not (has $key $allowed)) (not (hasPrefix "__" $key)) }}
+{{- fail (printf "Strict mode: unknown key '%s' at %s" $key $scopePath) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end -}}

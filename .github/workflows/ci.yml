@@ -132,6 +132,13 @@ jobs:
           grep -q 'kubernetes.io/metadata.name: ingress-nginx' /tmp/contracts_render.yaml
           grep -q 'port: 53' /tmp/contracts_render.yaml
 
+          # Strict mode (opt-in) for network policies:
+          # valid config should render, unknown key should fail.
+          werf helm template contracts tests/contracts --set global.validation.strict=true > /tmp/contracts_render_strict.yaml
+          ! werf helm template contracts tests/contracts \
+            --set global.validation.strict=true \
+            --set apps-network-policies.compat-netpol.typoField=1 >/tmp/contracts_render_strict_fail.yaml
+
           # Service spec compatibility by Kubernetes version.
           werf helm template contracts tests/contracts --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
           grep -q 'loadBalancerClass: "internal-vip"' /tmp/contracts_render_129.yaml

@@ -10,6 +10,40 @@
 {{- define "apps-network-policies.render" }}
 {{- $ := . }}
 {{- with $.CurrentApp }}
+{{- $strict := false }}
+{{- with $.Values.global.validation }}
+{{- if include "fl.isTrue" (list $ . .strict) }}
+{{- $strict = true }}
+{{- end }}
+{{- end }}
+{{- if $strict }}
+{{- $allowedKeys := list
+"_include"
+"__AppType__"
+"enabled"
+"name"
+"randomName"
+"werfWeight"
+"annotations"
+"labels"
+"_preRenderHook"
+"type"
+"apiVersion"
+"kind"
+"spec"
+"podSelector"
+"policyTypes"
+"ingress"
+"egress"
+"endpointSelector"
+"ingressDeny"
+"egressDeny"
+"selector"
+"types"
+"extraSpec"
+}}
+{{- include "apps-compat.enforceAllowedKeys" (list $ . $allowedKeys (printf "apps-network-policies.%s" $.CurrentApp.name)) }}
+{{- end }}
 {{- $type := include "fl.value" (list $ . .type) | default "kubernetes" }}
 {{- $apiVersion := include "fl.value" (list $ . .apiVersion) }}
 {{- $kind := include "fl.value" (list $ . .kind) }}

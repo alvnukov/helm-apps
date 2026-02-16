@@ -74,6 +74,7 @@ global:
 Примечание по `validation.strict`:
 - В ветке `1.x` значение по умолчанию — `false` (совместимость).
 - Флаг добавлен как контракт для постепенного перехода к более строгой валидации без breaking changes.
+- Текущая реализация strict-check сначала покрывает `apps-network-policies` (неизвестные ключи дают fail).
 
 ### 2.1 `global._includes` + `_include`: примеры merge
 <a id="param-global-includes"></a>

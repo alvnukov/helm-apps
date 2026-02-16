@@ -1,6 +1,7 @@
 global:
   ci_url: example.com
   # validation:
+  #   # Opt-in strict checks (currently applied for apps-network-policies).
   #   strict: false
   ## Альтернатива ограниченным yaml-алиасам Helm'а. Даёт возможность не дублировать одну и ту же конфигурацию много раз.
   #
