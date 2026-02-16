@@ -78,12 +78,18 @@
 {{- $value := index . 1 -}}
 {{- $path := index . 2 -}}
 {{- if kindIs "slice" $value -}}
+  {{- $pathString := join "." $path -}}
   {{- $last := "" -}}
   {{- if gt (len $path) 0 -}}
     {{- $last = last $path -}}
   {{- end -}}
-  {{- if not (or (eq $last "_include") (eq $last "_include_files")) -}}
-    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files." (join "." $path)) -}}
+  {{- $isAllowedKafkaHosts := regexMatch "^Values\\.apps-kafka-strimzi\\..*\\.kafka\\.brokers\\.hosts\\.[^.]+$" $pathString -}}
+  {{- $isAllowedKafkaDexGroups := regexMatch "^Values\\.apps-kafka-strimzi\\..*\\.kafka\\.ui\\.dex\\.allowedGroups\\.[^.]+$" $pathString -}}
+  {{- $isAllowedGlobalInclude := regexMatch "^Values\\.global\\._includes\\..*" $pathString -}}
+  {{- $isAllowedConfigFilesYAMLContent := regexMatch "^Values\\..*\\.configFilesYAML\\..*\\.content\\..*" $pathString -}}
+  {{- $isAllowedEnvYAML := regexMatch "^Values\\..*\\.envYAML\\..*" $pathString -}}
+  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML) -}}
+    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files, global._includes.*, *.configFilesYAML.*.content.*, *.envYAML.*, apps-kafka-strimzi.*.kafka.brokers.hosts.*, apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*." (join "." $path)) -}}
   {{- end -}}
 {{- else if kindIs "map" $value -}}
   {{- range $k, $v := $value -}}
