@@ -72,3 +72,22 @@
 {{- end }}
 {{- end }}
 {{- end -}}
+
+{{- define "apps-compat.assertNoUnexpectedLists" -}}
+{{- $ := index . 0 -}}
+{{- $value := index . 1 -}}
+{{- $path := index . 2 -}}
+{{- if kindIs "slice" $value -}}
+  {{- $last := "" -}}
+  {{- if gt (len $path) 0 -}}
+    {{- $last = last $path -}}
+  {{- end -}}
+  {{- if not (or (eq $last "_include") (eq $last "_include_files")) -}}
+    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files." (join "." $path)) -}}
+  {{- end -}}
+{{- else if kindIs "map" $value -}}
+  {{- range $k, $v := $value -}}
+    {{- include "apps-compat.assertNoUnexpectedLists" (list $ $v (append $path $k)) -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}

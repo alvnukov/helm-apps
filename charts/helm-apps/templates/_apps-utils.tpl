@@ -209,6 +209,7 @@
 {{- $ := . }}
 {{- include "apps-utils.includesFromFiles" $ }}
 {{- $_ := include "fl.expandIncludesInValues" (list $ $.Values) }}
+{{- include "apps-compat.assertNoUnexpectedLists" (list $ $.Values (list "Values")) }}
 {{- include "apps-utils.findApps" $ }}
 ---
 # Source: apps.utils:  fl.expandIncludesInValues

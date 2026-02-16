@@ -679,6 +679,7 @@ group-name:
 
 Практика:
 - если поле описано как Kubernetes-блок, используйте YAML строку (`|`);
+- native YAML list в values запрещены (исключения: `_include`, `_include_files`);
 - для env-значений используйте scalar/env-map;
 - итог всегда проверяйте через `helm template ... --set global.env=<env>`.
 

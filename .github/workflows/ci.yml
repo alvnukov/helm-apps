@@ -167,6 +167,21 @@ jobs:
           ! grep -q 'ipFamilies:' /tmp/contracts_render_119.yaml
           ! grep -q 'allocateLoadBalancerNodePorts:' /tmp/contracts_render_119.yaml
 
+          # Native YAML lists are forbidden in values (except _include/_include_files).
+          cat > /tmp/contracts_invalid_native_list.yaml <<'EOF'
+          apps-stateless:
+            compat-service:
+              service:
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 8080
+          EOF
+          ! werf helm template contracts tests/contracts \
+            --values /tmp/contracts_invalid_native_list.yaml \
+            >/tmp/contracts_invalid_native_list.out 2>/tmp/contracts_invalid_native_list.err
+          grep -q "list value is not allowed at Values.apps-stateless.compat-service.service.ports" /tmp/contracts_invalid_native_list.err
+
       - name: Contract test for internal-like release/deploy flow
         run: |
           set -euo pipefail
