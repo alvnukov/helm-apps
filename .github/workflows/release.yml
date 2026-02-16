@@ -117,13 +117,23 @@ jobs:
             exit 0
           fi
 
-          GENERATED_BODY=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
-            -f tag_name="${TAG}" \
-            -f target_commitish="${GITHUB_SHA}" \
-            --jq '.body')
+          CHANGELOG_BODY="$(awk -v ver="${LIB_VERSION}" '
+            $0 ~ "^## \\[" ver "\\]" {capture=1; next}
+            capture && $0 ~ "^## \\[" {exit}
+            capture {print}
+          ' CHANGELOG.md)"
+
+          if [ -n "${CHANGELOG_BODY}" ]; then
+            GENERATED_BODY="${CHANGELOG_BODY}"
+          else
+            GENERATED_BODY=$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+              -f tag_name="${TAG}" \
+              -f target_commitish="${GITHUB_SHA}" \
+              --jq '.body')
+          fi
 
           {
-            echo "## Helm chart"
+            echo "## Helm Apps Library"
             echo
             echo "- Chart: \`helm-apps\`"
             echo "- Version: \`${LIB_VERSION}\`"

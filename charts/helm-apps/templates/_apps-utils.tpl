@@ -192,6 +192,8 @@
 {{-         if not (kindIs "invalid" $.CurrentGroupVars) }}
 {{-             $_ = set $groupScope.__GroupVars__ "type" (include "apps-utils.requiredValue" (list $ $.CurrentGroupVars "type")) }}
 {{-         end }}
+{{-     else }}
+{{-         $_ = set $groupScope.__GroupVars__ "type" (include "fl.value" (list $ $groupScope $groupScope.__GroupVars__.type)) }}
 {{-     end }}
 {{-     $_ = set $ "CurrentGroupVars" $groupScope.__GroupVars__ }}
 {{-     $_ = set $ "CurrentGroup" $groupScope }}

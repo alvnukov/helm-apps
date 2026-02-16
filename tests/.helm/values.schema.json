@@ -121,7 +121,7 @@
     "envMap": {
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/$defs/envValue"
+        "$ref": "#/$defs/yamlScalar"
       }
     },
     "resources": {
@@ -183,7 +183,6 @@
           "$ref": "#/$defs/yamlScalar"
         }
       },
-      "required": ["mountPath"],
       "additionalProperties": true
     },
     "container": {
@@ -263,10 +262,17 @@
           }
         },
         "configFilesYAML": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/$defs/configFile"
-          }
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/configFile"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "secretConfigFiles": {
           "type": "object",
@@ -475,13 +481,35 @@
         "containers": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/container"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/container"
+              },
+              {
+                "$ref": "#/$defs/yamlScalar"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
           }
         },
         "initContainers": {
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/container"
+            "anyOf": [
+              {
+                "$ref": "#/$defs/container"
+              },
+              {
+                "$ref": "#/$defs/yamlScalar"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
           }
         },
         "verticalPodAutoscaler": {
@@ -494,7 +522,17 @@
           "$ref": "#/$defs/pdb"
         },
         "service": {
-          "$ref": "#/$defs/service"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/service"
+            },
+            {
+              "$ref": "#/$defs/envValue"
+            },
+            {
+              "$ref": "#/$defs/envStringValue"
+            }
+          ]
         },
         "serviceAccount": {
           "$ref": "#/$defs/serviceAccount"
@@ -533,7 +571,7 @@
           "$ref": "#/$defs/envStringValue"
         },
         "nodeSelector": {
-          "$ref": "#/$defs/envStringValue"
+          "$ref": "#/$defs/yamlScalar"
         },
         "topologySpreadConstraints": {
           "$ref": "#/$defs/envStringValue"
@@ -596,7 +634,7 @@
           "$ref": "#/$defs/envStringValue"
         },
         "resources": {
-          "$ref": "#/$defs/envStringValue"
+          "$ref": "#/$defs/yamlScalar"
         },
         "clusterIssuer": {
           "$ref": "#/$defs/envValue"
@@ -655,6 +693,11 @@
     },
     "appMap": {
       "type": "object",
+      "properties": {
+        "__GroupVars__": {
+          "$ref": "#/$defs/customGroupVars"
+        }
+      },
       "patternProperties": {
         "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
           "$ref": "#/$defs/app"
@@ -766,7 +809,7 @@
           "$ref": "#/$defs/envValue"
         },
         "type": {
-          "type": "string"
+          "$ref": "#/$defs/envValue"
         },
         "_preRenderGroupHook": {
           "$ref": "#/$defs/envStringValue"
@@ -906,7 +949,5 @@
       "additionalProperties": true
     }
   },
-  "additionalProperties": {
-    "$ref": "#/$defs/customGroup"
-  }
+  "additionalProperties": true
 }

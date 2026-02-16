@@ -35,6 +35,10 @@ global:
         key2: "override-value-2"
         key4: "value-4"
 
+jwtSigningMethod: rsa
+_include_files:
+  - deployments-values.yaml
+
 apps-configmaps:
   merge-contract:
     _include: ["profile-base", "profile-override"]
@@ -212,3 +216,24 @@ custom-group-contract:
     enabled: true
     data:
       custom: "ok"
+
+apps-routes-contract:
+  __GroupVars__:
+    type:
+      _default: apps-ingresses
+    paths: |
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: compat-service
+            port:
+              number: 80
+    _groupPreRenderHook: |
+      {{- if not (hasKey $.CurrentApp "paths") }}
+      {{- $_ := set $.CurrentApp "paths" $.CurrentGroupVars.paths }}
+      {{- end }}
+  compat-route:
+    enabled: true
+    host: route.example.com
+    service: "compat-service"

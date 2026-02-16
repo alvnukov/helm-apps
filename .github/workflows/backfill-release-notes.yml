@@ -1,0 +1,78 @@
+name: Backfill Release Notes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Backfill notes for helm-apps releases
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+
+          mapfile -t TAGS < <(
+            gh api "repos/${GITHUB_REPOSITORY}/releases?per_page=100" --paginate \
+              --jq '.[] | select(.draft == false and .prerelease == false and (.tag_name | startswith("helm-apps-"))) | .tag_name' \
+              | sort -V
+          )
+
+          if [ "${#TAGS[@]}" -eq 0 ]; then
+            echo "No helm-apps-* releases found."
+            exit 0
+          fi
+
+          for i in "${!TAGS[@]}"; do
+            tag="${TAGS[$i]}"
+            prev=""
+            if [ "$i" -gt 0 ]; then
+              prev="${TAGS[$((i-1))]}"
+            fi
+
+            version="${tag#helm-apps-}"
+            echo "Updating notes for ${tag} (previous: ${prev:-none})"
+
+            if [ -n "$prev" ]; then
+              generated_body="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                -f tag_name="${tag}" \
+                -f previous_tag_name="${prev}" \
+                --jq '.body')"
+            else
+              generated_body="$(gh api -X POST "repos/${GITHUB_REPOSITORY}/releases/generate-notes" \
+                -f tag_name="${tag}" \
+                --jq '.body')"
+            fi
+
+            changelog_body="$(awk -v ver="${version}" '
+              $0 ~ "^## \\[" ver "\\]" {capture=1; next}
+              capture && $0 ~ "^## \\[" {exit}
+              capture {print}
+            ' CHANGELOG.md)"
+
+            if [ -n "${changelog_body}" ]; then
+              body="${changelog_body}"
+            else
+              body="${generated_body}"
+            fi
+
+            {
+              echo "## Helm Apps Library"
+              echo
+              echo "- Chart: \`helm-apps\`"
+              echo "- Version: \`${version}\`"
+              echo
+              echo "${body}"
+            } > /tmp/release_notes.md
+
+            gh release edit "${tag}" \
+              --title "helm-apps ${version}" \
+              --notes-file /tmp/release_notes.md
+          done

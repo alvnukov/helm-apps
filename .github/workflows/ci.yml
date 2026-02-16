@@ -135,6 +135,8 @@ jobs:
           grep -q 'image: alpine:3.19' /tmp/contracts_render.yaml
           grep -q 'helm-apps/release: "production-v1"' /tmp/contracts_render.yaml
           grep -q 'helm-apps/app-version: "3.19"' /tmp/contracts_render.yaml
+          grep -q 'name: "compat-route"' /tmp/contracts_render.yaml
+          grep -q 'host: "route.example.com"' /tmp/contracts_render.yaml
 
           # Strict mode (opt-in) for network policies:
           # valid config should render, unknown keys should fail.

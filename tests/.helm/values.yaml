@@ -33,6 +33,45 @@ global:
     test-include-from-file:
       _include_from_file: config/test-include-from-file.yaml
 
+# Compatibility examples for real-world project layouts:
+# top-level service keys that are not rendered by helm-apps directly,
+# but should still pass schema validation.
+jwtSigningMethod: rsa
+_include_files:
+  - deployments-values.yaml
+  - values-app-versions.yaml
+
+custom-services:
+  __GroupVars__:
+    type: custom-services
+  minio:
+    enabled: false
+    host:
+      ip:
+        _default: 127.0.0.1
+      port: 9000
+
+apps-routes:
+  __GroupVars__:
+    type:
+      _default: apps-ingresses
+    paths: |
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: compat-service
+            port:
+              number: 80
+    _groupPreRenderHook: |
+      {{- if not (hasKey $.CurrentApp "paths") }}
+      {{- $_ := set $.CurrentApp "paths" $.CurrentGroupVars.paths }}
+      {{- end }}
+  route-disabled:
+    enabled: false
+    host: route.example.com
+    service: compat-service
+
 ## Имя чарта. Ниже перечисляются ConfigMaps для развертывания.
 # Указано в .helm/requirements.yaml в репозитории приложения в ключах dependencies.name или dependencies.alias.
 # https://helm.sh/docs/topics/charts/#managing-dependencies-with-the-dependencies-field
