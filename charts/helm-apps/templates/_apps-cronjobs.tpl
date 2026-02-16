@@ -15,11 +15,7 @@
 {{- if not .containers }}
 {{- fail (printf "Установлено значение enabled для не настроенной '%s' в %s джобы!" $.CurrentApp.name "apps-cronjobs") }}
 {{- end }}
-{{- if semverCompare ">=1.21-0" $.Capabilities.KubeVersion.GitVersion }}
-apiVersion: batch/v1
-{{- else }}
-apiVersion: batch/v1beta1
-{{- end }}
+apiVersion: {{ include "apps-api-versions.cronJob" $ }}
 kind: CronJob
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:

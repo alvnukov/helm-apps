@@ -34,6 +34,7 @@ kind: StatefulSet
 {{-  end }}
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
+  {{- include "apps-compat.normalizeStatefulSetSpec" (list $ .) }}
   {{- /* https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#statefulset-v1-apps */ -}}
   {{- $specs := dict }}
   {{- $_ = set $specs "Maps" (list "apps-helpers.podTemplate" "apps-specs.selector" "persistentVolumeClaimRetentionPolicy" "updateStrategy") }}

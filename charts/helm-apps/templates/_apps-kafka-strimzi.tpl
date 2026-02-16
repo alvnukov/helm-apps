@@ -146,7 +146,7 @@ spec:
 {{- include "kafka-topics" (list $ . .topics) }}
 
 ---
-apiVersion: autoscaling.k8s.io/v1beta2
+apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
 kind: VerticalPodAutoscaler
 metadata:
   name: {{ $.CurrentKafka.name }}-{{ $.Values.global.env }}-kafka
@@ -159,7 +159,7 @@ spec:
     updateMode: "Off"
 
 ---
-apiVersion: autoscaling.k8s.io/v1beta2
+apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
 kind: VerticalPodAutoscaler
 metadata:
   name: {{ $.CurrentKafka.name }}-{{ $.Values.global.env }}-zookeeper
@@ -172,7 +172,7 @@ spec:
     updateMode: "Off"
 
 ---
-apiVersion: autoscaling.k8s.io/v1beta2
+apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
 kind: VerticalPodAutoscaler
 metadata:
   name: {{ $.CurrentKafka.name }}-{{ $.Values.global.env }}-entity-operator
@@ -185,7 +185,7 @@ spec:
     updateMode: "Off"
 
 ---
-apiVersion: autoscaling.k8s.io/v1beta2
+apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
 kind: VerticalPodAutoscaler
 metadata:
   name: {{ $.CurrentKafka.name }}-{{ $.Values.global.env }}-kafka-exporter
@@ -223,4 +223,3 @@ spec:
     min.insync.replicas: {{  include "fl.value" (list $ . .min_insync_replicas) }}
 {{- end }}
 {{- end }}
-

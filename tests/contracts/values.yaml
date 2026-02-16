@@ -37,3 +37,33 @@ apps-configmaps:
     data:
       key2: "local-value-2"
       key3: "value-3"
+
+apps-stateless:
+  compat-service:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        ports: |
+          - name: http
+            containerPort: 8080
+    service:
+      enabled: true
+      type: LoadBalancer
+      allocateLoadBalancerNodePorts: true
+      loadBalancerClass: internal-vip
+      internalTrafficPolicy: Local
+      ipFamilyPolicy: SingleStack
+      ipFamilies: |
+        - IPv4
+      ports: |
+        - name: http
+          port: 80
+          targetPort: 8080

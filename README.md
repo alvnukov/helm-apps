@@ -287,6 +287,18 @@ helm lint .helm
 helm template my-app .helm --set global.env=prod
 ```
 
+### 6. Совместимость с версиями Kubernetes
+
+Библиотека автоматически учитывает версию Kubernetes через `.Capabilities`:
+- выбирает подходящий `apiVersion` для `CronJob`, `PodDisruptionBudget`, `HorizontalPodAutoscaler`, `VerticalPodAutoscaler`;
+- учитывает различия в полях `spec` между версиями (например, в `Service` и `StatefulSet`).
+
+Практика для проверки:
+- новый кластер: `helm template ... --kube-version 1.29.0`
+- legacy-кластер: `helm template ... --kube-version 1.20.15`
+
+Текущий CI также проверяет рендер на нескольких версиях Kubernetes.
+
 ## Маршрут по документации
 
 Стартовая точка:

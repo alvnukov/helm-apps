@@ -29,6 +29,14 @@ jobs:
         run: |
           curl --silent --location https://git.io/JYfAY | bash
 
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          KUBECONFORM_VERSION=0.6.7
+          curl -sSL -o /tmp/kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          sudo install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform
+
       - name: Update test chart dependencies
         run: |
           werf helm dependency update tests/.helm
@@ -36,6 +44,34 @@ jobs:
       - name: Validate values schema
         run: |
           werf helm lint tests/.helm --values tests/.helm/values.yaml
+
+      - name: Verify Kubernetes API compatibility
+        run: |
+          set -euo pipefail
+
+          # New clusters: stable APIs must be rendered.
+          werf helm template tests tests/.helm \
+            --set "global.env=prod" \
+            --set "global._includes.apps-defaults.enabled=true" \
+            --kube-version 1.29.0 > /tmp/tests_k8s_129.yaml
+          grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_129.yaml
+          grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_129.yaml
+          grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_129.yaml
+          ! grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_129.yaml
+          ! grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_129.yaml
+          ! grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_129.yaml
+          kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/tests_k8s_129.yaml
+
+          # Legacy clusters: beta APIs remain supported.
+          werf helm template tests tests/.helm \
+            --set "global.env=prod" \
+            --set "global._includes.apps-defaults.enabled=true" \
+            --kube-version 1.20.15 > /tmp/tests_k8s_120.yaml
+          grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_120.yaml
+          grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_120.yaml
+          grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_120.yaml
+          ! grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_120.yaml
+          kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.20.15 /tmp/tests_k8s_120.yaml
 
       - name: Render
         run: |
@@ -78,3 +114,21 @@ jobs:
           # non-production resolves _default from higher-priority include.
           werf helm template contracts tests/contracts --set global.env=dev > /tmp/contracts_render_dev.yaml
           grep -q '"ENV_SWITCH": "override-default"' /tmp/contracts_render_dev.yaml
+
+          # Service spec compatibility by Kubernetes version.
+          werf helm template contracts tests/contracts --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
+          grep -q 'loadBalancerClass: "internal-vip"' /tmp/contracts_render_129.yaml
+          grep -q 'internalTrafficPolicy: "Local"' /tmp/contracts_render_129.yaml
+
+          werf helm template contracts tests/contracts --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
+          ! grep -q 'loadBalancerClass:' /tmp/contracts_render_120.yaml
+          ! grep -q 'internalTrafficPolicy:' /tmp/contracts_render_120.yaml
+          grep -q 'ipFamilyPolicy: "SingleStack"' /tmp/contracts_render_120.yaml
+          grep -q 'allocateLoadBalancerNodePorts: true' /tmp/contracts_render_120.yaml
+
+          werf helm template contracts tests/contracts --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
+          ! grep -q 'loadBalancerClass:' /tmp/contracts_render_119.yaml
+          ! grep -q 'internalTrafficPolicy:' /tmp/contracts_render_119.yaml
+          ! grep -q 'ipFamilyPolicy:' /tmp/contracts_render_119.yaml
+          ! grep -q 'ipFamilies:' /tmp/contracts_render_119.yaml
+          ! grep -q 'allocateLoadBalancerNodePorts:' /tmp/contracts_render_119.yaml

@@ -8,7 +8,7 @@
 {{-     if include "fl.isTrue" (list $ . $verticalPodAutoscaler.enabled) }}
 ---
 {{- include "apps-utils.printPath" $ }}
-apiVersion: autoscaling.k8s.io/v1
+apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
 kind: VerticalPodAutoscaler
 {{- include "apps-helpers.metadataGenerator" (list $ $verticalPodAutoscaler ) }}
 spec:
@@ -61,11 +61,7 @@ spec:
 {{-     if include "fl.isTrue" (list $ . .enabled) }}
 ---
 {{- include "apps-utils.printPath" $ }}
-{{-       if semverCompare ">=1.21.0-0" $.Capabilities.KubeVersion.GitVersion }}
-apiVersion: policy/v1
-{{-       else }}
-apiVersion: policy/v1beta1
-{{-       end }}
+apiVersion: {{ include "apps-api-versions.podDisruptionBudget" $ }}
 kind: PodDisruptionBudget
 {{- include "apps-helpers.metadataGenerator" (list $ $podDisruptionBudget) }}
 spec:
@@ -113,6 +109,7 @@ spec:
 {{- define "apps-components._service" }}
 {{-   $ := index . 0 }}
 {{-   $RelatedScope := index . 1 }}
+{{-   include "apps-compat.normalizeServiceSpec" (list $ $RelatedScope) }}
 apiVersion: v1
 kind: Service
 {{- include "apps-helpers.metadataGenerator" (list $ $RelatedScope) }}
@@ -138,7 +135,7 @@ spec:
 {{-       if include "fl.isTrue" (list $ . $.CurrentApp.horizontalPodAutoscaler.enabled) }}
 ---
 {{- include "apps-utils.printPath" $ }}
-apiVersion: autoscaling/v2beta2
+apiVersion: {{ include "apps-api-versions.horizontalPodAutoscaler" $ }}
 kind: HorizontalPodAutoscaler
 {{- include "apps-helpers.metadataGenerator" (list $ $.CurrentApp.horizontalPodAutoscaler ) }}
 spec:
