@@ -653,6 +653,39 @@ group-name:
 - `_preRenderGroupHook`
 - `_preRenderAppHook`
 
+### 15.1 Custom renderer через `__GroupVars__.type`
+
+`type` может указывать не только на встроенный `apps-*` рендерер, но и на пользовательский.
+
+Контракт:
+1. В values:
+   - `__GroupVars__.type: my-custom-type`
+2. В шаблонах chart приложения:
+   - `define "my-custom-type.render"`
+3. Библиотека передает стандартный контекст (`$`, `$.CurrentApp`, `$.CurrentGroupVars`, `$.Values`).
+
+Минимальный пример:
+
+```yaml
+custom-services:
+  __GroupVars__:
+    type: custom-services
+  service-a:
+    enabled: true
+```
+
+```yaml
+{{- define "custom-services.render" -}}
+{{- $ := . -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $.CurrentApp.name | quote }}
+data:
+  kind: "custom-services"
+{{- end -}}
+```
+
 ## 16. Полезные ссылки
 
 - Общая концепция: [docs/library-guide.md](library-guide.md)

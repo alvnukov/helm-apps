@@ -122,6 +122,43 @@ payment-group:
     __AppType__: apps-ingresses
 ```
 
+### 4.3 Пользовательские рендер-шаблоны через `__GroupVars__.type`
+
+Можно рендерить собственные сущности через библиотечный цикл `renderApps`.
+
+Идея:
+1. В группе задается `__GroupVars__.type: <custom-type>`.
+2. В chart приложения объявляется шаблон `define "<custom-type>.render"`.
+3. Библиотека вызывает его автоматически как `include (printf "%s.render" $type) $`.
+
+Пример values:
+
+```yaml
+custom-services:
+  __GroupVars__:
+    type: custom-services
+  minio:
+    enabled: true
+    host:
+      ip: 10.0.0.10
+      port: 9000
+```
+
+Пример шаблона в chart приложения:
+
+```yaml
+{{- define "custom-services.render" -}}
+{{- $ := . -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $.CurrentApp.name | quote }}
+spec:
+  type: ExternalName
+  externalName: {{ printf "%v" $.CurrentApp.host.ip | quote }}
+{{- end -}}
+```
+
 ## 5. Переиспользование конфигурации
 
 ### 5.1 `global._includes` + `_include`
