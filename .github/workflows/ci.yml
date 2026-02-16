@@ -268,3 +268,55 @@ jobs:
           werf helm template contracts tests/contracts \
             --kube-version "${{ matrix.kube_version }}" > "/tmp/contracts_k8s_${{ matrix.kube_version }}.yaml"
           grep -q '^apiVersion:' "/tmp/contracts_k8s_${{ matrix.kube_version }}.yaml"
+
+  kube-server-dry-run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set lib version
+        run: |
+          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
+          sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
+
+      - name: Install werf CLI
+        uses: werf/actions/install@v1.2
+        with:
+          channel: ea
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+        with:
+          version: v1.29.0
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1.10.0
+        with:
+          node_image: kindest/node:v1.29.2
+
+      - name: Install compatibility CRDs
+        run: |
+          set -euo pipefail
+          kubectl apply -f tests/crds/compat-crds.yaml
+          kubectl wait --for=condition=Established --timeout=120s crd --all
+
+      - name: Update chart dependencies
+        run: |
+          werf helm dependency update tests/.helm
+          werf helm dependency update tests/contracts
+
+      - name: Render contracts for server-side validation
+        run: |
+          set -euo pipefail
+          werf helm template contracts tests/contracts \
+            --kube-version 1.29.0 \
+            --set "apps-jobs.compat-job.restartPolicy=Never" \
+            > /tmp/contracts_k8s_129_server.yaml
+
+      - name: Server-side dry-run apply
+        run: |
+          set -euo pipefail
+          kubectl apply --dry-run=server -f /tmp/contracts_k8s_129_server.yaml
