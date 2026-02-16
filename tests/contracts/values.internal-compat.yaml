@@ -1,0 +1,91 @@
+global:
+  env: dev
+  _includes:
+    internal-default-app:
+      enabled: false
+      _preRenderHook: |
+        {{- $_ := set $ "CurrentReleaseVersion" (include "fl.value" (list $ . $.Values.deploy.release)) }}
+        {{- $release := index $.Values.releases $.CurrentReleaseVersion }}
+        {{- if empty $release }}{{ fail (printf "Not such release! [%s]" $.CurrentReleaseVersion) }}{{ end }}
+        {{- $appVersion := index $release $.CurrentApp.name }}
+        {{- if $appVersion }}
+        {{- if $.Values.deploy.enabled }}{{ $_ := set $.CurrentApp "enabled" true }}{{ end }}
+        {{- $_ = set $.CurrentApp "CurrentAppVersion" (include "fl.value" (list $ . $appVersion)) }}
+        {{- end }}
+
+deploy:
+  enabled: true
+  release: "r1"
+
+releases:
+  r1:
+    compat-web: "1.2.3"
+
+jwtSigningMethod: rsa
+_include_files:
+  - deployments-values.yaml
+
+custom-services:
+  __GroupVars__:
+    type: custom-services
+  minio:
+    enabled: false
+    host:
+      ip:
+        _default: 127.0.0.1
+      port: 9000
+
+apps-stateless:
+  __GroupVars__:
+    type:
+      _default: apps-stateless
+    _groupPreRenderHook: |
+      {{- range $_, $container := .containers }}
+      {{- if and (hasKey $container "resources") (kindIs "map" $container.resources) (hasKey $container.resources "limits") (kindIs "map" $container.resources.limits) }}
+      {{- if not (hasKey $container.resources "requests") }}
+      {{- $_ := set $container.resources "requests" dict }}
+      {{- end }}
+      {{- if hasKey $container.resources.limits "memoryMb" }}
+      {{- $_ := set $container.resources.requests "memoryMb" $container.resources.limits.memoryMb }}
+      {{- end }}
+      {{- end }}
+      {{- end }}
+  compat-web:
+    _include: ["internal-default-app"]
+    enabled: false
+    containers:
+      main:
+        image:
+          name: alpine
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        ports: |
+          - name: http
+            containerPort: 8080
+        resources:
+          limits:
+            memoryMb: "128"
+
+apps-routes-contract:
+  __GroupVars__:
+    type:
+      _default: apps-ingresses
+    paths: |
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: compat-web
+            port:
+              number: 80
+    _groupPreRenderHook: |
+      {{- if not (hasKey $.CurrentApp "paths") }}
+      {{- $_ := set $.CurrentApp "paths" $.CurrentGroupVars.paths }}
+      {{- end }}
+  compat-route:
+    enabled: true
+    host: compat.example.com
+    service: "compat-web"

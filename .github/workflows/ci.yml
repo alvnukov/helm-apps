@@ -166,3 +166,15 @@ jobs:
           ! grep -q 'ipFamilyPolicy:' /tmp/contracts_render_119.yaml
           ! grep -q 'ipFamilies:' /tmp/contracts_render_119.yaml
           ! grep -q 'allocateLoadBalancerNodePorts:' /tmp/contracts_render_119.yaml
+
+      - name: Contract test for internal-like release/deploy flow
+        run: |
+          set -euo pipefail
+          werf helm template contracts tests/contracts \
+            --values tests/contracts/values.internal-compat.yaml > /tmp/contracts_internal_like.yaml
+          grep -q 'name: "compat-web"' /tmp/contracts_internal_like.yaml
+          grep -q 'image: alpine:1.2.3' /tmp/contracts_internal_like.yaml
+          grep -q 'helm-apps/release:' /tmp/contracts_internal_like.yaml
+          grep -q 'helm-apps/app-version: "1.2.3"' /tmp/contracts_internal_like.yaml
+          grep -q 'name: "compat-route"' /tmp/contracts_internal_like.yaml
+          grep -q 'host: "compat.example.com"' /tmp/contracts_internal_like.yaml
