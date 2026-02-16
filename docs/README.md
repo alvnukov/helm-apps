@@ -16,6 +16,7 @@
 5. Найти решение по задаче: [docs/use-case-map.md](use-case-map.md)
 6. Проверить values по schema: [tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
 7. Сравнить с рабочими примерами: [tests/.helm/values.yaml](../tests/.helm/values.yaml)
+8. Понять модель надежности и уровень гарантий: [docs/stability.md](stability.md)
 
 ## Как читать документацию по роли
 
@@ -49,6 +50,7 @@
 - Полный справочник полей: [docs/reference-values.md](reference-values.md)
 - Индекс параметров с примерами: [docs/parameter-index.md](parameter-index.md)
 - Карта use-cases: [docs/use-case-map.md](use-case-map.md)
+- Стабильность и модель гарантий: [docs/stability.md](stability.md)
 - Готовые практические рецепты: [docs/cookbook.md](cookbook.md)
 - Эксплуатация, triage, rollback: [docs/operations.md](operations.md)
 - Краткие правила по helper-паттернам: [docs/usage.md](usage.md)

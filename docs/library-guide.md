@@ -7,6 +7,7 @@
 - [Reference](reference-values.md)
 - [Cookbook](cookbook.md)
 - [Operations](operations.md)
+- [Stability](stability.md)
 
 ## 1. Для кого этот документ
 
