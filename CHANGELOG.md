@@ -10,6 +10,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.6.5] - 2026-02-16
+
+### Changed
+- Tightened `sharedEnvSecrets` schema to accept only string secret names (or env-map of strings).
+- Restricted native-list allowance for `sharedEnvSecrets` to container paths only:
+  - `*.containers.*.sharedEnvSecrets`
+  - `*.initContainers.*.sharedEnvSecrets`
+
 ## [1.6.4] - 2026-02-16
 
 ### Added

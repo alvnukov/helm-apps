@@ -442,11 +442,25 @@
       },
       "additionalProperties": true
     },
+    "sharedEnvSecretNameValue": {
+      "description": "Secret name or env-map of secret names.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
     "sharedEnvSecretsSelection": {
       "type": "array",
       "description": "List of apps-secrets names to mount via envFrom.secretRef.",
       "items": {
-        "$ref": "#/$defs/envValue"
+        "$ref": "#/$defs/sharedEnvSecretNameValue"
       }
     },
     "app": {

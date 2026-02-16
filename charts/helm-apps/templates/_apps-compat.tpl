@@ -88,9 +88,10 @@
   {{- $isAllowedGlobalInclude := regexMatch "^Values\\.global\\._includes\\..*" $pathString -}}
   {{- $isAllowedConfigFilesYAMLContent := regexMatch "^Values\\..*\\.configFilesYAML\\..*\\.content\\..*" $pathString -}}
   {{- $isAllowedEnvYAML := regexMatch "^Values\\..*\\.envYAML\\..*" $pathString -}}
-  {{- $isAllowedSharedEnvSecrets := regexMatch "^Values\\..*\\.sharedEnvSecrets$" $pathString -}}
-  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedSharedEnvSecrets) -}}
-    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files, global._includes.*, *.configFilesYAML.*.content.*, *.envYAML.*, *.sharedEnvSecrets, apps-kafka-strimzi.*.kafka.brokers.hosts.*, apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*." (join "." $path)) -}}
+  {{- $isAllowedContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
+  {{- $isAllowedInitContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
+  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets) -}}
+    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files, global._includes.*, *.configFilesYAML.*.content.*, *.envYAML.*, *.containers.*.sharedEnvSecrets, *.initContainers.*.sharedEnvSecrets, apps-kafka-strimzi.*.kafka.brokers.hosts.*, apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*." (join "." $path)) -}}
   {{- end -}}
 {{- else if kindIs "map" $value -}}
   {{- range $k, $v := $value -}}
