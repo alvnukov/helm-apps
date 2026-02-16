@@ -193,3 +193,78 @@ jobs:
           grep -q 'helm-apps/app-version: "1.2.3"' /tmp/contracts_internal_like.yaml
           grep -q 'name: "compat-route"' /tmp/contracts_internal_like.yaml
           grep -q 'host: "compat.example.com"' /tmp/contracts_internal_like.yaml
+
+  kube-compatibility-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - kube_version: "1.19.16"
+            expect_policy: "policy/v1beta1"
+            expect_cronjob: "batch/v1beta1"
+            expect_hpa: "autoscaling/v2beta2"
+          - kube_version: "1.20.15"
+            expect_policy: "policy/v1beta1"
+            expect_cronjob: "batch/v1beta1"
+            expect_hpa: "autoscaling/v2beta2"
+          - kube_version: "1.23.17"
+            expect_policy: "policy/v1"
+            expect_cronjob: "batch/v1"
+            expect_hpa: "autoscaling/v2"
+          - kube_version: "1.29.0"
+            expect_policy: "policy/v1"
+            expect_cronjob: "batch/v1"
+            expect_hpa: "autoscaling/v2"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set lib version
+        run: |
+          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
+          sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
+
+      - name: Install werf CLI
+        uses: werf/actions/install@v1.2
+        with:
+          channel: ea
+
+      - name: Install kubeconform
+        run: |
+          set -euo pipefail
+          KUBECONFORM_VERSION=0.6.7
+          curl -sSL -o /tmp/kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
+          sudo install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform
+
+      - name: Update chart dependencies
+        run: |
+          werf helm dependency update tests/.helm
+          werf helm dependency update tests/contracts
+
+      - name: Render and verify APIs for Kubernetes ${{ matrix.kube_version }}
+        run: |
+          set -euo pipefail
+
+          werf helm template tests tests/.helm \
+            --set "global.env=prod" \
+            --set "global._includes.apps-defaults.enabled=true" \
+            --kube-version "${{ matrix.kube_version }}" > "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
+
+          grep -q "^apiVersion: ${{ matrix.expect_policy }}$" "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
+          grep -q "^apiVersion: ${{ matrix.expect_cronjob }}$" "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
+          grep -q "^apiVersion: ${{ matrix.expect_hpa }}$" "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
+
+          kubeconform -strict -summary -ignore-missing-schemas \
+            -kubernetes-version "${{ matrix.kube_version }}" \
+            "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
+
+      - name: Render contracts for Kubernetes ${{ matrix.kube_version }}
+        run: |
+          set -euo pipefail
+          werf helm template contracts tests/contracts \
+            --kube-version "${{ matrix.kube_version }}" > "/tmp/contracts_k8s_${{ matrix.kube_version }}.yaml"
+          grep -q '^apiVersion:' "/tmp/contracts_k8s_${{ matrix.kube_version }}.yaml"
