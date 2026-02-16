@@ -77,8 +77,8 @@
 {{- $ := index . 0 -}}
 {{- $value := index . 1 -}}
 {{- $path := index . 2 -}}
+{{- $pathString := join "." $path -}}
 {{- if kindIs "slice" $value -}}
-  {{- $pathString := join "." $path -}}
   {{- $last := "" -}}
   {{- if gt (len $path) 0 -}}
     {{- $last = last $path -}}

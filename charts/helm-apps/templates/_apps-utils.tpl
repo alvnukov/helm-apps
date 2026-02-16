@@ -43,8 +43,10 @@
 {{ $relativeScope.__specName__ }}: {{ print . | nindent 0 }}
 {{-             end }}
 {{-         else }}
+{{-             if hasKey $relativeScope $specName }}
 {{-             with  include "fl.value" (list $ $relativeScope (index $relativeScope .)) | trim }}
 {{ $specName }}: {{ print . | trim | nindent 0 }}
+{{-             end }}
 {{-             end }}
 {{-         end }}
 {{-     end }}
@@ -56,8 +58,10 @@
 {{ $relativeScope.__specName__ }}: {{ print . | nindent 2 }}
 {{-             end }}
 {{-         else }}
+{{-         if hasKey $relativeScope $specName }}
 {{-         with  include "fl.value" (list $ $relativeScope (index $relativeScope .)) | trim }}
 {{ $specName }}: {{ print . | nindent 2 }}
+{{-         end }}
 {{-         end }}
 {{-         end }}
 {{-     end }}
@@ -69,8 +73,10 @@
 {{ $relativeScope.__specName__ }}: {{ print . | quote }}
 {{-             end }}
 {{-         else }}
+{{-         if hasKey $relativeScope $specName }}
 {{-         with  include "fl.valueQuoted" (list $ $relativeScope (index $relativeScope .)) }}
 {{ $specName }}: {{ . }}
+{{-         end }}
 {{-         end }}
 {{-         end }}
 {{-     end }}
@@ -82,8 +88,10 @@
 {{ $relativeScope.__specName__ }}: {{ print . }}
 {{-             end }}
 {{-         else }}
+{{-         if hasKey $relativeScope $specName }}
 {{-         with  include "fl.value" (list $ $relativeScope (index $relativeScope .)) }}
 {{ $specName }}: {{ . }}
+{{-         end }}
 {{-         end }}
 {{-         end }}
 {{-     end }}
@@ -96,7 +104,7 @@
 {{ $relativeScope.__specName__ }}: {{ print $specValue }}
 {{-             end }}
 {{-         else }}
-{{-         if ne (include "fl.value" (list $ $relativeScope (index $relativeScope .))) "" }}
+{{-         if and (hasKey $relativeScope $specName) (ne (include "fl.value" (list $ $relativeScope (index $relativeScope .))) "") }}
 {{ $specName }}: {{ include "fl.isTrue" (list $ $relativeScope (index $relativeScope .)) }}
 {{-         end }}
 {{-         end }}
