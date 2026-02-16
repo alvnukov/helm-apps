@@ -5,3 +5,6 @@
 /.packages/
 tests/test_render_check.yaml
 .idea/
+
+# Internal planning
+.internal/

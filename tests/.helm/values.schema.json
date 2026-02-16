@@ -56,7 +56,7 @@
       "$ref": "#/$defs/appMap"
     },
     "apps-network-policies": {
-      "$ref": "#/$defs/appMap"
+      "$ref": "#/$defs/networkPolicyAppMap"
     },
     "apps-infra": {
       "$ref": "#/$defs/appsInfra"
@@ -659,6 +659,97 @@
       },
       "additionalProperties": false
     },
+    "networkPolicyType": {
+      "description": "Тип реализации NetworkPolicy.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["kubernetes", "cilium", "calico"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["kubernetes", "cilium", "calico"]
+          }
+        }
+      ]
+    },
+    "networkPolicyApp": {
+      "type": "object",
+      "properties": {
+        "_include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "annotations": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "labels": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "type": {
+          "$ref": "#/$defs/networkPolicyType"
+        },
+        "apiVersion": {
+          "$ref": "#/$defs/envValue"
+        },
+        "kind": {
+          "$ref": "#/$defs/envValue"
+        },
+        "spec": {
+          "$ref": "#/$defs/yamlScalar"
+        },
+        "podSelector": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "policyTypes": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "ingress": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "egress": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "endpointSelector": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "ingressDeny": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "egressDeny": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "selector": {
+          "$ref": "#/$defs/envValue"
+        },
+        "types": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "extraSpec": {
+          "$ref": "#/$defs/yamlScalar"
+        }
+      },
+      "additionalProperties": true
+    },
+    "networkPolicyAppMap": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
+          "$ref": "#/$defs/networkPolicyApp"
+        }
+      },
+      "additionalProperties": false
+    },
     "customGroupVars": {
       "type": "object",
       "properties": {
@@ -772,6 +863,16 @@
         },
         "_includes": {
           "type": "object",
+          "additionalProperties": true
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "strict": {
+              "type": "boolean",
+              "description": "Opt-in strict mode contract. Default=false for 1.x compatibility."
+            }
+          },
           "additionalProperties": true
         }
       },

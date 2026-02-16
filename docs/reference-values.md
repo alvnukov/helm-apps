@@ -53,6 +53,7 @@
 Типичные поля:
 - `env`: текущее окружение (`dev`, `prod`, `production`, etc.);
 - `_includes`: библиотека include-блоков;
+- `validation.strict`: opt-in strict contract для проверки values;
 - произвольные project-level переменные (`ci_url`, `baseUrl` и т.д.).
 
 Пример:
@@ -61,12 +62,18 @@
 global:
   env: production
   ci_url: example.org
+  validation:
+    strict: false
   _includes:
     apps-stateless-defaultApp:
       replicas:
         _default: 2
         production: 4
 ```
+
+Примечание по `validation.strict`:
+- В ветке `1.x` значение по умолчанию — `false` (совместимость).
+- Флаг добавлен как контракт для постепенного перехода к более строгой валидации без breaking changes.
 
 ### 2.1 `global._includes` + `_include`: примеры merge
 <a id="param-global-includes"></a>
