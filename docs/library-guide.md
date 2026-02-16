@@ -131,6 +131,19 @@ payment-group:
 2. В chart приложения объявляется шаблон `define "<custom-type>.render"`.
 3. Библиотека вызывает его автоматически как `include (printf "%s.render" $type) $`.
 
+В custom renderer доступны переменные контекста:
+- `$` (root context),
+- `$.Values`,
+- `$.CurrentApp`,
+- `$.CurrentGroupVars`,
+- `$.CurrentGroup`,
+- `$.CurrentPath`,
+- `$.Release`,
+- `$.Capabilities`,
+- `$.Files`.
+
+Любые поля приложения из `custom-services.<app>.*` автоматически пробрасываются в `$.CurrentApp.*`.
+
 Пример values:
 
 ```yaml
@@ -140,8 +153,10 @@ custom-services:
   minio:
     enabled: true
     host:
-      ip: 10.0.0.10
+      ip: minio.example.local
       port: 9000
+    extraLabels:
+      app.kubernetes.io/component: storage
 ```
 
 Пример шаблона в chart приложения:
@@ -153,11 +168,21 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $.CurrentApp.name | quote }}
+  labels:
+    app.kubernetes.io/name: {{ $.CurrentApp.name | quote }}
+    app.kubernetes.io/enabled: {{ printf "%v" $.CurrentApp.enabled | quote }}
+{{- with $.CurrentApp.extraLabels }}
+{{ toYaml . | indent 4 }}
+{{- end }}
 spec:
   type: ExternalName
   externalName: {{ printf "%v" $.CurrentApp.host.ip | quote }}
+  ports:
+    - port: {{ $.CurrentApp.host.port }}
 {{- end -}}
 ```
+
+В этом примере `name`, `enabled`, `host.ip`, `host.port` и `extraLabels` приходят из `values` текущего app через `$.CurrentApp`.
 
 ## 5. Переиспользование конфигурации
 

@@ -58,6 +58,20 @@ Custom renderers are also supported:
 2. Define template `"<type>.render"` in the consumer chart templates.
 3. Library will call `include (printf "%s.render" $type) $`.
 
+Context available inside custom renderer:
+
+- `$` (root context)
+- `$.Values`
+- `$.CurrentApp`
+- `$.CurrentGroupVars`
+- `$.CurrentGroup`
+- `$.CurrentPath`
+- `$.Release`
+- `$.Capabilities`
+- `$.Files`
+
+Any app fields from `custom-services.<app>.*` are passed as-is into `$.CurrentApp`.
+
 Minimal example:
 
 ```yaml
@@ -66,6 +80,11 @@ custom-services:
     type: custom-services
   minio:
     enabled: true
+    host:
+      ip: minio.example.local
+      port: 9000
+    extraLabels:
+      app.kubernetes.io/component: storage
 ```
 
 ```yaml
@@ -75,9 +94,17 @@ apiVersion: v1
 kind: Service
 metadata:
   name: {{ $.CurrentApp.name | quote }}
+  labels:
+    app.kubernetes.io/name: {{ $.CurrentApp.name | quote }}
+    app.kubernetes.io/enabled: {{ printf "%v" $.CurrentApp.enabled | quote }}
+{{- with $.CurrentApp.extraLabels }}
+{{ toYaml . | indent 4 }}
+{{- end }}
 spec:
   type: ExternalName
-  externalName: "example.local"
+  externalName: {{ printf "%v" $.CurrentApp.host.ip | quote }}
+  ports:
+    - port: {{ $.CurrentApp.host.port }}
 {{- end -}}
 ```
 

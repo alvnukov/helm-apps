@@ -664,7 +664,20 @@ group-name:
    - `define "my-custom-type.render"`
 3. Библиотека передает стандартный контекст (`$`, `$.CurrentApp`, `$.CurrentGroupVars`, `$.Values`).
 
-Минимальный пример:
+Важно: любые поля app из `group.<app>.*` доступны в custom renderer через `$.CurrentApp.*`.
+
+Полный набор полезных переменных в custom renderer:
+- `$` (root context),
+- `$.Values`,
+- `$.CurrentApp`,
+- `$.CurrentGroupVars`,
+- `$.CurrentGroup`,
+- `$.CurrentPath`,
+- `$.Release`,
+- `$.Capabilities`,
+- `$.Files`.
+
+Пример с явным пробросом app-полей в `$.CurrentApp`:
 
 ```yaml
 custom-services:
@@ -672,6 +685,11 @@ custom-services:
     type: custom-services
   service-a:
     enabled: true
+    host:
+      ip: service-a.example.local
+      port: 8080
+    extraLabels:
+      app.kubernetes.io/part-of: platform
 ```
 
 ```yaml
@@ -681,8 +699,15 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ $.CurrentApp.name | quote }}
+  labels:
+    app.kubernetes.io/name: {{ $.CurrentApp.name | quote }}
+    app.kubernetes.io/enabled: {{ printf "%v" $.CurrentApp.enabled | quote }}
+{{- with $.CurrentApp.extraLabels }}
+{{ toYaml . | indent 4 }}
+{{- end }}
 data:
   kind: "custom-services"
+  host: {{ printf "%v:%v" $.CurrentApp.host.ip $.CurrentApp.host.port | quote }}
 {{- end -}}
 ```
 
