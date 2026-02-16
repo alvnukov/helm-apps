@@ -18,6 +18,8 @@
 {{-     $imageName := include "fl.value" (list $ . $imageConfig.name) }}
 {{-     if include "fl.value" (list $ . $imageConfig.staticTag) }}
 {{-         $imageName }}:{{ include "fl.value" (list $ . $imageConfig.staticTag) }}
+{{-     else if hasKey $.CurrentApp "CurrentAppVersion" }}
+{{-         $imageName }}:{{ include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion) }}
 {{-     else -}}
 {{-         with $.Values.werf }}
 {{-             index .image $imageName }}
@@ -122,6 +124,7 @@
 {{- end }}
 {{- define "apps-utils.preRenderHooks" }}
 {{-     $ := . }}
+{{-     include "apps-release.prepareApp" $ }}
 {{-     if hasKey $ "CurrentGroupVars"  }}
 {{-         if hasKey $.CurrentGroupVars "_preRenderAppHook" }}
 {{-             $_ := include "fl.value" (list $ $.CurrentApp $.CurrentGroupVars._preRenderAppHook) }}

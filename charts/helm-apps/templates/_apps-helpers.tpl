@@ -245,6 +245,12 @@ spec:
 {{- if hasKey $.CurrentApp "werfWeight" }}
 {{- $_ := set $libAnnotations "werf.io/weight" (include "fl.value" (list $ . $.CurrentApp.werfWeight)) }}
 {{- end }}
+{{- if hasKey $ "CurrentReleaseVersion" }}
+{{- $_ := set $libAnnotations "helm-apps/release" (include "fl.value" (list $ . $.CurrentReleaseVersion)) }}
+{{- end }}
+{{- if hasKey $.CurrentApp "CurrentAppVersion" }}
+{{- $_ := set $libAnnotations "helm-apps/app-version" (include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion)) }}
+{{- end }}
 {{- $libVersion := include "apps-version.getLibraryVersion" $ | trim }}
 {{- with $libVersion }}
 {{- if not (eq . "_FLANT_APPS_LIBRARY_VERSION_") }}

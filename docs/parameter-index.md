@@ -8,6 +8,7 @@
 |---|---|---|
 | `global.env` | [Описание](reference-values.md#param-global-env) | [Пример](cookbook.md#example-global-env) |
 | `global._includes` | [Описание](reference-values.md#param-global-includes) | [Пример](../README.md#example-global-includes-merge) |
+| `global.release` | [Описание](reference-values.md#param-global-release) | [Пример](reference-values.md#example-global-release) |
 | `_include` | [Описание](reference-values.md#param-include) | [Пример](../README.md#example-include-concat) |
 
 ## Workload
@@ -16,6 +17,7 @@
 |---|---|---|
 | `containers` | [Описание](reference-values.md#param-containers) | [Пример](cookbook.md#example-basic-api) |
 | `service` | [Описание](reference-values.md#param-service) | [Пример](cookbook.md#example-basic-api) |
+| `releaseKey` | [Описание](reference-values.md#param-releasekey) | [Пример](reference-values.md#example-global-release) |
 | `podDisruptionBudget` | [Описание](reference-values.md#param-pdb) | [Пример](../tests/.helm/values.yaml) |
 | `serviceAccount` | [Описание](reference-values.md#param-serviceaccount) | [Пример](cookbook.md#example-serviceaccount) |
 

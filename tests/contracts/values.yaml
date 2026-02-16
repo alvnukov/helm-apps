@@ -1,5 +1,12 @@
 global:
   env: production
+  release:
+    enabled: true
+    current: "production-v1"
+    autoEnableApps: true
+    versions:
+      production-v1:
+        release-web: "3.19"
   _includes:
     base-a:
       data:
@@ -45,6 +52,18 @@ apps-configmaps:
       key: value
 
 apps-stateless:
+  release-auto-app:
+    enabled: false
+    releaseKey: release-web
+    containers:
+      main:
+        image:
+          name: alpine
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
   compat-service:
     enabled: true
     extraSpec: |

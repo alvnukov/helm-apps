@@ -460,6 +460,9 @@
         "werfWeight": {
           "$ref": "#/$defs/envValue"
         },
+        "releaseKey": {
+          "$ref": "#/$defs/envValue"
+        },
         "annotations": {
           "$ref": "#/$defs/envStringValue"
         },
@@ -871,6 +874,30 @@
             "strict": {
               "type": "boolean",
               "description": "Opt-in strict mode contract. Default=false for 1.x compatibility."
+            }
+          },
+          "additionalProperties": true
+        },
+        "release": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "$ref": "#/$defs/envValue"
+            },
+            "current": {
+              "$ref": "#/$defs/envValue"
+            },
+            "autoEnableApps": {
+              "$ref": "#/$defs/envValue"
+            },
+            "versions": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": {
+                  "$ref": "#/$defs/envValue"
+                }
+              }
             }
           },
           "additionalProperties": true

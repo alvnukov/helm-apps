@@ -16,6 +16,7 @@
 - Быстрее ревью: одинаковая структура конфигов между проектами.
 - Переиспользование через [`_include`](docs/parameter-index.md#core) и [`global._includes`](docs/parameter-index.md#core).
 - Поддержка окружений через [`global.env`](docs/parameter-index.md#core) (`_default`, env overrides, regex env keys).
+- Режим релиз-матрицы через [`global.release`](docs/reference-values.md#param-global-release) для автоподстановки тегов и централизованного переключения версий.
 - Поддержка связанных ресурсов (Service, Ingress, ConfigMap, Secret, HPA, VPA, PDB и др.) в одной модели.
 
 ## Какие ресурсы поддерживаются
@@ -162,6 +163,16 @@ apps-stateless:
 2. Порядок `_include` важен: каждый следующий профиль может переопределять предыдущий.
 3. Локальные поля приложения имеют приоритет над значениями из include-блоков.
 4. Это главный механизм DRY в библиотеке: стандартные профили задаются один раз и переиспользуются во всех сервисах.
+
+## Release mode (`global.release`)
+
+Опциональный режим для централизованного управления версиями приложений:
+- задаете текущий релиз в `global.release.current`;
+- храните матрицу `release -> app -> version` в `global.release.versions`;
+- app получает `CurrentAppVersion`, и если `image.staticTag` не задан, тег берется из релизной матрицы;
+- в рендер добавляются аннотации `helm-apps/release` и `helm-apps/app-version`.
+
+Практический референс и пример: [`docs/reference-values.md#param-global-release`](docs/reference-values.md#param-global-release)
 
 ### Примеры merge-поведения
 

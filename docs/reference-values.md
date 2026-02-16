@@ -53,6 +53,7 @@
 Типичные поля:
 - `env`: текущее окружение (`dev`, `prod`, `production`, etc.);
 - `_includes`: библиотека include-блоков;
+- `release`: декларативное управление версиями приложений;
 - `validation.strict`: opt-in strict contract для проверки values;
 - произвольные project-level переменные (`ci_url`, `baseUrl` и т.д.).
 
@@ -80,7 +81,51 @@ global:
   - custom-группы разрешены через `__GroupVars__.type`;
   - неизвестная `apps-*` секция без `__GroupVars__` даёт fail.
 
-### 2.1 `global._includes` + `_include`: примеры merge
+### 2.1 `global.release`
+<a id="param-global-release"></a>
+<a id="example-global-release"></a>
+
+`global.release` включает режим декларативных релизов:
+- `enabled`: включает release-логику;
+- `current`: имя текущего релиза;
+- `autoEnableApps`: автоматически включает app, если для него найдена версия;
+- `versions`: матрица `релиз -> appKey -> tag/version`.
+
+Связанные app-параметры:
+- `releaseKey` — ключ приложения в `global.release.versions.<current>`.
+<a id="param-releasekey"></a>
+
+Пример:
+
+```yaml
+global:
+  release:
+    enabled: true
+    current: "production-v1"
+    autoEnableApps: true
+    versions:
+      production-v1:
+        release-web: "3.19"
+
+apps-stateless:
+  api:
+    enabled: false
+    releaseKey: release-web
+    containers:
+      main:
+        image:
+          name: alpine
+```
+
+Поведение:
+- библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion`;
+- если `image.staticTag` не задан, используется `CurrentAppVersion`;
+- в metadata добавляются аннотации:
+  - `helm-apps/release`
+  - `helm-apps/app-version`
+- при `autoEnableApps=true` app автоматически включается, когда версия найдена в матрице релиза.
+
+### 2.2 `global._includes` + `_include`: примеры merge
 <a id="param-global-includes"></a>
 <a id="param-include"></a>
 
@@ -213,6 +258,7 @@ apps-stateless:
 - `enabled`
 - `name`
 - `werfWeight`
+- `releaseKey`
 - `annotations`
 - `labels`
 

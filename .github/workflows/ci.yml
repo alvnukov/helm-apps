@@ -131,6 +131,10 @@ jobs:
           grep -q 'selector: "app == '\''compat-service'\''"' /tmp/contracts_render.yaml
           grep -q 'kubernetes.io/metadata.name: ingress-nginx' /tmp/contracts_render.yaml
           grep -q 'port: 53' /tmp/contracts_render.yaml
+          grep -q 'name: "release-auto-app"' /tmp/contracts_render.yaml
+          grep -q 'image: alpine:3.19' /tmp/contracts_render.yaml
+          grep -q 'helm-apps/release: "production-v1"' /tmp/contracts_render.yaml
+          grep -q 'helm-apps/app-version: "3.19"' /tmp/contracts_render.yaml
 
           # Strict mode (opt-in) for network policies:
           # valid config should render, unknown keys should fail.

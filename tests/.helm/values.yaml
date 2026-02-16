@@ -1,5 +1,12 @@
 global:
   ci_url: example.com
+  release:
+    enabled: false
+    current: "2026.02"
+    autoEnableApps: true
+    versions:
+      "2026.02":
+        app-1: "1.2.3"
   # validation:
   #   # Opt-in strict checks (currently applied for apps-network-policies).
   #   strict: false
