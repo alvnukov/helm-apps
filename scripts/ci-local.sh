@@ -182,6 +182,10 @@ if [[ "${RUN_CONTRACTS}" -eq 1 ]]; then
   grep -q 'volumeMode: Filesystem' /tmp/contracts_render.yaml
   grep -q 'immutable: true' /tmp/contracts_render.yaml
   grep -q 'stringData:' /tmp/contracts_render.yaml
+  grep -q '^name: "common-runtime"$' /tmp/contracts_render.yaml
+  grep -q '"SHARED_MODE": "c3RyaWN0"' /tmp/contracts_render.yaml
+  grep -q '"SHARED_REGION": "ZXUtY2VudHJhbC0x"' /tmp/contracts_render.yaml
+  grep -q 'name: "common-runtime"' /tmp/contracts_render.yaml
   grep -q '^apiVersion: networking.k8s.io/v1$' /tmp/contracts_render.yaml
   grep -q '^kind: NetworkPolicy$' /tmp/contracts_render.yaml
   grep -q '^apiVersion: cilium.io/v2$' /tmp/contracts_render.yaml

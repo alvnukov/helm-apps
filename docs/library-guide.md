@@ -286,8 +286,14 @@ ports: |
 
 Особенности:
 - `secretEnvVars` автоматически создают Secret и подключают его в `envFrom`;
+- `sharedEnvSecrets` добавляют общие Secret (из `apps-secrets`) в `envFrom`;
 - `configFiles*` автоматически создают ConfigMap/Secret и монтируются в контейнер;
 - `alwaysRestart` добавляет псевдослучайный env `FL_APP_ALWAYS_RESTART`.
+
+Порядок `envFrom`-источников (низкий -> высокий приоритет):
+- `sharedEnvSecrets`
+- `envFrom`
+- auto-secret из `secretEnvVars`
 
 ## 9. Слой Pod/Workload
 

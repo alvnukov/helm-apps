@@ -92,6 +92,8 @@ apps-stateless:
           resizePolicy:
             - resourceName: cpu
               restartPolicy: NotRequired
+        sharedEnvSecrets:
+          - common-runtime
     service:
       enabled: true
       type: LoadBalancer
@@ -107,6 +109,42 @@ apps-stateless:
           targetPort: 8080
       extraSpec: |
         externalTrafficPolicy: Local
+  compat-env-old:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        envFrom: |
+          - secretRef:
+              name: "manual-env-old"
+        secretEnvVars:
+          ORDER_KEY: "from-secret-env-vars"
+  compat-env-mixed:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        sharedEnvSecrets:
+          - common-runtime
+        envFrom: |
+          - secretRef:
+              name: "manual-env-mixed"
+        secretEnvVars:
+          ORDER_KEY: "from-secret-env-vars"
 
 apps-jobs:
   compat-job:
@@ -203,6 +241,22 @@ apps-pvcs:
       volumeMode: Filesystem
 
 apps-secrets:
+  common-runtime:
+    enabled: true
+    envVars:
+      SHARED_REGION:
+        _default: eu-central-1
+        "^dev.*$": eu-west-1
+      SHARED_MODE: "strict"
+      ORDER_KEY: "from-shared"
+  manual-env-old:
+    enabled: true
+    envVars:
+      ORDER_KEY: "from-manual-old"
+  manual-env-mixed:
+    enabled: true
+    envVars:
+      ORDER_KEY: "from-manual-mixed"
   compat-secret:
     enabled: true
     extraFields: |

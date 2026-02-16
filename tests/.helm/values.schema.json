@@ -228,6 +228,9 @@
         "envFrom": {
           "$ref": "#/$defs/envStringValue"
         },
+        "sharedEnvSecrets": {
+          "$ref": "#/$defs/sharedEnvSecretsSelection"
+        },
         "resources": {
           "$ref": "#/$defs/resources"
         },
@@ -438,6 +441,13 @@
         }
       },
       "additionalProperties": true
+    },
+    "sharedEnvSecretsSelection": {
+      "type": "array",
+      "description": "List of apps-secrets names to mount via envFrom.secretRef.",
+      "items": {
+        "$ref": "#/$defs/envValue"
+      }
     },
     "app": {
       "type": "object",

@@ -10,6 +10,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.6.4] - 2026-02-16
+
+### Added
+- Shared environment secret references for containers via `sharedEnvSecrets` list.
+- Contract examples for reusable `apps-secrets` + container-level `envFrom` wiring.
+
+### Changed
+- Validation schema updated to support `containers.*.sharedEnvSecrets` as a native list.
+- Native-list guard updated to allow `*.sharedEnvSecrets` while preserving strict list checks elsewhere.
+- CI and local CI checks updated for shared env secret rendering and wiring.
+
 ## [1.6.3] - 2026-02-16
 
 ### Added

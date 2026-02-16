@@ -206,6 +206,9 @@ spec:
     {{- $ := index . 0 }}
     {{- $RelatedScope := index . 1 }}
     {{- with $RelatedScope }}
+    {{- with (include "apps-helpers.generateSharedEnvSecretsEnvFrom" (list $ .) | trim) }}
+    {{- . | nindent 0 }}
+    {{- end }}
     {{- include "fl.value" (list $ . .envFrom) | trim | nindent 0 }}
     {{- /* Mount envs from Secret created by "secretEnvVars:" option */ -}}
     {{- if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
@@ -213,6 +216,20 @@ spec:
     name: {{ print "envs-" $.CurrentApp._currentContainersType "-" $.CurrentApp.name "-" .name | include "fl.formatStringAsDNSLabel" | quote }}
     {{- end }}
     {{- end }}
+{{- end }}
+
+{{- define "apps-helpers.generateSharedEnvSecretsEnvFrom" }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- if and (hasKey $RelatedScope "sharedEnvSecrets") (kindIs "slice" $RelatedScope.sharedEnvSecrets) }}
+{{- range $_, $secretRef := $RelatedScope.sharedEnvSecrets }}
+{{- $secretName := include "fl.value" (list $ $RelatedScope $secretRef) }}
+{{- if $secretName }}
+- secretRef:
+    name: {{ $secretName | quote }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- define "apps-helpers.jobTemplate" }}

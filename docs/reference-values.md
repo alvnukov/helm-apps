@@ -353,6 +353,7 @@ containers:
 - `envVars`
 - `envYAML`
 - `env`
+- `sharedEnvSecrets` (list of Secret names from `apps-secrets`, mounted via `envFrom.secretRef`)
 - `envFrom`
 - `secretEnvVars`
 - `fromSecretsEnvVars`
@@ -371,6 +372,13 @@ containers:
 - `persistantVolumes`
 
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
+
+Порядок объединения `envFrom`-источников (низкий -> высокий приоритет):
+- `sharedEnvSecrets`
+- `envFrom`
+- auto-secret из `secretEnvVars`
+
+Это сохраняет прежнее поведение старых опций (`envFrom -> secretEnvVars`) и добавляет `sharedEnvSecrets` как базовый слой.
 
 ## 6. Env-паттерн
 <a id="param-global-env"></a>
