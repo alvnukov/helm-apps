@@ -25,9 +25,10 @@ jobs:
           LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
           sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
 
-      - name: Install Helm3
-        run: |
-          curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      - name: Install werf CLI
+        uses: werf/actions/install@v1.2
+        with:
+          channel: ea
 
       - name: Install Dyff
         run: |
@@ -35,26 +36,24 @@ jobs:
 
       - name: Update test chart dependencies
         run: |
-          helm dependency update tests/.helm
+          werf helm dependency update tests/.helm
 
       - name: Validate values schema
         run: |
-          helm lint tests/.helm --values tests/.helm/values.yaml
+          werf helm lint tests/.helm --values tests/.helm/values.yaml
 
       - name: Render
         run: |
           set -e
-          helm template tests tests/.helm \
-            --set "global.env=prod" \
-            --set "global._includes.apps-defaults.enabled=true" > /tmp/tests_render.yaml
+          source $(werf ci-env github --as-file)
+          cd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod
 
       - name: Test render
         run: |
           set -e
-          helm template tests tests/.helm \
-            --set "global.env=prod" \
-            --set "global._includes.apps-defaults.enabled=true" > /tmp/test_render_check.yaml
-          dyff between tests/test_render.yaml /tmp/test_render_check.yaml | tee /tmp/test_render_check
+          source $(werf ci-env github --as-file)
+          cd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod | sed '/werf.io\//d' > test_render_check.yaml
+          dyff between test_render.yaml test_render_check.yaml | tee /tmp/test_render_check
           check_tests=$(sed 1,7d /tmp/test_render_check | wc -l)
           if [ $check_tests -gt "7" ]; then exit 1; fi
 
