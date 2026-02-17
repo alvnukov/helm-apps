@@ -10,6 +10,20 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.6.7] - 2026-02-17
+
+### Added
+- Strict YAML stream validation script for rendered outputs and snapshots: `scripts/validate-yaml-stream.rb`.
+- Duplicate-key detection in YAML validation to catch missing document separators and merged-doc regressions early.
+
+### Changed
+- `apps-infra` rendering now uses shared path/header printing (`apps-utils.printPath`) for `NodeUser` and `NodeGroup` resources.
+- CI, release workflow, and local CI now validate YAML syntax and stream integrity before snapshot/structure comparisons.
+- Contract checks now validate all generated YAML streams (`production`, `dev`, `strict`, version matrix, internal-like flow).
+
+### Fixed
+- Invalid contracts snapshot structure caused by missing/incorrect document separation in `tests/contracts/test_render.snapshot.yaml`.
+
 ## [1.6.6] - 2026-02-16
 
 ### Added

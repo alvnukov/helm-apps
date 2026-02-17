@@ -50,6 +50,9 @@ if ! command -v ruby >/dev/null 2>&1; then
   exit 1
 fi
 
+echo "==> Validate contracts snapshot YAML"
+ruby scripts/validate-yaml-stream.rb tests/contracts/test_render.snapshot.yaml
+
 echo "==> Update contract chart dependencies"
 werf helm dependency update tests/contracts
 
@@ -61,10 +64,20 @@ werf helm template contracts tests/contracts --set global.env=production --kube-
 werf helm template contracts tests/contracts --set global.env=production --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
 werf helm template contracts tests/contracts --set global.env=production --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
 
+echo "==> Validate rendered contracts YAML streams"
+ruby scripts/validate-yaml-stream.rb \
+  /tmp/contracts_render.yaml \
+  /tmp/contracts_render_dev.yaml \
+  /tmp/contracts_render_strict.yaml \
+  /tmp/contracts_render_129.yaml \
+  /tmp/contracts_render_120.yaml \
+  /tmp/contracts_render_119.yaml
+
 if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
   echo "==> Contracts snapshot check (new features snapshot)"
   werf helm template contracts tests/contracts --set global.env=production \
     | sed '/werf.io\//d' > /tmp/contracts_snapshot_check.yaml
+  ruby scripts/validate-yaml-stream.rb /tmp/contracts_snapshot_check.yaml
   diff -u tests/contracts/test_render.snapshot.yaml /tmp/contracts_snapshot_check.yaml
 fi
 
@@ -111,6 +124,7 @@ werf helm template contracts tests/contracts \
   --set global.env=production \
   --values tests/contracts/values.internal-compat.yaml > /tmp/contracts_internal_like.yaml
 
+ruby scripts/validate-yaml-stream.rb /tmp/contracts_internal_like.yaml
 ruby scripts/verify-contracts-structure.rb internal --file /tmp/contracts_internal_like.yaml
 
 echo "Contracts checks passed."

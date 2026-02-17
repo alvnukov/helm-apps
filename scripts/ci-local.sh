@@ -142,7 +142,9 @@ if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
       echo "Cannot load werf ci-env github context; using local context."
     fi
 
+    ruby ../scripts/validate-yaml-stream.rb test_render.yaml
     werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod | sed '/werf.io\//d' > test_render_check.yaml
+    ruby ../scripts/validate-yaml-stream.rb test_render_check.yaml
 
     if command -v dyff >/dev/null 2>&1; then
       dyff between test_render.yaml test_render_check.yaml | tee /tmp/test_render_check

@@ -775,6 +775,28 @@ spec:
     - "https://compat.example.com/callback"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-grafana-dashboards.compat-dashboard
+apiVersion: deckhouse.io/v1alpha1
+kind: GrafanaDashboardDefinition
+metadata:
+  name: "compat-dashboard"
+  annotations:
+    helm-apps/release: "production-v1"
+  labels:
+    app: "compat-dashboard"
+    chart: "contracts"
+    repo: ""
+spec:
+  folder: Compatibility
+  definition: |2
+    {
+      "title": "Compatibility Dashboard",
+      "schemaVersion": 36,
+      "version": 1,
+      "panels": []
+    }
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-kafka-strimzi.compat-kafka
 apiVersion: kafka.strimzi.io/v1beta2
 kind: Kafka
@@ -940,7 +962,7 @@ spec:
     min.insync.replicas: 1
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
-##[apps-infra node-groups compat-group]
+# Helm Apps Library: apps-infra.node-groups.compat-group
 apiVersion: deckhouse.io/v1
 kind: NodeGroup
 metadata:
@@ -950,26 +972,7 @@ metadata:
 spec:
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
-# Helm Apps Library: apps-grafana-dashboards.compat-dashboard
-apiVersion: deckhouse.io/v1alpha1
-kind: GrafanaDashboardDefinition
-metadata:
-  name: "compat-dashboard"
-  annotations:
-    helm-apps/release: "production-v1"
-  labels:
-    app: "compat-dashboard"
-    chart: "contracts"
-    repo: ""
-spec:
-  folder: Compatibility
-  definition: |2
-    {
-      "title": "Compatibility Dashboard",
-      "schemaVersion": 36,
-      "version": 1,
-      "panels": []
-    }
+# Helm Apps Library: apps-infra.node-users.compat-user
 apiVersion: deckhouse.io/v1
 kind: NodeUser
 metadata:

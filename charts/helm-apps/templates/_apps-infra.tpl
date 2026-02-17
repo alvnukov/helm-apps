@@ -22,6 +22,7 @@
    {{- $_ = set $ "CurrentApp" $_app }}
 {{- include "apps-utils.preRenderHooks" $ }}
    {{- if include "fl.isTrue" (list $ . .enabled) }}
+{{- include "apps-utils.printPath" $ }}
 apiVersion: deckhouse.io/v1
 kind: NodeUser
 metadata:
@@ -57,8 +58,7 @@ spec:
     {{- $_ := include "fl.value" (list $ . ._preRenderHook) }}
    {{- end }}
    {{- if include "fl.isTrue" (list $ . .enabled) }}
----
-#{{ print "#" $.CurrentPath }}
+{{- include "apps-utils.printPath" $ }}
 apiVersion: deckhouse.io/v1
 kind: NodeGroup
 metadata:
