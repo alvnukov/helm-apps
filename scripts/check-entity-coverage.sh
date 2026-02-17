@@ -34,11 +34,19 @@ if [[ ${#entities[@]} -eq 0 ]]; then
   exit 1
 fi
 
-mapfile -t covered < <(
-  rg '^apps-[a-z0-9-]+:' "${CONTRACTS_FILE}" -o --replace '$0' \
-    | sed 's/:$//' \
-    | sort -u
-)
+if command -v rg >/dev/null 2>&1; then
+  mapfile -t covered < <(
+    rg '^apps-[a-z0-9-]+:' "${CONTRACTS_FILE}" -o --replace '$0' \
+      | sed 's/:$//' \
+      | sort -u
+  )
+else
+  mapfile -t covered < <(
+    grep -Eo '^apps-[a-z0-9-]+:' "${CONTRACTS_FILE}" \
+      | sed 's/:$//' \
+      | sort -u
+  )
+fi
 
 declare -A covered_map=()
 for c in "${covered[@]}"; do
