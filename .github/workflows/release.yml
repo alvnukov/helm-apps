@@ -94,6 +94,16 @@ jobs:
           check_tests=$(sed 1,7d /tmp/test_render_check | wc -l)
           if [ $check_tests -gt "7" ]; then exit 1; fi
 
+      - name: Check apps entity coverage in contracts
+        run: |
+          set -euo pipefail
+          bash scripts/check-entity-coverage.sh
+
+      - name: Contract checks (snapshot + structural + negative)
+        run: |
+          set -euo pipefail
+          bash scripts/check-contracts.sh
+
       - name: Run chart-releaser
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: helm/chart-releaser-action@v1.4.0
