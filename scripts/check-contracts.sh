@@ -78,7 +78,13 @@ if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
   werf helm template contracts tests/contracts --set global.env=production \
     | sed '/werf.io\//d' > /tmp/contracts_snapshot_check.yaml
   ruby scripts/validate-yaml-stream.rb /tmp/contracts_snapshot_check.yaml
-  diff -u tests/contracts/test_render.snapshot.yaml /tmp/contracts_snapshot_check.yaml
+
+  # Keep contracts snapshot stable across library releases:
+  # runtime annotation helm-apps/version is expected to change with Chart version.
+  sed '/helm-apps\/version:/d' tests/contracts/test_render.snapshot.yaml > /tmp/contracts_snapshot_expected.normalized.yaml
+  sed '/helm-apps\/version:/d' /tmp/contracts_snapshot_check.yaml > /tmp/contracts_snapshot_check.normalized.yaml
+
+  diff -u /tmp/contracts_snapshot_expected.normalized.yaml /tmp/contracts_snapshot_check.normalized.yaml
 fi
 
 echo "==> Structural contracts checks"

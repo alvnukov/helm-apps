@@ -20,6 +20,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - `apps-infra` rendering now uses shared path/header printing (`apps-utils.printPath`) for `NodeUser` and `NodeGroup` resources.
 - CI, release workflow, and local CI now validate YAML syntax and stream integrity before snapshot/structure comparisons.
 - Contract checks now validate all generated YAML streams (`production`, `dev`, `strict`, version matrix, internal-like flow).
+- Contracts snapshot comparison is now normalized to ignore `helm-apps/version`, so checks are stable across patch releases.
 
 ### Fixed
 - Invalid contracts snapshot structure caused by missing/incorrect document separation in `tests/contracts/test_render.snapshot.yaml`.
