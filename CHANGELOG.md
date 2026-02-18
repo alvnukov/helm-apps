@@ -10,6 +10,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.1] - 2026-02-18
+
+### Fixed
+- Improved `fl.value` diagnostics for template strings:
+  - added explicit errors for malformed delimiters (`E_TPL_DELIMITERS`);
+  - added explicit errors for triple-brace usage (`E_TPL_BRACES`);
+  - made environment resolution in `fl.value` safer when `global.env` is missing or non-string.
+- Added structured, actionable error format across key render validations:
+  - `[helm-apps:<CODE>] ... | path=... | hint=... | docs=...`.
+- Kept compatibility for `_include_from_file` and `_include_files` when referenced file content is empty/missing, while preserving parse-error checks for non-empty invalid YAML.
+- Expanded troubleshooting docs for `fl.value` template failures in FAQ and operations guide.
+
 ## [1.7.0] - 2026-02-18
 
 ### Changed

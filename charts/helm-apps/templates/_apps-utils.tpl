@@ -341,8 +341,9 @@ Values
 {{- if kindIs "map" $current }}
 {{- if hasKey $current "_include_from_file" }}
 {{- $fn := include "apps-utils.tpl" (list $ $current._include_from_file) }}
-{{- $includeContent := $.Files.Get $fn | fromYaml }}
-{{- if not $includeContent }}
+{{- $rawContent := $.Files.Get $fn }}
+{{- $includeContent := $rawContent | fromYaml }}
+{{- if and (ne (trim (toString $rawContent)) "") (not $includeContent) }}
 {{- $basePath := $currentName }}
 {{- if not (hasPrefix "Values" $basePath) }}
 {{- $basePath = printf "Values.%s" $basePath }}
@@ -359,8 +360,9 @@ Values
 {{- $newInclude := list }}
 {{- range $_, $fileName := $current._include_files }}
 {{- $fn := include "apps-utils.tpl" (list $ $fileName) }}
-{{- $includeContent := $.Files.Get $fn | fromYaml }}
-{{- if not $includeContent }}
+{{- $rawContent := $.Files.Get $fn }}
+{{- $includeContent := $rawContent | fromYaml }}
+{{- if and (ne (trim (toString $rawContent)) "") (not $includeContent) }}
 {{- $basePath := $currentName }}
 {{- if not (hasPrefix "Values" $basePath) }}
 {{- $basePath = printf "Values.%s" $basePath }}
