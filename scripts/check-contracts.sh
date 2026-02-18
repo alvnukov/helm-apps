@@ -123,7 +123,8 @@ YAML
   --values /tmp/contracts_invalid_native_list.yaml \
   >/tmp/contracts_invalid_native_list.out 2>/tmp/contracts_invalid_native_list.err
 
-grep -q "list value is not allowed at Values.apps-stateless.compat-service.service.ports" /tmp/contracts_invalid_native_list.err
+grep -q "\[helm-apps:E_UNEXPECTED_LIST\]" /tmp/contracts_invalid_native_list.err
+grep -q "path=Values.apps-stateless.compat-service.service.ports" /tmp/contracts_invalid_native_list.err
 
 echo "==> Internal-like release/deploy flow checks"
 werf helm template contracts tests/contracts \
