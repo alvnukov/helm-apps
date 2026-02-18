@@ -6,6 +6,8 @@
 
 Быстрая навигация:
 - [Старт docs](README.md)
+- [Quick Start](quickstart.md)
+- [Decision Guide](decision-guide.md)
 - [Handbook](library-guide.md)
 - [Reference](reference-values.md)
 - [Operations](operations.md)

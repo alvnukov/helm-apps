@@ -10,6 +10,8 @@
 ## Быстрая навигация
 
 - [Старт docs](README.md)
+- [Quick Start](quickstart.md)
+- [Decision Guide](decision-guide.md)
 - [Parameter Index](parameter-index.md)
 - [Reference](reference-values.md)
 - [Cookbook](cookbook.md)

@@ -27,6 +27,8 @@
 ## Связанные документы
 
 - [README.md](../README.md)
+- [quickstart.md](quickstart.md)
+- [decision-guide.md](decision-guide.md)
 - [architecture.md](architecture.md)
 - [reference-values.md](reference-values.md)
 - [cookbook.md](cookbook.md)

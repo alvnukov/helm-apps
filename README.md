@@ -31,6 +31,12 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 
 История изменений: [`CHANGELOG.md`](CHANGELOG.md)
 
+## Старт здесь (самый короткий путь)
+
+1. Первый успешный рендер за 10 минут: [`docs/quickstart.md`](docs/quickstart.md)
+2. Выбор правильного подхода под задачу: [`docs/decision-guide.md`](docs/decision-guide.md)
+3. Точные поля и типы параметров: [`docs/reference-values.md`](docs/reference-values.md)
+
 ## Почему это удобно команде
 
 - Единая модель деплоя для всех сервисов: одинаковая структура `values.yaml`.
@@ -40,6 +46,8 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 - Управляемая эволюция: в ветке `1.x` приоритет на стабильность и совместимость.
 
 ## Быстрый старт (5-10 минут)
+
+Подробный и линейный onboarding с готовыми шагами: [`docs/quickstart.md`](docs/quickstart.md).
 
 ### 1. Подключить dependency
 
@@ -340,6 +348,8 @@ apps-stateless:
 ## Карта документации
 
 - Точка входа: [`docs/README.md`](docs/README.md)
+- Быстрый путь до первого результата: [`docs/quickstart.md`](docs/quickstart.md)
+- Гайд выбора подхода: [`docs/decision-guide.md`](docs/decision-guide.md)
 - Концепция и handbook: [`docs/library-guide.md`](docs/library-guide.md)
 - Архитектура рендера и приоритеты: [`docs/architecture.md`](docs/architecture.md)
 - Полный reference по параметрам: [`docs/reference-values.md`](docs/reference-values.md)

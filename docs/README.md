@@ -5,19 +5,20 @@
 
 ## Рекомендуемый маршрут
 
-1. Понять концепцию и границы контрактов: [library-guide.md](library-guide.md)
-2. Посмотреть архитектуру рендера и приоритеты merge/env: [architecture.md](architecture.md)
+1. Получить первый успешный рендер: [quickstart.md](quickstart.md)
+2. Выбрать правильный путь под задачу: [decision-guide.md](decision-guide.md)
 3. Взять рабочий рецепт под задачу: [cookbook.md](cookbook.md)
 4. Уточнить параметры и типы: [reference-values.md](reference-values.md)
 5. Найти параметр по индексу: [parameter-index.md](parameter-index.md)
-6. Проверить похожий кейс: [use-case-map.md](use-case-map.md)
-7. Свериться с операционными чеклистами: [operations.md](operations.md)
+6. Понять концепцию и границы контрактов: [library-guide.md](library-guide.md)
+7. Посмотреть архитектуру рендера и приоритеты merge/env: [architecture.md](architecture.md)
+8. Свериться с операционными чеклистами: [operations.md](operations.md)
 
 ## Навигация по ролям
 
 | Роль | Что читать сначала | Что читать затем |
 |---|---|---|
-| Разработчик сервиса | [cookbook.md](cookbook.md) | [reference-values.md](reference-values.md), [parameter-index.md](parameter-index.md) |
+| Разработчик сервиса | [quickstart.md](quickstart.md), [decision-guide.md](decision-guide.md) | [cookbook.md](cookbook.md), [reference-values.md](reference-values.md) |
 | DevOps / Platform Engineer | [library-guide.md](library-guide.md), [architecture.md](architecture.md) | [reference-values.md](reference-values.md), [operations.md](operations.md) |
 | Ревьюер MR | [reference-values.md](reference-values.md), [parameter-index.md](parameter-index.md) | [use-case-map.md](use-case-map.md), [operations.md](operations.md) |
 | On-call / Incident | [operations.md](operations.md) | [faq.md](faq.md), [reference-values.md](reference-values.md) |
@@ -26,6 +27,8 @@
 
 | Задача | Куда идти |
 |---|---|
+| Быстро поднять первый сервис | [quickstart.md](quickstart.md) |
+| Выбрать подходящий путь без экспериментов | [decision-guide.md](decision-guide.md) |
 | Поднять новый API сервис | [cookbook.md#example-basic-api](cookbook.md#example-basic-api) |
 | Настроить Ingress/TLS | [cookbook.md#example-ingress-tls](cookbook.md#example-ingress-tls) |
 | Подключить shared env из Secret/ConfigMap | [cookbook.md#61-общие-secret-через-sharedenvsecrets](cookbook.md#61-общие-secret-через-sharedenvsecrets), [cookbook.md#62-общие-configmap-через-sharedenvconfigmaps](cookbook.md#62-общие-configmap-через-sharedenvconfigmaps) |
@@ -37,6 +40,8 @@
 
 ## Карта документов
 
+- Быстрый путь до первого результата: [quickstart.md](quickstart.md)
+- Гайд выбора подхода: [decision-guide.md](decision-guide.md)
 - Концепция и принципы: [library-guide.md](library-guide.md)
 - Архитектура рендера и приоритеты: [architecture.md](architecture.md)
 - Полный референс параметров: [reference-values.md](reference-values.md)
