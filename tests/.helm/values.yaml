@@ -1,13 +1,5 @@
 global:
   ci_url: example.com
-  deploy:
-    enabled: false
-    release:
-      _default: "2026.02"
-      prod: "2026.02"
-  releases:
-    "2026.02":
-      app-1: "1.2.3"
   # validation:
   #   # Opt-in strict checks (currently applied for apps-network-policies).
   #   strict: false
