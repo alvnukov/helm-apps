@@ -133,18 +133,17 @@ If a forbidden list is used, render must fail with exact values path.
 
 ## 6. Release Mode
 
-Optional release matrix mode:
+Release matrix mode uses:
 
-- `global.release.enabled` (default `false`)
-- `global.release.current`
-- `global.release.versions`
-- `global.release.autoEnableApps` (default `true`)
-- app-level `releaseKey` (optional, fallback to app name)
+- `global.deploy.enabled` (auto-enable apps when version is found)
+- `global.deploy.release` (env-map/string -> release name)
+- `global.releases` (release -> appKey -> version)
+- app-level `versionKey` (optional, fallback to app name)
 
 Behavior:
 
-- resolves `CurrentAppVersion`;
-- uses it as image tag when `image.staticTag` is absent;
+- resolves `CurrentReleaseVersion` and `CurrentAppVersion`;
+- uses `CurrentAppVersion` as image tag when `image.staticTag` is absent;
 - adds annotations `helm-apps/release` and `helm-apps/app-version`.
 
 ## 7. Network Policies

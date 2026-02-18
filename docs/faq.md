@@ -50,12 +50,12 @@
 
 Ссылка: [operations.md#43-ошибка-рендера-ambiguous-regex-env](operations.md#43-ошибка-рендера-ambiguous-regex-env)
 
-## 5. Когда нужен `releaseKey`?
+## 5. Когда нужен `versionKey`?
 
-`releaseKey` нужен только если имя app отличается от ключа в `global.release.versions.<release>`.
-Если ключ совпадает с app name, `releaseKey` можно не задавать.
+`versionKey` нужен только если имя app отличается от ключа в `global.releases.<release>`.
+Если ключ совпадает с app name, `versionKey` можно не задавать.
 
-Ссылка: [reference-values.md#param-releasekey](reference-values.md#param-releasekey)
+Ссылка: [reference-values.md#param-versionkey](reference-values.md#param-versionkey)
 
 ## 6. Какой приоритет у `sharedEnvConfigMaps`, `sharedEnvSecrets`, `envFrom`, `secretEnvVars`, `envVars`?
 

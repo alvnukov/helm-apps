@@ -15,8 +15,9 @@
 | `global.env` | [Описание](reference-values.md#param-global-env) | [Пример](cookbook.md#example-global-env) |
 | `global._includes` | [Описание](reference-values.md#param-global-includes) | [Пример](../README.md#example-global-includes-merge) |
 | `_include` | [Описание](reference-values.md#param-include) | [Пример](../README.md#example-include-concat) |
-| `global.release` | [Описание](reference-values.md#param-global-release) | [Пример](reference-values.md#example-global-release) |
-| `releaseKey` | [Описание](reference-values.md#param-releasekey) | [Пример](reference-values.md#example-global-release) |
+| `global.deploy` | [Описание](reference-values.md#param-global-deploy) | [Пример](reference-values.md#example-global-deploy) |
+| `global.releases` | [Описание](reference-values.md#param-global-releases) | [Пример](reference-values.md#example-global-deploy) |
+| `versionKey` | [Описание](reference-values.md#param-versionkey) | [Пример](reference-values.md#example-global-deploy) |
 
 ## Workload
 

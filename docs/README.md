@@ -30,7 +30,7 @@
 | Настроить Ingress/TLS | [cookbook.md#example-ingress-tls](cookbook.md#example-ingress-tls) |
 | Подключить shared env из Secret/ConfigMap | [cookbook.md#61-общие-secret-через-sharedenvsecrets](cookbook.md#61-общие-secret-через-sharedenvsecrets), [cookbook.md#62-общие-configmap-через-sharedenvconfigmaps](cookbook.md#62-общие-configmap-через-sharedenvconfigmaps) |
 | Понять порядок приоритетов env | [cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars](cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
-| Включить release matrix | [reference-values.md#param-global-release](reference-values.md#param-global-release) |
+| Включить release matrix | [reference-values.md#param-global-deploy](reference-values.md#param-global-deploy) |
 | Сделать переиспользование через include-профили | [reference-values.md#param-global-includes](reference-values.md#param-global-includes), [../README.md#example-global-includes-merge](../README.md#example-global-includes-merge) |
 | Добавить custom renderer | [library-guide.md#param-custom-renderer](library-guide.md#param-custom-renderer) |
 | Разобраться с ошибкой рендера | [operations.md](operations.md), [faq.md](faq.md) |

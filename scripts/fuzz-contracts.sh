@@ -68,7 +68,7 @@ echo "Fuzz contracts: iterations=${ITERATIONS}, seed=${SEED}"
 for i in $(seq 1 "${ITERATIONS}"); do
   kv="${kube_versions[$((RANDOM % ${#kube_versions[@]}))]}"
   strict="$(pick_bool)"
-  auto_enable="$(pick_bool)"
+  deploy_enabled="$(pick_bool)"
 
   # Keep at least one workload enabled so manifests are always meaningful.
   enable_stateless="true"
@@ -99,7 +99,7 @@ for i in $(seq 1 "${ITERATIONS}"); do
   args=(
     --set "global.env=production"
     --set "global.validation.strict=${strict}"
-    --set "global.release.autoEnableApps=${auto_enable}"
+    --set "global.deploy.enabled=${deploy_enabled}"
     --set "apps-stateless.compat-service.enabled=${enable_stateless}"
     --set "apps-stateful.compat-stateful.enabled=${enable_stateful}"
     --set "apps-jobs.compat-job.enabled=${enable_job}"
@@ -126,7 +126,7 @@ for i in $(seq 1 "${ITERATIONS}"); do
   )
 
   if ! werf helm template contracts tests/contracts --kube-version "${kv}" "${args[@]}" >"${out}" 2>"${err}"; then
-    echo "Fuzz iteration ${i} failed (kube=${kv}, strict=${strict}, autoEnable=${auto_enable})" >&2
+    echo "Fuzz iteration ${i} failed (kube=${kv}, strict=${strict}, deployEnabled=${deploy_enabled})" >&2
     echo "See: ${err}" >&2
     sed -n '1,120p' "${err}" >&2 || true
     exit 1

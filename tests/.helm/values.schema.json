@@ -514,7 +514,7 @@
         "werfWeight": {
           "$ref": "#/$defs/envValue"
         },
-        "releaseKey": {
+        "versionKey": {
           "$ref": "#/$defs/envValue"
         },
         "annotations": {
@@ -969,29 +969,26 @@
           },
           "additionalProperties": true
         },
-        "release": {
+        "deploy": {
           "type": "object",
           "properties": {
             "enabled": {
               "$ref": "#/$defs/envValue"
             },
-            "current": {
+            "release": {
               "$ref": "#/$defs/envValue"
-            },
-            "autoEnableApps": {
-              "$ref": "#/$defs/envValue"
-            },
-            "versions": {
-              "type": "object",
-              "additionalProperties": {
-                "type": "object",
-                "additionalProperties": {
-                  "$ref": "#/$defs/envValue"
-                }
-              }
             }
           },
           "additionalProperties": true
+        },
+        "releases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/envValue"
+            }
+          }
         }
       },
       "additionalProperties": true

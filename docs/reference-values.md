@@ -81,43 +81,43 @@ global:
   - custom-группы разрешены через `__GroupVars__.type`;
   - неизвестная `apps-*` секция без `__GroupVars__` даёт fail.
 
-### 2.1 `global.release`
-<a id="param-global-release"></a>
-<a id="example-global-release"></a>
+### 2.1 `global.deploy` + `global.releases`
+<a id="param-global-deploy"></a>
+<a id="param-global-releases"></a>
+<a id="example-global-deploy"></a>
 
-`global.release` включает режим декларативных релизов:
-- `enabled`: включает release-логику;
-- `current`: имя текущего релиза;
-- `autoEnableApps`: автоматически включает app, если для него найдена версия;
-- `versions`: матрица `релиз -> appKey -> tag/version`.
-
-Дефолты и поведение:
-- `enabled`: `false` по умолчанию;
-- `autoEnableApps`: `true` по умолчанию;
-- если версия для app не найдена в `versions.<current>`, библиотека не проставляет `CurrentAppVersion` и не меняет стандартную логику рендера.
+`global.deploy` и `global.releases` включают режим декларативных релизов:
+- `global.deploy.release`: имя релиза, выбираемое через env-map по `global.env`;
+- `global.deploy.enabled`: автоматически включает app, если для него найдена версия;
+- `global.releases`: матрица `релиз -> appKey -> tag/version`.
 
 Связанные app-параметры:
-- `releaseKey` — ключ приложения в `global.release.versions.<current>`.
+- `versionKey` — ключ приложения в `global.releases.<release>`.
   - параметр опционален;
-  - если `releaseKey` не задан, библиотека использует `app.name`.
-<a id="param-releasekey"></a>
+  - если `versionKey` не задан, библиотека использует `app.name`.
+<a id="param-versionkey"></a>
 
 Пример:
 
 ```yaml
 global:
-  release:
+  env: production
+  deploy:
     enabled: true
-    current: "production-v1"
-    autoEnableApps: true
-    versions:
-      production-v1:
-        release-web: "3.19"
+    release:
+      _default: production-v1
+      production: production-v1
+      dev: dev-v1
+  releases:
+    production-v1:
+      release-web: "3.19"
+    dev-v1:
+      release-web: "3.19-dev"
 
 apps-stateless:
   api:
     enabled: false
-    releaseKey: release-web
+    versionKey: release-web
     containers:
       main:
         image:
@@ -131,7 +131,7 @@ apps-stateless:
 - в metadata добавляются аннотации:
   - `helm-apps/release`
   - `helm-apps/app-version`
-- при `autoEnableApps=true` app автоматически включается, когда версия найдена в матрице релиза.
+- при `global.deploy.enabled=true` app автоматически включается, когда версия найдена.
 
 ### 2.2 `global._includes` + `_include`: примеры merge
 <a id="param-global-includes"></a>
@@ -266,7 +266,7 @@ apps-stateless:
 - `enabled`
 - `name`
 - `werfWeight`
-- `releaseKey`
+- `versionKey`
 - `annotations`
 - `labels`
 

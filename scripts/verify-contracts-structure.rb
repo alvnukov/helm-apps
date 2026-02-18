@@ -225,7 +225,7 @@ def verify_internal!(path)
 
   compat_web = find_one!(docs, kind: 'Deployment', name: 'compat-web')
   assert_eq!(compat_web.dig('spec', 'template', 'spec', 'containers', 0, 'image'), 'alpine:1.2.3', 'compat-web image')
-  assert_eq!(compat_web.dig('metadata', 'annotations', 'helm-apps/release'), 'production-v1', 'compat-web release annotation')
+  assert_eq!(compat_web.dig('metadata', 'annotations', 'helm-apps/release'), 'r1', 'compat-web release annotation')
   assert_eq!(compat_web.dig('metadata', 'annotations', 'helm-apps/app-version'), '1.2.3', 'compat-web app-version annotation')
 
   compat_route = find_one!(docs, kind: 'Ingress', name: 'compat-route')

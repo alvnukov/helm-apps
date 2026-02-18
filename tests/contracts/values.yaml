@@ -1,12 +1,14 @@
 global:
   env: production
-  release:
+  deploy:
     enabled: true
-    current: "production-v1"
-    autoEnableApps: true
-    versions:
-      production-v1:
-        release-web: "3.19"
+    release:
+      _default: production-v1
+      production: production-v1
+      dev: production-v1
+  releases:
+    production-v1:
+      release-web: "3.19"
   _includes:
     base-a:
       data:
@@ -65,7 +67,7 @@ apps-configmaps:
 apps-stateless:
   release-auto-app:
     enabled: false
-    releaseKey: release-web
+    versionKey: release-web
     containers:
       main:
         image:

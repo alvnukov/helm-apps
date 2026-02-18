@@ -13,8 +13,8 @@
 | `global._includes` | Реестр переиспользуемых профилей конфигурации. |
 | `_include` | Список include-профилей, применяемых к приложению. |
 | include merge | Рекурсивное объединение map-структур профилей и app overrides. |
-| `release mode` | Режим `global.release` для централизованного контроля версий приложений. |
-| `releaseKey` | Ключ app в `global.release.versions` (опционален). |
+| `release mode` | Режим `global.deploy` + `global.releases` для централизованного контроля версий приложений. |
+| `versionKey` | Ключ app в `global.releases.<release>` (опционален). |
 | `custom group` | Пользовательская группа с `__GroupVars__.type`. |
 | `custom renderer` | Шаблон `define "<type>.render"`, вызываемый библиотекой при рендере группы. |
 | `CurrentApp` | Контекст текущего приложения (`$.CurrentApp`) внутри renderer. |

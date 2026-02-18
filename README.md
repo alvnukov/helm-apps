@@ -122,7 +122,7 @@ helm template my-app .helm --set global.env=prod
 |---|---|---|
 | `global._includes` + `_include` | Переиспользование профилей, рекурсивный merge map | [README merge section](#example-global-includes-merge) |
 | `global.env` + `_default` + regex | Мульти-окружения в одном `values.yaml` | [`docs/reference-values.md#param-global-env`](docs/reference-values.md#param-global-env) |
-| Release mode (`global.release`) | Централизованная матрица версий app | [`docs/reference-values.md#param-global-release`](docs/reference-values.md#param-global-release) |
+| Release mode (`global.deploy` + `global.releases`) | Централизованная матрица версий app по `global.env` | [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy) |
 | Shared env из Secret/ConfigMap | Подключение общих env-блоков в контейнеры | [`docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars`](docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
 | Custom renderer (`__GroupVars__.type`) | Рендер собственных сущностей через цикл библиотеки | [`docs/library-guide.md#param-custom-renderer`](docs/library-guide.md#param-custom-renderer) |
 | Контрактная стабильность | Предсказуемость и защита от регрессий | [`docs/stability.md`](docs/stability.md) |
@@ -286,17 +286,16 @@ apps-stateless:
 
 Итоговый include-chain для `api` объединяет оба списка (`base-a` + `base-b`) и затем применяет локальные поля.
 
-## Release mode (`global.release`)
+## Release mode (`global.deploy` + `global.releases`)
 
 Опциональный режим для централизованного управления версиями:
-- `global.release.enabled` по умолчанию `false`;
-- текущий релиз задается в `global.release.current`;
-- матрица версий хранится в `global.release.versions`;
-- app key берется из `releaseKey`, а если он не задан — из имени app;
-- при `autoEnableApps=true` app включается автоматически, когда версия найдена;
+- релиз выбирается по `global.env` через `global.deploy.release`;
+- матрица версий хранится в `global.releases`;
+- app key берется из `versionKey`, а если он не задан — из имени app;
+- при `global.deploy.enabled=true` app включается автоматически, когда версия найдена;
 - если `image.staticTag` не задан, используется версия из релизной матрицы.
 
-Практический референс и пример: [`docs/reference-values.md#param-global-release`](docs/reference-values.md#param-global-release)
+Практический референс и пример: [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy)
 
 ## Custom renderer: расширение библиотеки своими типами
 

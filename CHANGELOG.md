@@ -10,6 +10,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.0] - 2026-02-18
+
+### Changed
+- Release matrix contract moved to `global.deploy` + `global.releases`.
+- Release selection now resolves by `global.env` through `global.deploy.release` (env-map/string).
+- App release key renamed to `versionKey`.
+- Documentation, schema, examples, and contracts aligned with the new release contract.
+
 ## [1.6.7] - 2026-02-17
 
 ### Added
@@ -74,9 +82,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ## [1.6.0] - 2026-02-16
 
 ### Added
-- New release matrix mode via `global.release`:
-  - `enabled`, `current`, `autoEnableApps`, `versions`.
-- Added app-level `releaseKey` to map an app to release matrix keys.
+- New release matrix mode.
+- Added app-level release key mapping for release matrix.
 - Automatic release annotations in rendered manifests:
   - `helm-apps/release`
   - `helm-apps/app-version`
@@ -84,7 +91,7 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 - If `image.staticTag` is not set, image tag can be resolved from `CurrentAppVersion`.
-- Extended `tests/.helm/values.schema.json` with `global.release` and `releaseKey`.
+- Extended `tests/.helm/values.schema.json` with release matrix parameters.
 - Updated docs (`README.md`, `docs/reference-values.md`, `docs/parameter-index.md`) with release mode examples.
 
 ## [1.5.0] - 2026-02-16

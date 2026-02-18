@@ -1,25 +1,25 @@
 global:
   env: dev
+  deploy:
+    enabled: true
+    release:
+      _default: "r1"
+      production: "r1"
+  releases:
+    r1:
+      compat-web: "1.2.3"
   _includes:
     internal-default-app:
       enabled: false
       _preRenderHook: |
-        {{- $_ := set $ "CurrentReleaseVersion" (include "fl.value" (list $ . $.Values.deploy.release)) }}
-        {{- $release := index $.Values.releases $.CurrentReleaseVersion }}
+        {{- $_ := set $ "CurrentReleaseVersion" (include "fl.value" (list $ . $.Values.global.deploy.release)) }}
+        {{- $release := index $.Values.global.releases $.CurrentReleaseVersion }}
         {{- if empty $release }}{{ fail (printf "Not such release! [%s]" $.CurrentReleaseVersion) }}{{ end }}
         {{- $appVersion := index $release $.CurrentApp.name }}
         {{- if $appVersion }}
-        {{- if $.Values.deploy.enabled }}{{ $_ := set $.CurrentApp "enabled" true }}{{ end }}
+        {{- if $.Values.global.deploy.enabled }}{{ $_ := set $.CurrentApp "enabled" true }}{{ end }}
         {{- $_ = set $.CurrentApp "CurrentAppVersion" (include "fl.value" (list $ . $appVersion)) }}
         {{- end }}
-
-deploy:
-  enabled: true
-  release: "r1"
-
-releases:
-  r1:
-    compat-web: "1.2.3"
 
 jwtSigningMethod: rsa
 _include_files:
