@@ -151,7 +151,7 @@
 {{-                 if kindIs "map" $tmpValue  }}
 {{                      $tmpMap = $tmpValue }}
 {{-                 else }}
-{{                      fail $k }}
+{{-                     include "apps-utils.error" (list $ "E_INCLUDE_FROM_PATH" (printf "_include_from path '%s' is invalid at segment '%s'" $path $k) "make sure every segment in _include_from points to a YAML map" "docs/reference-values.md#param-global-includes" (printf "Values.%s" $path)) }}
 {{-                 end }}
 {{-             end }}
 {{-         end }}

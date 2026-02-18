@@ -13,7 +13,7 @@
 {{- $_ := set $ "CurrentCronJob" $.CurrentApp }}
 {{- with $.CurrentApp }}
 {{- if not .containers }}
-{{- fail (printf "Установлено значение enabled для не настроенной '%s' в %s джобы!" $.CurrentApp.name "apps-cronjobs") }}
+{{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "cronjob '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the cronjob (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}
 apiVersion: {{ include "apps-api-versions.cronJob" $ }}
 kind: CronJob

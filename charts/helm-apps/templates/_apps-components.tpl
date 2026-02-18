@@ -156,12 +156,15 @@ spec:
     kind: {{ $kind }}
     name: {{ $.CurrentApp.name | quote }}
   metrics:
-{{-         with required (printf "You need a valid entry in horizontalPodAutoscaler.metrics on %s app" $.CurrentApp.name) $.CurrentApp.horizontalPodAutoscaler.metrics }}
-{{-           if kindIs "string" . }}
-{{-             print (include "fl.value" (list $ . .)) | nindent 2 }}
-{{-           else if kindIs "map" . }}
-{{-             include "apps-helpers.generateHPAMetrics" (list $ $RelatedScope) | trim | nindent 2 }}
-{{-           end }}
+{{-         $hpaMetrics := $.CurrentApp.horizontalPodAutoscaler.metrics }}
+{{-         if not $hpaMetrics }}
+{{-           include "apps-utils.error" (list $ "E_HPA_METRICS_REQUIRED" (printf "horizontalPodAutoscaler.metrics is required for app '%s'" $.CurrentApp.name) "set metrics as YAML string or map" "docs/reference-values.md#param-hpa-metrics") }}
+{{-         else if kindIs "string" $hpaMetrics }}
+{{-           print (include "fl.value" (list $ . $hpaMetrics)) | nindent 2 }}
+{{-         else if kindIs "map" $hpaMetrics }}
+{{-           include "apps-helpers.generateHPAMetrics" (list $ $RelatedScope) | trim | nindent 2 }}
+{{-         else }}
+{{-           include "apps-utils.error" (list $ "E_HPA_METRICS_TYPE" (printf "horizontalPodAutoscaler.metrics has unsupported type for app '%s'" $.CurrentApp.name) "use string (raw YAML) or map" "docs/reference-values.md#param-hpa-metrics") }}
 {{-         end }}
   {{-         with include "apps-compat.renderRaw" (list $ . $.CurrentApp.horizontalPodAutoscaler.extraSpec) | trim }}
   {{-           . | nindent 2 }}

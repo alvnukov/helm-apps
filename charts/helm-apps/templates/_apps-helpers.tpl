@@ -13,7 +13,7 @@
       {{- $_ := set . "name" (print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel") }}
       {{- else }}
       {{- if not ( include "fl.value" (list $ . .name)) }}
-      {{- fail (printf "Для app '%s' %s '%s' в configFiles '%s' нет content и забыли указать .name" $.CurrentApp.name $containersType $.CurrentContainer.name $configFileName) }}
+      {{- include "apps-utils.error" (list $ "E_CONFIG_FILE_SOURCE" (printf "configFiles.%s must define content or name (container '%s')" $configFileName $.CurrentContainer.name) "set content to create ConfigMap automatically, or set name to mount existing ConfigMap" "docs/reference-values.md#param-configfiles") }}
       {{- end }}
       {{- end }}
 - name: {{ print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel" | quote }}
@@ -28,7 +28,7 @@
       {{- $_ := set . "name" (print "config-yaml-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel") }}
       {{- else }}
       {{- if not ( include "fl.value" (list $ . .name)) }}
-      {{- fail (printf "Для app '%s' %s '%s' в configFiles '%s' нет content и забыли указать .name" $.CurrentApp.name $containersType $.CurrentContainer.name $configFileName) }}
+      {{- include "apps-utils.error" (list $ "E_CONFIG_FILE_SOURCE" (printf "configFilesYAML.%s must define content or name (container '%s')" $configFileName $.CurrentContainer.name) "set content map to create ConfigMap automatically, or set name to mount existing ConfigMap" "docs/reference-values.md#param-configfilesyaml") }}
       {{- end }}
       {{- end }}
 - name: {{ print "config-yaml-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel" | quote }}

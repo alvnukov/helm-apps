@@ -11,6 +11,44 @@
 {{-     end }}
 {{- end -}}
 
+{{- define "apps-utils.currentPath" -}}
+{{- $ := index . 0 -}}
+{{- if and (hasKey $ "CurrentPath") (kindIs "slice" $.CurrentPath) (gt (len $.CurrentPath) 0) -}}
+{{- join "." $.CurrentPath -}}
+{{- else -}}
+Values
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-utils.error" -}}
+{{- $ := index . 0 -}}
+{{- $code := index . 1 -}}
+{{- $message := index . 2 -}}
+{{- $hint := "" -}}
+{{- $docs := "" -}}
+{{- $path := include "apps-utils.currentPath" (list $) | trim -}}
+{{- if ge (len .) 4 -}}
+{{- $hint = index . 3 -}}
+{{- end -}}
+{{- if ge (len .) 5 -}}
+{{- $docs = index . 4 -}}
+{{- end -}}
+{{- if ge (len .) 6 -}}
+{{- $explicitPath := index . 5 -}}
+{{- if ne (toString $explicitPath) "" -}}
+{{- $path = toString $explicitPath -}}
+{{- end -}}
+{{- end -}}
+{{- $parts := list (printf "[helm-apps:%s] %s" $code $message) (printf "path=%s" $path) -}}
+{{- if ne $hint "" -}}
+{{- $parts = append $parts (printf "hint=%s" $hint) -}}
+{{- end -}}
+{{- if ne $docs "" -}}
+{{- $parts = append $parts (printf "docs=%s" $docs) -}}
+{{- end -}}
+{{- fail (join " | " $parts) -}}
+{{- end -}}
+
 {{- define "fl.generateContainerImageQuoted" }}
 {{-     $ := index . 0 }}
 {{-     $relativeScope := index . 1 }}
@@ -116,7 +154,11 @@
 {{-     $ := index . 0 }}
 {{-     $RelatedScope := index . 1  }}
 {{-     $VarName := index . 2 }}
-{{-     required (printf "You need a valid entry in %s.%s" ($.CurrentPath | join ".") $VarName ) (include "fl.value" (list $ $RelatedScope (index $RelatedScope $VarName ))) }}
+{{-     $val := include "fl.value" (list $ $RelatedScope (index $RelatedScope $VarName )) | trim }}
+{{-     if eq $val "" }}
+{{-         include "apps-utils.error" (list $ "E_REQUIRED_VALUE" (printf "required value '%s' is empty" $VarName) "set a non-empty value or disable the related block via enabled=false" "docs/reference-values.md") }}
+{{-     end }}
+{{-     $val }}
 {{- end }}
 {{- define "apps-utils.enterScope" }}
 {{-     $ := index . 0 }}
@@ -300,9 +342,16 @@
 {{- if hasKey $current "_include_from_file" }}
 {{- $fn := include "apps-utils.tpl" (list $ $current._include_from_file) }}
 {{- $includeContent := $.Files.Get $fn | fromYaml }}
-{{- $_ := required (printf "Including file %s in _include_from_file emtty or has errors!" $fn) $includeContent }}
+{{- if not $includeContent }}
+{{- $basePath := $currentName }}
+{{- if not (hasPrefix "Values" $basePath) }}
+{{- $basePath = printf "Values.%s" $basePath }}
+{{- end }}
+{{- $basePath = regexReplaceAll "^Values\\.Values(\\.|$)" $basePath "Values$1" }}
+{{- include "apps-utils.error" (list $ "E_INCLUDE_FROM_FILE" (printf "_include_from_file failed to parse '%s'" $fn) "ensure file exists and contains valid YAML map" "docs/reference-values.md#param-global-includes" (printf "%s._include_from_file" $basePath)) }}
+{{- end }}
 {{- $currentDict := deepCopy $current}}
-{{- $_ = mergeOverwrite $includeContent $currentDict }}
+{{- $_ := mergeOverwrite $includeContent $currentDict }}
 {{- $_ = mergeOverwrite $current $includeContent }}
 {{- $_ = unset $current "_include_from_file"}}
 {{- end }}
@@ -311,9 +360,16 @@
 {{- range $_, $fileName := $current._include_files }}
 {{- $fn := include "apps-utils.tpl" (list $ $fileName) }}
 {{- $includeContent := $.Files.Get $fn | fromYaml }}
-{{- $_ := required (printf "Including file %s in _include_files emtty or has errors!" $fn) $includeContent }}
+{{- if not $includeContent }}
+{{- $basePath := $currentName }}
+{{- if not (hasPrefix "Values" $basePath) }}
+{{- $basePath = printf "Values.%s" $basePath }}
+{{- end }}
+{{- $basePath = regexReplaceAll "^Values\\.Values(\\.|$)" $basePath "Values$1" }}
+{{- include "apps-utils.error" (list $ "E_INCLUDE_FILES_PARSE" (printf "_include_files failed to parse '%s'" $fn) "ensure each file exists and contains valid YAML map" "docs/reference-values.md#param-global-includes" (printf "%s._include_files" $basePath)) }}
+{{- end }}
 {{- $includeName := sha256sum $fileName }}
-{{- $_ = set $.Values.global._includes $includeName $includeContent }}
+{{- $_ := set $.Values.global._includes $includeName $includeContent }}
 {{- $newInclude = append $newInclude $includeName }}
 {{- end }}
 {{- if hasKey $current "_include" }}

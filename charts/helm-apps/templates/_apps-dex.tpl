@@ -13,7 +13,7 @@
 {{- $_ := set $ "CurrentDexAuthenticator" $.CurrentApp }}
 {{- with $.CurrentApp }}
 {{- if not .applicationDomain }}
-{{- fail (printf "Установлено значение enabled для не настроенного '%s' в %s DexAuthenticator!" $.CurrentApp.name "apps-dexauthenticators") }}
+{{- include "apps-utils.error" (list $ "E_DEX_REQUIRED_FIELD" (printf "dex authenticator '%s' requires applicationDomain" $.CurrentApp.name) "set applicationDomain or disable this app" "docs/reference-values.md#14-прочие-apps--секции") }}
 {{- end }}
 apiVersion: deckhouse.io/v1
 kind: DexAuthenticator
@@ -42,7 +42,7 @@ spec:
 {{- with $.CurrentApp }}
 {{- $_ := set $ "CurrentDexClient" . }}
 {{- if not .redirectURIs }}
-{{- fail (printf "Установлено значение enabled для не настроенного '%s' в %s DexAuthenticator!" $.CurrentApp.name $.Chart.Name) }}
+{{- include "apps-utils.error" (list $ "E_DEX_REQUIRED_FIELD" (printf "dex client '%s' requires redirectURIs" $.CurrentApp.name) "set redirectURIs or disable this app" "docs/reference-values.md#14-прочие-apps--секции") }}
 {{- end }}
 apiVersion: deckhouse.io/v1alpha1
 kind: DexClient

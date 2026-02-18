@@ -55,7 +55,7 @@
   {{- else if eq $type "calico" }}
     {{- $apiVersion = "projectcalico.org/v3" }}
   {{- else }}
-    {{- fail (printf "apps-network-policies.%s: set apiVersion/kind for unsupported type=%s" $.CurrentApp.name $type) }}
+    {{- include "apps-utils.error" (list $ "E_NETPOL_TYPE_UNSUPPORTED" (printf "unsupported network policy type '%s'" $type) "use type kubernetes|cilium|calico or set explicit apiVersion/kind" "docs/reference-values.md#14-прочие-apps--секции") }}
   {{- end }}
 {{- end }}
 {{- if not $kind }}
@@ -66,7 +66,7 @@
   {{- else if eq $type "calico" }}
     {{- $kind = "NetworkPolicy" }}
   {{- else }}
-    {{- fail (printf "apps-network-policies.%s: set apiVersion/kind for unsupported type=%s" $.CurrentApp.name $type) }}
+    {{- include "apps-utils.error" (list $ "E_NETPOL_TYPE_UNSUPPORTED" (printf "unsupported network policy type '%s'" $type) "use type kubernetes|cilium|calico or set explicit apiVersion/kind" "docs/reference-values.md#14-прочие-apps--секции") }}
   {{- end }}
 {{- end }}
 apiVersion: {{ $apiVersion }}
@@ -150,7 +150,7 @@ spec:
   {{- . | nindent 2 }}
   {{- end }}
   {{- else }}
-  {{- fail (printf "apps-network-policies.%s: unsupported type=%s (use kubernetes|cilium|calico or set apiVersion/kind+spec)" $.CurrentApp.name $type) }}
+  {{- include "apps-utils.error" (list $ "E_NETPOL_TYPE_UNSUPPORTED" (printf "unsupported network policy type '%s'" $type) "use type kubernetes|cilium|calico or set apiVersion/kind+spec" "docs/reference-values.md#14-прочие-apps--секции") }}
   {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
   {{- . | nindent 2 }}

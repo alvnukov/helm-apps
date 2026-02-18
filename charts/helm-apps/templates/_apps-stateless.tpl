@@ -11,7 +11,7 @@
 {{- $ := . }}
 {{- with $.CurrentApp }}
 {{- if kindIs "invalid" .containers }}
-{{- fail (printf "Установлено значение enabled для не настроенного '%s' в %s приложения!" $.CurrentApp.name "apps-stateless") }}
+{{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "app '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the app (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}
 {{/* Defaults values */}}
 {{- if .service }}

@@ -12,20 +12,20 @@
     {{- if hasKey $deploy "release" -}}
       {{- $currentRelease := include "fl.value" (list $ $.CurrentApp $deploy.release) | trim -}}
       {{- if empty $currentRelease -}}
-        {{- fail "global.deploy.release resolved to empty value" -}}
+        {{- include "apps-utils.error" (list $ "E_RELEASE_EMPTY" "global.deploy.release resolved to empty value" "set non-empty global.deploy.release for current global.env" "docs/reference-values.md#param-global-deploy") -}}
       {{- end -}}
       {{- $_ := set $ "CurrentReleaseVersion" $currentRelease -}}
 
       {{- if not (hasKey $global "releases") -}}
-        {{- fail "global.deploy.release requires global.releases map" -}}
+        {{- include "apps-utils.error" (list $ "E_RELEASES_MISSING" "global.deploy.release requires global.releases map" "define global.releases.<release> with app versions" "docs/reference-values.md#param-global-releases") -}}
       {{- end -}}
       {{- if not (kindIs "map" $global.releases) -}}
-        {{- fail "global.releases must be a map" -}}
+        {{- include "apps-utils.error" (list $ "E_RELEASES_TYPE" "global.releases must be a map" "set global.releases as map: releaseName -> appKey -> version" "docs/reference-values.md#param-global-releases") -}}
       {{- end -}}
 
       {{- $releaseVersions := index $global.releases $currentRelease -}}
       {{- if not (kindIs "map" $releaseVersions) -}}
-        {{- fail (printf "Release not found in global.releases: %s" $currentRelease) -}}
+        {{- include "apps-utils.error" (list $ "E_RELEASE_NOT_FOUND" (printf "release '%s' not found in global.releases" $currentRelease) "add release key in global.releases or adjust global.deploy.release env-map" "docs/reference-values.md#param-global-releases") -}}
       {{- end -}}
 
       {{- $versionKey := $.CurrentApp.name -}}
@@ -33,7 +33,7 @@
         {{- $versionKey = include "fl.value" (list $ $.CurrentApp $.CurrentApp.versionKey) | trim -}}
       {{- end -}}
       {{- if empty $versionKey -}}
-        {{- fail (printf "Empty versionKey for app: %s" $.CurrentApp.name) -}}
+        {{- include "apps-utils.error" (list $ "E_VERSION_KEY_EMPTY" (printf "versionKey is empty for app '%s'" $.CurrentApp.name) "set versionKey or remove it to fallback to app name" "docs/reference-values.md#param-versionkey") -}}
       {{- end -}}
 
       {{- $appVersion := index $releaseVersions $versionKey -}}
@@ -44,7 +44,7 @@
         {{- end -}}
       {{- end -}}
     {{- else if $deployEnabled -}}
-      {{- fail "global.deploy.enabled=true requires global.deploy.release" -}}
+      {{- include "apps-utils.error" (list $ "E_RELEASE_REQUIRED" "global.deploy.enabled=true requires global.deploy.release" "set global.deploy.release or disable global.deploy.enabled" "docs/reference-values.md#param-global-deploy") -}}
     {{- end -}}
   {{- end -}}
 {{- end -}}

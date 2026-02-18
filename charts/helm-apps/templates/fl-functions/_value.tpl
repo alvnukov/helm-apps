@@ -68,7 +68,7 @@
 {{-         end }}
 {{-     end }}
 {{-     if gt (len $regexList) 1 }}
-{{-         fail (printf "В переменной %s используется неоднозначное определение окружения %s" ($.CurrentPath | join ".") $regexList) }}
+{{-         include "apps-utils.error" (list $ "E_ENV_REGEX_AMBIGUOUS" (printf "multiple env regex keys match current global.env: %s" $regexList) "leave only one matching regex key for this value" "docs/reference-values.md#param-global-env") }}
 {{-     end }}
 {{-     if eq (len $regexList) 0 }}
 {{-         print "not found" }}

@@ -14,7 +14,7 @@
 {{- with $.CurrentApp }}
 
 {{- if not .containers }}
-{{- fail (printf "Установлено значение enabled для не настроенной '%s' в %s джобы!" $.CurrentApp.name "apps-jobs") }}
+{{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "job '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the job (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}
 {{- if and (kindIs "invalid" .jobTemplateExtraSpec) (not (kindIs "invalid" .extraSpec)) }}
 {{- $_ := set . "jobTemplateExtraSpec" .extraSpec }}

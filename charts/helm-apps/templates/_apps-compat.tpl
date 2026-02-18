@@ -52,7 +52,7 @@
 {{- if kindIs "map" $scope -}}
 {{- range $key, $_ := $scope }}
 {{- if and (not (has $key $allowed)) (not (hasPrefix "__" $key)) }}
-{{- fail (printf "Strict mode: unknown key '%s' at %s" $key $scopePath) }}
+{{- include "apps-utils.error" (list $ "E_STRICT_UNKNOWN_KEY" (printf "unknown key '%s' in strict mode" $key) "remove the unsupported key or disable strict mode for migration period" "docs/reference-values.md#2-global" (printf "%s.%s" $scopePath $key)) }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -67,7 +67,7 @@
 {{- if has $key $knownTopLevel }}
 {{- else if and (kindIs "map" $val) (hasKey $val "__GroupVars__") }}
 {{- else if hasPrefix "apps-" $key }}
-{{- fail (printf "Strict mode: unknown top-level apps group '%s'. Use built-in apps-* group or define custom group with __GroupVars__.type" $key) }}
+{{- include "apps-utils.error" (list $ "E_STRICT_UNKNOWN_GROUP" (printf "unknown top-level apps group '%s' in strict mode" $key) "use built-in apps-* group or define custom group with __GroupVars__.type" "docs/reference-values.md#param-custom-groups" (printf "Values.%s" $key)) }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -93,7 +93,7 @@
   {{- $isAllowedContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
   {{- $isAllowedInitContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
   {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedContainerSharedEnvConfigMaps $isAllowedInitContainerSharedEnvConfigMaps $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets) -}}
-    {{- fail (printf "Invalid values: list value is not allowed at %s. Use YAML block string ('|') for Kubernetes list fields. Allowed native lists: _include, _include_files, global._includes.*, *.configFilesYAML.*.content.*, *.envYAML.*, *.containers.*.sharedEnvConfigMaps, *.initContainers.*.sharedEnvConfigMaps, *.containers.*.sharedEnvSecrets, *.initContainers.*.sharedEnvSecrets, apps-kafka-strimzi.*.kafka.brokers.hosts.*, apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*." (join "." $path)) -}}
+    {{- include "apps-utils.error" (list $ "E_UNEXPECTED_LIST" "native YAML list is not allowed here" "for Kubernetes list fields use YAML block string ('|'); native lists are allowed only for _include/_include_files and documented exceptions" "docs/faq.md#2-почему-list-в-values-почти-везде-запрещены" $pathString) -}}
   {{- end -}}
 {{- else if kindIs "map" $value -}}
   {{- range $k, $v := $value -}}
