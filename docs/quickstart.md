@@ -108,28 +108,67 @@ helm template my-app .helm --set global.env=prod > /tmp/rendered.yaml
 3. В `/tmp/rendered.yaml` есть `Ingress`.
 4. `api` использует ожидаемый `image` и `replicas`.
 
-## 5. Частые следующие шаги
+## 5. Подключить config-файл в контейнер (ConfigMap mount)
+
+Минимальный пример для контейнера:
+
+```yaml
+apps-stateless:
+  api:
+    _include: ["apps-stateless-defaultApp"]
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27.0"
+        configFiles:
+          nginx.conf:
+            mountPath: /etc/nginx/nginx.conf
+            content: |
+              events {}
+              http {
+                server {
+                  listen 80;
+                  location / {
+                    return 200 "ok";
+                  }
+                }
+              }
+```
+
+Что делает библиотека:
+1. Создает `ConfigMap` с файлом `nginx.conf`.
+2. Добавляет `volume` + `volumeMount` в контейнер `main`.
+3. Монтирует файл по `mountPath`.
+
+Связанные параметры:
+- [`configFiles`](reference-values.md#param-configfiles)
+- [`configFilesYAML`](reference-values.md#param-configfilesyaml)
+- [`secretConfigFiles`](reference-values.md#param-secretconfigfiles)
+- Практические примеры: [Cookbook 8](cookbook.md#example-configfiles), [Cookbook 9](cookbook.md#example-configfilesyaml)
+
+## 6. Частые следующие шаги
 
 1. Добавить секреты как env: [`secretEnvVars`](reference-values.md#param-secretenvvars), пример в [Cookbook 6](cookbook.md#example-secretenvvars).
 2. Подключить общий Secret/ConfigMap: [`sharedEnvSecrets`](reference-values.md#param-sharedenvsecrets), [`sharedEnvConfigMaps`](reference-values.md#param-sharedenvconfigmaps).
 3. Добавить autoscaling: [`horizontalPodAutoscaler`](reference-values.md#param-hpa), пример в [Cookbook 10](cookbook.md#example-hpa).
 4. Включить release matrix: [`global.deploy` + `global.releases`](reference-values.md#param-global-deploy).
 
-## 6. Три базовых шаблона для старта
+## 7. Три базовых шаблона для старта
 
-### 6.1 API сервис
+### 7.1 API сервис
 
 Используйте рецепт: [Cookbook 1](cookbook.md#example-basic-api).
 
-### 6.2 Worker без Service
+### 7.2 Worker без Service
 
 Используйте рецепт: [Cookbook 3](cookbook.md#3-worker-без-service).
 
-### 6.3 CronJob
+### 7.3 CronJob
 
 Используйте рецепт: [Cookbook 4](cookbook.md#example-cronjob).
 
-## 7. Если что-то не работает
+## 8. Если что-то не работает
 
 1. Сначала откройте [operations.md](operations.md) и пройдите triage по слоям.
 2. Проверьте типы параметров в [reference-values.md](reference-values.md).
