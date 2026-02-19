@@ -402,13 +402,16 @@ metadata:
     {{- $owner := index . 1 }}
     {{- $content := index . 2 }}
     {{- $contentName := index . 3 }}
+    {{- $currentEnv := include "fl.currentEnv" (list $) | trim }}
     {{- range $CurrentKey, $CurrentDict := $content }}
     {{- include "apps-utils.enterScope" (list $ $CurrentKey) }}
     {{- if kindIs "map" $CurrentDict }}
     {{- if hasKey $CurrentDict "_default" }}
     {{- $val := index $CurrentDict "_default" }}
-    {{- if hasKey $CurrentDict $.Values.global.env }}
-    {{- $val = index $CurrentDict $.Values.global.env }}
+    {{- if and (ne $currentEnv "") (hasKey $CurrentDict $currentEnv) }}
+    {{- $val = index $CurrentDict $currentEnv }}
+    {{- else if and (ne $currentEnv "") (eq (include "_fl.getValueRegex" (list $ $CurrentDict $currentEnv)) "") }}
+    {{- $val = $._CurrentFuncResult }}
     {{- end }}
     {{- if kindIs "string" $val }}
     {{- $_ := set $content $CurrentKey (include "fl.value" (list $ . $CurrentDict))}}

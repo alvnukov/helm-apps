@@ -10,6 +10,13 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.2] - 2026-02-19
+
+### Fixed
+- Fixed env-regex resolution in `configFilesYAML` values for non-string types:
+  - env-map values like numbers, booleans, and nested objects now correctly use regex matches (not only exact env or `_default`).
+- Preserved existing behavior for string values and recursive cleanup of empty branches in generated YAML config maps.
+
 ## [1.7.1] - 2026-02-18
 
 ### Fixed
