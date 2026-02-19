@@ -23,7 +23,7 @@ jobs:
       - name: Install werf CLI
         uses: werf/actions/install@v1.2
         with:
-          channel: ea
+          version: v2.57.1
 
       - name: Install Dyff
         run: |
@@ -141,7 +141,7 @@ jobs:
       - name: Install werf CLI
         uses: werf/actions/install@v1.2
         with:
-          channel: ea
+          version: v2.57.1
 
       - name: Install kubeconform
         run: |
@@ -197,7 +197,7 @@ jobs:
       - name: Install werf CLI
         uses: werf/actions/install@v1.2
         with:
-          channel: ea
+          version: v2.57.1
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
