@@ -10,6 +10,27 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.4] - 2026-02-19
+
+### Fixed
+- Fixed duplicate `workingDir` rendering in container specs by treating it strictly as a string field.
+- Hardened `secretConfigFiles` contract:
+  - required `content` or `name` per file entry;
+  - added explicit render error for missing source (`E_CONFIG_FILE_SOURCE`);
+  - aligned volumeMount/volume generation so mounts are created only when source is resolvable.
+- Fixed config checksum calculation to include `secretConfigFiles` content (`secretConfigFiles` was previously skipped due to wrong key lookup).
+- Fixed `VerticalPodAutoscaler.spec.targetRef.apiVersion` selection:
+  - `CronJob` now uses kube-compatible cron API (`batch/v1` or `batch/v1beta1`);
+  - `Job` now uses `batch/v1`;
+  - workload defaults keep `apps/v1`.
+
+### Changed
+- Expanded contracts to cover:
+  - `workingDir` rendering contract;
+  - `secretConfigFiles` happy-path and negative validation case;
+  - VPA targetRef apiVersion for `CronJob`/`Job` across kube versions.
+- Normalized visual logical indentation across library template files for easier maintenance.
+
 ## [1.7.3] - 2026-02-19
 
 ### Fixed
