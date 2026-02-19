@@ -27,7 +27,7 @@ jobs:
           sed -i 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
 
       - name: Install werf CLI
-        uses: werf/actions/install@v1.2
+        uses: werf/actions/install@v2
         with:
           version: v2.57.1
 
