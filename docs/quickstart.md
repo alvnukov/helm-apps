@@ -88,6 +88,22 @@ apps-ingresses:
       enabled: true
 ```
 
+Где менять “переменные” в quickstart:
+
+| Что хотите настроить | Путь в `values.yaml` | Пример значения | Справка |
+|---|---|---|---|
+| Окружение рендера | `global.env` | `prod` | [`global.env`](reference-values.md#param-global-env) |
+| Базовый домен/URL | `global.ci_url` | `example.org` | [`global`](reference-values.md#param-global) |
+| Имя приложения | `apps-stateless.<appName>`, `apps-ingresses.<appName>` | `api` | [`apps-* sections`](reference-values.md#param-apps-sections) |
+| Реплики | `apps-stateless.<appName>.replicas` | `_default: 2`, `prod: 3` | [`containers / app contract`](reference-values.md#param-containers) |
+| Образ контейнера | `apps-stateless.<appName>.containers.<container>.image` | `name: nginx`, `staticTag: "1.27.0"` | [`containers`](reference-values.md#param-containers) |
+| Порты контейнера | `apps-stateless.<appName>.containers.<container>.ports` | `containerPort: 80` | [`containers`](reference-values.md#param-containers) |
+| Переменные окружения контейнера | `apps-stateless.<appName>.containers.<container>.envVars` | `APP_ENV: production` | [`envVars`](reference-values.md#param-envvars) |
+| Service | `apps-stateless.<appName>.service.*` | `enabled: true`, `ports: ...` | [`service`](reference-values.md#param-service) |
+| Ingress | `apps-ingresses.<appName>.*` | `host`, `paths`, `tls.enabled` | [`ingress`](reference-values.md#param-ingress) |
+
+Для worker/cron-сценариев `Service` и `Ingress` обычно не нужны.
+
 Связанные параметры:
 - [`global.env`](reference-values.md#param-global-env)
 - [`global._includes` + `_include`](reference-values.md#param-global-includes)
