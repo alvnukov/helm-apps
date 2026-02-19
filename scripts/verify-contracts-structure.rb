@@ -145,6 +145,7 @@ def verify_main!(paths)
 
   compat_service = find_one!(prod_docs, kind: 'Deployment', name: 'compat-service')
   assert_eq!(compat_service['apiVersion'], 'apps/v1', 'compat-service apiVersion')
+  assert_eq!(compat_service.dig('metadata', 'annotations', 'helm-apps/release'), nil, 'compat-service release annotation by default must be absent')
   assert_eq!(compat_service.dig('spec', 'paused'), true, 'compat-service.spec.paused')
   compat_service_main = compat_service.dig('spec', 'template', 'spec', 'containers', 0)
   assert_eq!(compat_service_main.dig('workingDir'), '/app', 'compat-service.main.workingDir')

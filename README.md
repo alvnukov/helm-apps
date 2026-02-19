@@ -301,6 +301,7 @@ apps-stateless:
 - матрица версий хранится в `global.releases`;
 - app key берется из `versionKey`, а если он не задан — из имени app;
 - при `global.deploy.enabled=true` app включается автоматически, когда версия найдена;
+- при `global.deploy.annotateAllWithRelease=true` аннотация `helm-apps/release` добавляется всем ресурсам текущего деплоя;
 - если `image.staticTag` не задан, используется версия из релизной матрицы.
 
 Практический референс и пример: [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy)

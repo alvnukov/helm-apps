@@ -1,6 +1,6 @@
 dependencies:
 - name: helm-apps
   repository: file://../../charts/helm-apps/
-  version: 1.7.4
-digest: sha256:ef6c22dc250b00450b310a3c5195a10fd1160f09a9eea59f2124e4ff50bfa304
-generated: "2026-02-19T22:15:01.041858+03:00"
+  version: 1.7.5
+digest: sha256:ee81f9ad805990588997ffc523eb258b4aaf3488d7738e3874362d97e6c70b27
+generated: "2026-02-20T00:50:43.619345+03:00"

@@ -10,6 +10,22 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.5] - 2026-02-19
+
+### Added
+- Added `global.deploy.annotateAllWithRelease` option:
+  - when enabled, `helm-apps/release` annotation is applied to all rendered resources for the current deploy.
+
+### Fixed
+- Fixed release annotation scoping:
+  - by default, `helm-apps/release` is now applied only to apps found in `global.releases.<release>`;
+  - release context (`CurrentReleaseVersion`/`CurrentAppVersion`) is reset per app to avoid annotation leakage.
+- Expanded legacy and contracts coverage:
+  - added explicit release-mode examples (`global.deploy`, `global.releases`, `versionKey`) in legacy values;
+  - added shared env sources (`sharedEnvConfigMaps`, `sharedEnvSecrets`) coverage in legacy snapshot;
+  - added `apps-routes-contract` and `calico` network policy examples to legacy snapshot;
+  - updated contracts to assert both default and annotate-all release annotation behavior.
+
 ## [1.7.4] - 2026-02-19
 
 ### Fixed

@@ -285,8 +285,32 @@ spec:
 {{- if hasKey $.CurrentApp "werfWeight" }}
 {{- $_ := set $libAnnotations "werf.io/weight" (include "fl.value" (list $ . $.CurrentApp.werfWeight)) }}
 {{- end }}
+{{- $releaseAnnotationValue := "" }}
 {{- if hasKey $ "CurrentReleaseVersion" }}
-{{- $_ := set $libAnnotations "helm-apps/release" (include "fl.value" (list $ . $.CurrentReleaseVersion)) }}
+{{- $releaseAnnotationValue = include "fl.value" (list $ . $.CurrentReleaseVersion) | trim }}
+{{- else }}
+{{- $deploy := dict }}
+{{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) (hasKey $.Values.global "deploy") (kindIs "map" $.Values.global.deploy) }}
+{{- $deploy = $.Values.global.deploy }}
+{{- end }}
+{{- $annotateAllWithRelease := false }}
+{{- if and (kindIs "map" $deploy) (hasKey $deploy "annotateAllWithRelease") }}
+{{- if include "fl.isTrue" (list $ . $deploy.annotateAllWithRelease) }}
+{{- $annotateAllWithRelease = true }}
+{{- end }}
+{{- end }}
+{{- if $annotateAllWithRelease }}
+{{- if not (hasKey $deploy "release") }}
+{{- include "apps-utils.error" (list $ "E_RELEASE_ANNOTATE_REQUIRED" "global.deploy.annotateAllWithRelease=true requires global.deploy.release" "set global.deploy.release for current global.env or disable annotateAllWithRelease" "docs/reference-values.md#param-global-deploy") }}
+{{- end }}
+{{- $releaseAnnotationValue = include "fl.value" (list $ . $deploy.release) | trim }}
+{{- if empty $releaseAnnotationValue }}
+{{- include "apps-utils.error" (list $ "E_RELEASE_EMPTY" "global.deploy.release resolved to empty value" "set non-empty global.deploy.release for current global.env" "docs/reference-values.md#param-global-deploy") }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if not (empty $releaseAnnotationValue) }}
+{{- $_ := set $libAnnotations "helm-apps/release" $releaseAnnotationValue }}
 {{- end }}
 {{- if hasKey $.CurrentApp "CurrentAppVersion" }}
 {{- $_ := set $libAnnotations "helm-apps/app-version" (include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion)) }}

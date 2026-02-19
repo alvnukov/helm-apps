@@ -91,6 +91,7 @@ global:
 `global.deploy` и `global.releases` включают режим декларативных релизов:
 - `global.deploy.release`: имя релиза, выбираемое через env-map по `global.env`;
 - `global.deploy.enabled`: автоматически включает app, если для него найдена версия;
+- `global.deploy.annotateAllWithRelease`: если `true`, аннотация `helm-apps/release` ставится на все ресурсы текущего деплоя;
 - `global.releases`: матрица `релиз -> appKey -> tag/version`.
 
 Связанные app-параметры:
@@ -106,6 +107,7 @@ global:
   env: production
   deploy:
     enabled: true
+    annotateAllWithRelease: false
     release:
       _default: production-v1
       production: production-v1
@@ -127,7 +129,9 @@ apps-stateless:
 ```
 
 Поведение:
-- библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion`;
+- библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion` только для app, которые найдены в `global.releases.<release>`;
+- `helm-apps/release` по умолчанию ставится только для app, найденных в release map;
+- при `global.deploy.annotateAllWithRelease=true` `helm-apps/release` ставится всем ресурсам текущего деплоя;
 - если `image.staticTag` не задан, используется `CurrentAppVersion`;
 - если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
 - в metadata добавляются аннотации:

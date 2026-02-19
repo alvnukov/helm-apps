@@ -983,6 +983,9 @@
             "enabled": {
               "$ref": "#/$defs/envValue"
             },
+            "annotateAllWithRelease": {
+              "$ref": "#/$defs/envValue"
+            },
             "release": {
               "$ref": "#/$defs/envValue"
             }

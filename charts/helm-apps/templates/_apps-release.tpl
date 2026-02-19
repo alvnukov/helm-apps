@@ -1,5 +1,11 @@
 {{- define "apps-release.prepareApp" -}}
 {{- $ := . -}}
+{{- if hasKey $ "CurrentReleaseVersion" -}}
+  {{- $_ := unset $ "CurrentReleaseVersion" -}}
+{{- end -}}
+{{- if and (hasKey $ "CurrentApp") (kindIs "map" $.CurrentApp) (hasKey $.CurrentApp "CurrentAppVersion") -}}
+  {{- $_ := unset $.CurrentApp "CurrentAppVersion" -}}
+{{- end -}}
 {{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) -}}
   {{- $global := $.Values.global -}}
   {{- if and (hasKey $global "deploy") (kindIs "map" $global.deploy) -}}
@@ -14,7 +20,6 @@
       {{- if empty $currentRelease -}}
         {{- include "apps-utils.error" (list $ "E_RELEASE_EMPTY" "global.deploy.release resolved to empty value" "set non-empty global.deploy.release for current global.env" "docs/reference-values.md#param-global-deploy") -}}
       {{- end -}}
-      {{- $_ := set $ "CurrentReleaseVersion" $currentRelease -}}
 
       {{- if not (hasKey $global "releases") -}}
         {{- include "apps-utils.error" (list $ "E_RELEASES_MISSING" "global.deploy.release requires global.releases map" "define global.releases.<release> with app versions" "docs/reference-values.md#param-global-releases") -}}
@@ -38,6 +43,7 @@
 
       {{- $appVersion := index $releaseVersions $versionKey -}}
       {{- if $appVersion -}}
+        {{- $_ := set $ "CurrentReleaseVersion" $currentRelease -}}
         {{- $_ := set $.CurrentApp "CurrentAppVersion" (include "fl.value" (list $ $.CurrentApp $appVersion)) -}}
         {{- if $deployEnabled -}}
           {{- $_ := set $.CurrentApp "enabled" true -}}

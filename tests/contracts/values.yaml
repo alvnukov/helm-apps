@@ -2,6 +2,7 @@ global:
   env: production
   deploy:
     enabled: true
+    annotateAllWithRelease: false
     release:
       _default: production-v1
       production: production-v1

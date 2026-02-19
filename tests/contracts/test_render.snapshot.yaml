@@ -5,7 +5,7 @@ kind: NetworkPolicy
 metadata:
   name: "compat-calico-netpol"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-calico-netpol"
     chart: "contracts"
@@ -31,7 +31,7 @@ kind: NetworkPolicy
 metadata:
   name: "compat-netpol"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-netpol"
     chart: "contracts"
@@ -64,7 +64,7 @@ kind: LimitRange
 metadata:
   name: "compat-limit-range"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-limit-range"
     chart: "contracts"
@@ -84,7 +84,7 @@ kind: Secret
 metadata:
   name: "envs-containers-compat-env-mixed-main"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-env-mixed"
     chart: "contracts"
@@ -100,7 +100,7 @@ kind: Secret
 metadata:
   name: "envs-containers-compat-env-old-main"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-env-old"
     chart: "contracts"
@@ -116,7 +116,7 @@ kind: Secret
 metadata:
   name: "config-containers-compat-service-main-runtime-secret-txt"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-service"
     chart: "contracts"
@@ -132,7 +132,7 @@ kind: Secret
 metadata:
   name: "common-runtime"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "common-runtime"
     chart: "contracts"
@@ -150,7 +150,7 @@ kind: Secret
 metadata:
   name: "compat-secret"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-secret"
     chart: "contracts"
@@ -167,7 +167,7 @@ kind: Secret
 metadata:
   name: "manual-env-mixed"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "manual-env-mixed"
     chart: "contracts"
@@ -183,7 +183,7 @@ kind: Secret
 metadata:
   name: "manual-env-old"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "manual-env-old"
     chart: "contracts"
@@ -199,7 +199,7 @@ kind: ConfigMap
 metadata:
   name: "custom-group-cm"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "custom-group-cm"
     chart: "contracts"
@@ -214,7 +214,7 @@ kind: ConfigMap
 metadata:
   name: "common-runtime-cm"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "common-runtime-cm"
     chart: "contracts"
@@ -230,7 +230,7 @@ kind: ConfigMap
 metadata:
   name: "compat-config"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-config"
     chart: "contracts"
@@ -246,7 +246,7 @@ kind: ConfigMap
 metadata:
   name: "merge-contract"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "merge-contract"
     chart: "contracts"
@@ -269,7 +269,7 @@ apiVersion: v1
 metadata:
   name: "compat-pvc"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-pvc"
     chart: "contracts"
@@ -289,7 +289,7 @@ kind: Service
 metadata:
   name: "compat-service"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-service"
     chart: "contracts"
@@ -315,7 +315,7 @@ kind: Service
 metadata:
   name: "compat-stateful"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-stateful"
     chart: "contracts"
@@ -335,7 +335,7 @@ kind: Service
 metadata:
   name: "compat-standalone-service"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-standalone-service"
     chart: "contracts"
@@ -357,7 +357,7 @@ metadata:
   name: "compat-env-mixed"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-env-mixed"
     chart: "contracts"
@@ -368,7 +368,6 @@ spec:
       name: "compat-env-mixed"
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        helm-apps/release: "production-v1"
       labels:
         app: "compat-env-mixed"
         chart: "contracts"
@@ -402,7 +401,7 @@ metadata:
   name: "compat-env-old"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-env-old"
     chart: "contracts"
@@ -413,7 +412,6 @@ spec:
       name: "compat-env-old"
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        helm-apps/release: "production-v1"
       labels:
         app: "compat-env-old"
         chart: "contracts"
@@ -445,7 +443,7 @@ metadata:
   name: "compat-service"
   annotations:
     checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-service"
     chart: "contracts"
@@ -456,7 +454,6 @@ spec:
       name: "compat-service"
       annotations:
         checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
-        helm-apps/release: "production-v1"
       labels:
         app: "compat-service"
         chart: "contracts"
@@ -508,6 +505,7 @@ metadata:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     helm-apps/app-version: "3.19"
     helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "release-auto-app"
     chart: "contracts"
@@ -546,7 +544,7 @@ metadata:
   name: "compat-stateful"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-stateful"
     chart: "contracts"
@@ -557,7 +555,6 @@ spec:
       name: "compat-stateful"
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-        helm-apps/release: "production-v1"
       labels:
         app: "compat-stateful"
         chart: "contracts"
@@ -587,7 +584,7 @@ kind: Job
 metadata:
   name: "compat-job"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-job"
     chart: "contracts"
@@ -598,8 +595,6 @@ spec:
   template:
     metadata:
       name: "compat-job"
-      annotations:
-        helm-apps/release: "production-v1"
       labels:
         app: "compat-job"
         chart: "contracts"
@@ -621,7 +616,7 @@ kind: CronJob
 metadata:
   name: "compat-cron"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-cron"
     chart: "contracts"
@@ -635,8 +630,6 @@ spec:
       template:
         metadata:
           name: "compat-cron"
-          annotations:
-            helm-apps/release: "production-v1"
           labels:
             app: "compat-cron"
             chart: "contracts"
@@ -727,7 +720,7 @@ kind: CiliumNetworkPolicy
 metadata:
   name: "compat-cilium-netpol"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-cilium-netpol"
     chart: "contracts"
@@ -770,7 +763,7 @@ kind: DexAuthenticator
 metadata:
   name: "compat-dex-auth"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-dex-auth"
     chart: "contracts"
@@ -790,7 +783,7 @@ kind: DexClient
 metadata:
   name: "compat-dex-client"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-dex-client"
     chart: "contracts"
@@ -806,7 +799,7 @@ kind: GrafanaDashboardDefinition
 metadata:
   name: "compat-dashboard"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-dashboard"
     chart: "contracts"
@@ -1017,7 +1010,7 @@ kind: VerticalPodAutoscaler
 metadata:
   name: "compat-cron"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-cron"
     chart: "contracts"
@@ -1038,7 +1031,7 @@ kind: VerticalPodAutoscaler
 metadata:
   name: "compat-job"
   annotations:
-    helm-apps/release: "production-v1"
+    helm-apps/version: "1.7.5"
   labels:
     app: "compat-job"
     chart: "contracts"

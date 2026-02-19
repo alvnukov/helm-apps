@@ -1,5 +1,14 @@
 global:
   ci_url: example.com
+  deploy:
+    enabled: true
+    annotateAllWithRelease: false
+    release:
+      _default: legacy-prod-v1
+      prod: legacy-prod-v1
+  releases:
+    legacy-prod-v1:
+      legacy-release-app: "3.19"
   # validation:
   #   # Opt-in strict checks (currently applied for apps-network-policies).
   #   strict: false
@@ -64,6 +73,27 @@ apps-routes:
     enabled: false
     host: route.example.com
     service: compat-service
+
+apps-routes-contract:
+  __GroupVars__:
+    type:
+      _default: apps-ingresses
+    paths: |
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: service-1
+            port:
+              number: 80
+    _groupPreRenderHook: |
+      {{- if not (hasKey $.CurrentApp "paths") }}
+      {{- $_ := set $.CurrentApp "paths" $.CurrentGroupVars.paths }}
+      {{- end }}
+  route-contract-enabled:
+    enabled: true
+    host: route-contract.example.com
+    service: service-1
 
 ## Имя чарта. Ниже перечисляются ConfigMaps для развертывания.
 # Указано в .helm/requirements.yaml в репозитории приложения в ключах dependencies.name или dependencies.alias.
@@ -1474,6 +1504,41 @@ apps-stateless:
           staticTag: "3"
         command: |
           - tail
+  release-versioned-app:
+    _include: ["apps-stateless-defaultApp"]
+    enabled: false
+    versionKey: legacy-release-app
+    containers:
+      main:
+        image:
+          name: alpine
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  shared-env-priority-app:
+    _include: ["apps-stateless-defaultApp"]
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        sharedEnvConfigMaps:
+          - configmap-1
+        sharedEnvSecrets:
+          - secret-1
+        envFrom: |
+          - configMapRef:
+              name: external-env-cm
+        secretEnvVars:
+          SHARED_ORDER_TEST: from-secret-env-vars
   pod-disruption-budget-integer:
     _include: ["apps-stateless-defaultApp"]
     # enabled: false
@@ -2079,6 +2144,18 @@ apps-network-policies:
         - toEndpoints:
             - matchLabels:
                 k8s:io.kubernetes.pod.namespace: kube-system
+  calico-netpol-example:
+    enabled: true
+    type: calico
+    selector: "app == 'demo'"
+    ingress: |
+      - action: Allow
+        source:
+          selector: "kubernetes.io/metadata.name == 'ingress-nginx'"
+    egress: |
+      - action: Allow
+        destination:
+          selector: "kubernetes.io/metadata.name == 'kube-system'"
 
 apps-infra:
   node-users:

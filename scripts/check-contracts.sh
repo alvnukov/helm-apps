@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 
 RUN_SNAPSHOT=1
+APPS_VERSION_FILE="charts/helm-apps/templates/_apps-version.tpl"
 
 usage() {
   cat <<'USAGE'
@@ -49,6 +50,32 @@ if ! command -v ruby >/dev/null 2>&1; then
   echo "Missing required command: ruby" >&2
   exit 1
 fi
+
+backup_file() {
+  local file="$1"
+  if [[ -f "${file}" ]]; then
+    cp "${file}" "${file}.bak.check-contracts"
+  fi
+}
+
+restore_file() {
+  local file="$1"
+  if [[ -f "${file}.bak.check-contracts" ]]; then
+    mv "${file}.bak.check-contracts" "${file}"
+  fi
+}
+
+cleanup() {
+  restore_file "${APPS_VERSION_FILE}"
+}
+trap cleanup EXIT
+
+backup_file "${APPS_VERSION_FILE}"
+
+echo "==> Set library version in ${APPS_VERSION_FILE}"
+LIB_VERSION="$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)"
+sed -i.bak "s/_FLANT_APPS_LIBRARY_VERSION_/${LIB_VERSION}/" "${APPS_VERSION_FILE}"
+rm -f "${APPS_VERSION_FILE}.bak"
 
 echo "==> Validate contracts snapshot YAML"
 ruby scripts/validate-yaml-stream.rb tests/contracts/test_render.snapshot.yaml
@@ -95,6 +122,26 @@ ruby scripts/verify-contracts-structure.rb main \
   --k129 /tmp/contracts_render_129.yaml \
   --k120 /tmp/contracts_render_120.yaml \
   --k119 /tmp/contracts_render_119.yaml
+
+echo "==> Release annotate-all option checks"
+werf helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.deploy.annotateAllWithRelease=true \
+  > /tmp/contracts_render_annotate_all.yaml
+
+ruby - <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_annotate_all.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+deployment = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'compat-service' }
+abort 'Missing Deployment/compat-service in annotateAllWithRelease render' unless deployment
+
+release = deployment.dig('metadata', 'annotations', 'helm-apps/release')
+abort "Expected helm-apps/release=production-v1, got #{release.inspect}" unless release == 'production-v1'
+
+app_version = deployment.dig('metadata', 'annotations', 'helm-apps/app-version')
+abort "compat-service must not get helm-apps/app-version, got #{app_version.inspect}" unless app_version.nil?
+RUBY
 
 echo "==> Strict negative checks"
 ! werf helm template contracts tests/contracts \

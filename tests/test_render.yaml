@@ -1115,6 +1115,107 @@ kind: Deployment
 metadata:
   annotations:
     checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    helm-apps/app-version: "3.19"
+    helm-apps/release: legacy-prod-v1
+    helm-apps/version: TEST
+  labels:
+    app: release-versioned-app
+    chart: tests
+    repo: ""
+  name: release-versioned-app
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: release-versioned-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 20%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        helm-apps/app-version: "3.19"
+        helm-apps/release: legacy-prod-v1
+      labels:
+        app: release-versioned-app
+        chart: tests
+        repo: ""
+      name: release-versioned-app
+    spec:
+      containers:
+      - args:
+        - -c
+        - sleep 3600
+        command:
+        - sh
+        image: alpine:3.19
+        name: main
+      imagePullSecrets:
+      - name: registrysecret
+      priorityClassName: production-medium
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    helm-apps/version: TEST
+  labels:
+    app: shared-env-priority-app
+    chart: tests
+    repo: ""
+  name: shared-env-priority-app
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: shared-env-priority-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 20%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      labels:
+        app: shared-env-priority-app
+        chart: tests
+        repo: ""
+      name: shared-env-priority-app
+    spec:
+      containers:
+      - args:
+        - -c
+        - sleep 3600
+        command:
+        - sh
+        envFrom:
+        - configMapRef:
+            name: configmap-1
+        - secretRef:
+            name: secret-1
+        - configMapRef:
+            name: external-env-cm
+        - secretRef:
+            name: envs-containers-shared-env-priority-app-main
+        image: alpine:3
+        name: main
+      imagePullSecrets:
+      - name: registrysecret
+      priorityClassName: production-medium
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
     helm-apps/version: TEST
   labels:
     app: test-app
@@ -1501,6 +1602,29 @@ kind: Ingress
 metadata:
   annotations: {}
   labels:
+    app: route-contract-enabled
+    chart: tests
+    repo: ""
+  name: route-contract-enabled
+spec:
+  rules:
+  - host: route-contract.example.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: service-1
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations: {}
+  labels:
     app: test-app-ingress
     chart: tests
     repo: ""
@@ -1677,6 +1801,31 @@ spec:
     type: Container
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: projectcalico.org/v3
+kind: NetworkPolicy
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: calico-netpol-example
+    chart: tests
+    repo: ""
+  name: calico-netpol-example
+spec:
+  egress:
+  - action: Allow
+    destination:
+      selector: kubernetes.io/metadata.name == 'kube-system'
+  ingress:
+  - action: Allow
+    source:
+      selector: kubernetes.io/metadata.name == 'ingress-nginx'
+  selector: app == 'demo'
+  types:
+  - Ingress
+  - Egress
+---
+# Source: tests/templates/init-helm-apps-library.yaml
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
@@ -1849,6 +1998,42 @@ spec:
   selector:
     matchLabels:
       app: pod-disruption-budget-integer
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  annotations:
+    helm-apps/app-version: "3.19"
+    helm-apps/release: legacy-prod-v1
+    helm-apps/version: TEST
+  labels:
+    app: release-versioned-app
+    chart: tests
+    repo: ""
+  name: release-versioned-app
+spec:
+  maxUnavailable: 15%
+  selector:
+    matchLabels:
+      app: release-versioned-app
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: shared-env-priority-app
+    chart: tests
+    repo: ""
+  name: shared-env-priority-app
+spec:
+  maxUnavailable: 15%
+  selector:
+    matchLabels:
+      app: shared-env-priority-app
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 apiVersion: policy/v1beta1
@@ -2140,6 +2325,21 @@ metadata:
     chart: tests
     repo: ""
   name: envs-containers-nginx-nginx
+type: Opaque
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: v1
+data:
+  SHARED_ORDER_TEST: ZnJvbS1zZWNyZXQtZW52LXZhcnM=
+kind: Secret
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: shared-env-priority-app
+    chart: tests
+    repo: ""
+  name: envs-containers-shared-env-priority-app-main
 type: Opaque
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
@@ -2816,6 +3016,48 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: pod-disruption-budget-integer
+  updatePolicy:
+    updateMode: "Off"
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  annotations:
+    helm-apps/app-version: "3.19"
+    helm-apps/release: legacy-prod-v1
+    helm-apps/version: TEST
+  labels:
+    app: release-versioned-app
+    chart: tests
+    repo: ""
+  name: release-versioned-app
+spec:
+  resourcePolicy: {}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: release-versioned-app
+  updatePolicy:
+    updateMode: "Off"
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: shared-env-priority-app
+    chart: tests
+    repo: ""
+  name: shared-env-priority-app
+spec:
+  resourcePolicy: {}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: shared-env-priority-app
   updatePolicy:
     updateMode: "Off"
 ---
