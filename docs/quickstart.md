@@ -42,6 +42,24 @@ helm repo add --force-update helm-apps https://alvnukov.github.io/helm-apps
 helm dependency update .helm
 ```
 
+### 2.1 Опционально: post-install подсказки через `NOTES.txt`
+
+Helm печатает `templates/NOTES.txt` после `helm install`/`helm upgrade`.
+Это удобное место для команд проверки релиза.
+
+Добавьте в ваш чарт `.helm/templates/NOTES.txt`:
+
+```txt
+Release: {{ .Release.Name }}
+Namespace: {{ .Release.Namespace }}
+
+helm status {{ .Release.Name }} -n {{ .Release.Namespace }}
+kubectl get pods -n {{ .Release.Namespace }}
+kubectl get svc,ingress -n {{ .Release.Namespace }}
+```
+
+Рабочий пример в репозитории: [`tests/.helm/templates/NOTES.txt`](../tests/.helm/templates/NOTES.txt)
+
 ## 3. Первый рабочий `values.yaml` (API + Service + Ingress)
 
 ```yaml
