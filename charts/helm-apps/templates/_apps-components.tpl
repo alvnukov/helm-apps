@@ -3,6 +3,12 @@
 {{-   $RelatedScope := index . 1 }}
 {{-   $verticalPodAutoscaler := index . 2 }}
 {{-   $kind := index . 3 }}
+{{-   $targetRefApiVersion := "apps/v1" }}
+{{-   if eq $kind "CronJob" }}
+{{-     $targetRefApiVersion = include "apps-api-versions.cronJob" $ }}
+{{-   else if eq $kind "Job" }}
+{{-     $targetRefApiVersion = "batch/v1" }}
+{{-   end }}
 {{-   include "apps-utils.enterScope" (list $ "verticalPodAutoscaler") }}
 {{-   if $verticalPodAutoscaler }}
 {{-     if include "fl.isTrue" (list $ . $verticalPodAutoscaler.enabled) }}
@@ -13,7 +19,7 @@ kind: VerticalPodAutoscaler
 {{- include "apps-helpers.metadataGenerator" (list $ $verticalPodAutoscaler ) }}
 spec:
   targetRef:
-    apiVersion: "apps/v1"
+    apiVersion: {{ $targetRefApiVersion | quote }}
     kind: {{ $kind }}
     name: {{ $.CurrentApp.name | quote }}
   updatePolicy:
@@ -314,7 +320,7 @@ data: {{ include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) | trim | n
 {{-         range $_, $configFile := $.CurrentContainer.configFiles }}
 {{-           print (include "fl.value" (list $ . $configFile.content)) }}
 {{-         end }}
-{{-         range $_, $configFile :=  $.CurrentContainer.secretFiles }}
+{{-         range $_, $configFile :=  $.CurrentContainer.secretConfigFiles }}
 {{-           print (include "fl.value" (list $ . $configFile.content)) }}
 {{-         end }}
 {{-         range $_, $configFile :=  $.CurrentContainer.configFilesYAML }}

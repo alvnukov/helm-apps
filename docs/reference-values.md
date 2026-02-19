@@ -483,6 +483,7 @@ resources:
 ## 8. Config files
 <a id="param-configfiles"></a>
 <a id="param-configfilesyaml"></a>
+<a id="param-secretconfigfiles"></a>
 
 ### 8.1 `configFiles`
 
@@ -520,6 +521,10 @@ secretConfigFiles:
     mountPath: /etc/secret/token.txt
     content: super-secret
 ```
+
+Контракт:
+- для каждого файла должен быть задан `content` (создать Secret в библиотеке) или `name` (смонтировать существующий Secret);
+- при отсутствии обоих значений рендер падает с явной ошибкой конфигурации.
 
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)
 

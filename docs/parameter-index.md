@@ -43,6 +43,7 @@
 | `envYAML` | [Описание](reference-values.md#param-envyaml) | [Пример](../tests/.helm/values.yaml) |
 | `configFiles` | [Описание](reference-values.md#param-configfiles) | [Пример](cookbook.md#example-configfiles) |
 | `configFilesYAML` | [Описание](reference-values.md#param-configfilesyaml) | [Пример](cookbook.md#example-configfilesyaml) |
+| `secretConfigFiles` | [Описание](reference-values.md#param-secretconfigfiles) | [Пример](reference-values.md#param-secretconfigfiles) |
 
 ## Networking and Scaling
 

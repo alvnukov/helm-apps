@@ -183,6 +183,14 @@
           "$ref": "#/$defs/yamlScalar"
         }
       },
+      "anyOf": [
+        {
+          "required": ["content"]
+        },
+        {
+          "required": ["name"]
+        }
+      ],
       "additionalProperties": true
     },
     "container": {

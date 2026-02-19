@@ -89,6 +89,7 @@ apps-stateless:
         image:
           name: alpine
           staticTag: "3"
+        workingDir: /app
         command: |
           - sh
         args: |
@@ -105,6 +106,10 @@ apps-stateless:
           - common-runtime
         sharedEnvConfigMaps:
           - common-runtime-cm
+        secretConfigFiles:
+          runtime-secret.txt:
+            mountPath: /etc/runtime-secret.txt
+            content: super-secret-data
     service:
       enabled: true
       type: LoadBalancer
@@ -160,6 +165,8 @@ apps-stateless:
 apps-jobs:
   compat-job:
     enabled: true
+    verticalPodAutoscaler:
+      enabled: true
     containers:
       main:
         image:
@@ -330,6 +337,8 @@ apps-stateful:
 apps-cronjobs:
   compat-cron:
     enabled: true
+    verticalPodAutoscaler:
+      enabled: true
     schedule: "*/10 * * * *"
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1

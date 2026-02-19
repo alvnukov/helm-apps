@@ -42,6 +42,10 @@
       {{- range $secretConfigFileName, $_ := .secretConfigFiles }}
       {{- if include "fl.value" (list $ . .content) }}
       {{- $_ := set . "name" (print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $secretConfigFileName | include "fl.formatStringAsDNSLabel") }}
+      {{- else }}
+      {{- if not (include "fl.value" (list $ . .name)) }}
+      {{- include "apps-utils.error" (list $ "E_CONFIG_FILE_SOURCE" (printf "secretConfigFiles.%s must define content or name (container '%s')" $secretConfigFileName $.CurrentContainer.name) "set content to create Secret automatically, or set name to mount existing Secret" "docs/reference-values.md#param-secretconfigfiles") }}
+      {{- end }}
       {{- end }}
       {{- if or (include "fl.value" (list $ . .content)) (include "fl.value" (list $ . .name)) }}
 - name: {{ print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $secretConfigFileName | include "fl.formatStringAsDNSLabel" | quote }}
@@ -75,11 +79,13 @@
   mountPath: {{ include "fl.valueQuoted" (list $ . .mountPath) }}
     {{- end }}
     {{- end }}
-    {{- /* Mount secret files from ConfigMaps created by "secretConfigFiles:" option */ -}}
+    {{- /* Mount secret files from Secrets created by "secretConfigFiles:" option */ -}}
     {{- range $secretConfigFileName, $secretConfigFile := $.CurrentContainer.secretConfigFiles }}
+    {{- if or (include "fl.value" (list $ . .content)) (include "fl.value" (list $ . .name)) }}
 - name: {{ print "config-" $.CurrentApp._currentContainersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $secretConfigFileName | include "fl.formatStringAsDNSLabel" | quote }}
   subPath: {{ $secretConfigFileName | quote }}
   mountPath: {{ include "fl.valueQuoted" (list $ . .mountPath) }}
+    {{- end }}
     {{- end }}
     {{- /* Mount persistantVolumes */ -}}
     {{- range $persistantVolumeName, $persistantVolume := $.CurrentContainer.persistantVolumes }}
@@ -128,7 +134,7 @@
   {{- $_ = set $specsContainers "Lists" ( list "args" "command" "ports") }}
   {{- $_ = set $specsContainers "Maps" (list "lifecycle" "livenessProbe" "readinessProbe" "securityContext" "startupProbe") }}
   {{- $_ = set $specsContainers "Strings" (list "imagePullPolicy" "terminationMessagePath" "terminationMessagePolicy" "workingDir") }}
-  {{- $_ = set $specsContainers "Bools" (list "stdin" "stdinOnce" "tty" "workingDir" ) }}
+  {{- $_ = set $specsContainers "Bools" (list "stdin" "stdinOnce" "tty" ) }}
   {{- include "apps-utils.generateSpecs" (list $ . $specsContainers) | trim | nindent 2 }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraFields) | trim }}
   {{- . | nindent 2 }}

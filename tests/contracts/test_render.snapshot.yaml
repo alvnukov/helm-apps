@@ -110,6 +110,22 @@ data:
   "ORDER_KEY": "ZnJvbS1zZWNyZXQtZW52LXZhcnM="
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.compat-service.containers.main.runtime-secret.txt
+apiVersion: v1
+kind: Secret
+metadata:
+  name: "config-containers-compat-service-main-runtime-secret-txt"
+  annotations:
+    helm-apps/release: "production-v1"
+  labels:
+    app: "compat-service"
+    chart: "contracts"
+    repo: ""
+type: Opaque
+data:
+  "runtime-secret.txt": "c3VwZXItc2VjcmV0LWRhdGE="
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-secrets.common-runtime
 apiVersion: v1
 kind: Secret
@@ -428,7 +444,7 @@ kind: Deployment
 metadata:
   name: "compat-service"
   annotations:
-    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
     helm-apps/release: "production-v1"
   labels:
     app: "compat-service"
@@ -439,7 +455,7 @@ spec:
     metadata:
       name: "compat-service"
       annotations:
-        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
         helm-apps/release: "production-v1"
       labels:
         app: "compat-service"
@@ -454,6 +470,10 @@ spec:
                 name: "common-runtime-cm"
             - secretRef:
                 name: "common-runtime"
+          volumeMounts:
+            - name: "config-containers-compat-service-main-runtime-secret-txt"
+              subPath: "runtime-secret.txt"
+              mountPath: "/etc/runtime-secret.txt"
           args:
             - -c
             - sleep 3600
@@ -462,9 +482,14 @@ spec:
           ports:
             - name: http
               containerPort: 8080
+          workingDir: "/app"
           resizePolicy:
             - resourceName: cpu
               restartPolicy: NotRequired
+      volumes:
+        - name: "config-containers-compat-service-main-runtime-secret-txt"
+          secret:
+            secretName: "config-containers-compat-service-main-runtime-secret-txt"
       os:
         name: linux
   selector:
@@ -984,6 +1009,48 @@ metadata:
 spec:
   uid: 2001
   isSudoer: true
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-cronjobs.compat-cron.verticalPodAutoscaler
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: "compat-cron"
+  annotations:
+    helm-apps/release: "production-v1"
+  labels:
+    app: "compat-cron"
+    chart: "contracts"
+    repo: ""
+spec:
+  targetRef:
+    apiVersion: "batch/v1beta1"
+    kind: CronJob
+    name: "compat-cron"
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy: {}
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-jobs.compat-job.verticalPodAutoscaler
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: "compat-job"
+  annotations:
+    helm-apps/release: "production-v1"
+  labels:
+    app: "compat-job"
+    chart: "contracts"
+    repo: ""
+spec:
+  targetRef:
+    apiVersion: "batch/v1"
+    kind: Job
+    name: "compat-job"
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy: {}
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 apiVersion: autoscaling.k8s.io/v1

@@ -126,6 +126,25 @@ YAML
 grep -q "\[helm-apps:E_UNEXPECTED_LIST\]" /tmp/contracts_invalid_native_list.err
 grep -q "path=Values.apps-stateless.compat-service.service.ports" /tmp/contracts_invalid_native_list.err
 
+echo "==> Secret config source negative check"
+cat > /tmp/contracts_invalid_secret_config_file.yaml <<'YAML'
+apps-stateless:
+  compat-service:
+    containers:
+      main:
+        secretConfigFiles:
+          missing-source.txt:
+            mountPath: /etc/missing-source.txt
+YAML
+
+! werf helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_invalid_secret_config_file.yaml \
+  >/tmp/contracts_invalid_secret_config_file.out 2>/tmp/contracts_invalid_secret_config_file.err
+
+grep -q "\[helm-apps:E_CONFIG_FILE_SOURCE\]" /tmp/contracts_invalid_secret_config_file.err
+grep -q "secretConfigFiles.missing-source.txt must define content or name" /tmp/contracts_invalid_secret_config_file.err
+
 echo "==> Internal-like release/deploy flow checks"
 werf helm template contracts tests/contracts \
   --set global.env=production \
