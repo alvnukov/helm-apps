@@ -80,6 +80,9 @@
           {{- $_ := unset $mapToMergeInto "_include" }}
           {{- $_ := set $mapToMergeInto "_include" $valToMergeFrom }}
         {{- end }}
+      {{- else if not (hasKey $mapToMergeInto $keyToMergeFrom) }}
+        {{- /* Lists are atomic values (except _include): inherit only when key is absent. */ -}}
+        {{- $_ := set $mapToMergeInto $keyToMergeFrom $valToMergeFrom }}
       {{- end }}
 
     {{- else }}

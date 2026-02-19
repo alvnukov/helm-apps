@@ -10,6 +10,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.3] - 2026-02-19
+
+### Fixed
+- Fixed `_include` merge behavior for list values to keep lists atomic (except `_include` itself):
+  - list values are inherited only when key is absent in the higher-priority layer;
+  - existing list keys are no longer implicitly replaced by lower-priority include layers.
+- Documented the explicit list contract for `configFilesYAML.content`:
+  - env-map resolution order (`exact -> regex -> _default`);
+  - no index-wise list merge;
+  - whole-list replace semantics on explicit override.
+
 ## [1.7.2] - 2026-02-19
 
 ### Fixed
