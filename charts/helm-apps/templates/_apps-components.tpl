@@ -1,17 +1,17 @@
 {{- define "apps-components.verticalPodAutoscaler" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
-{{-   $verticalPodAutoscaler := index . 2 }}
-{{-   $kind := index . 3 }}
-{{-   $targetRefApiVersion := "apps/v1" }}
-{{-   if eq $kind "CronJob" }}
-{{-     $targetRefApiVersion = include "apps-api-versions.cronJob" $ }}
-{{-   else if eq $kind "Job" }}
-{{-     $targetRefApiVersion = "batch/v1" }}
-{{-   end }}
-{{-   include "apps-utils.enterScope" (list $ "verticalPodAutoscaler") }}
-{{-   if $verticalPodAutoscaler }}
-{{-     if include "fl.isTrue" (list $ . $verticalPodAutoscaler.enabled) }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- $verticalPodAutoscaler := index . 2 }}
+{{- $kind := index . 3 }}
+{{- $targetRefApiVersion := "apps/v1" }}
+{{- if eq $kind "CronJob" }}
+{{- $targetRefApiVersion = include "apps-api-versions.cronJob" $ }}
+{{- else if eq $kind "Job" }}
+{{- $targetRefApiVersion = "batch/v1" }}
+{{- end }}
+{{- include "apps-utils.enterScope" (list $ "verticalPodAutoscaler") }}
+{{- if $verticalPodAutoscaler }}
+{{- if include "fl.isTrue" (list $ . $verticalPodAutoscaler.enabled) }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
@@ -24,22 +24,22 @@ spec:
     name: {{ $.CurrentApp.name | quote }}
   updatePolicy:
     updateMode: {{ include "fl.valueQuoted" (list $ . $verticalPodAutoscaler.updateMode) | default (print "Off" | quote )}}
-{{-       if include "fl.value" (list $ . $verticalPodAutoscaler.resourcePolicy) }}
+{{- if include "fl.value" (list $ . $verticalPodAutoscaler.resourcePolicy) }}
   resourcePolicy: {{- include "fl.value" (list $ . $verticalPodAutoscaler.resourcePolicy) | trim | nindent 4 }}
-{{-       else }}
+{{- else }}
   resourcePolicy: {}
-{{-       end }}
-{{-       with include "apps-compat.renderRaw" (list $ . $verticalPodAutoscaler.extraSpec) | trim }}
+{{- end }}
+{{- with include "apps-compat.renderRaw" (list $ . $verticalPodAutoscaler.extraSpec) | trim }}
   {{- . | nindent 2 }}
-{{-       end }}
-{{-     end }}
-{{-   end }}
-{{-   include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 
 {{- define "apps-components.cerificate" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
 {{- with $RelatedScope }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -61,13 +61,13 @@ spec:
 {{- end }}
 
 {{- define "apps-components.podDisruptionBudget" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
-{{-   $podDisruptionBudget := index . 2 }}
-{{-   include "apps-utils.enterScope" (list $ "podDisruptionBudget") }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- $podDisruptionBudget := index . 2 }}
+{{- include "apps-utils.enterScope" (list $ "podDisruptionBudget") }}
 
-{{-   with $podDisruptionBudget }}
-{{-     if include "fl.isTrue" (list $ . .enabled) }}
+{{- with $podDisruptionBudget }}
+{{- if include "fl.isTrue" (list $ . .enabled) }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: {{ include "apps-api-versions.podDisruptionBudget" $ }}
@@ -76,10 +76,10 @@ kind: PodDisruptionBudget
 spec:
   selector:
     matchLabels:
-{{-         if empty (include "fl.value" (list $ . $.CurrentApp.selector)) }}
-{{-            include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim | nindent 6 }}
+{{- if empty (include "fl.value" (list $ . $.CurrentApp.selector)) }}
+{{- include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim | nindent 6 }}
 {{- else }}
-{{-            $.CurrentApp.selector | trim | nindent 6 }}
+{{- $.CurrentApp.selector | trim | nindent 6 }}
 {{- end }}
 {{- with include "fl.value" (list $ . .maxUnavailable) }}
   maxUnavailable: {{ . }}
@@ -90,38 +90,38 @@ spec:
   {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-{{-     end }}
-{{-   end }}
-{{-   include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 
 {{- define "apps-components.service" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
-{{-   $service := index . 2 }}
-{{-   if $service }}
-{{-     if include "fl.isTrue" (list $ . $service.enabled) }}
-{{-       if include "fl.value" (list $ . $service.ports) }}
-{{-         include "apps-utils.enterScope" (list $ "service") }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- $service := index . 2 }}
+{{- if $service }}
+{{- if include "fl.isTrue" (list $ . $service.enabled) }}
+{{- if include "fl.value" (list $ . $service.ports) }}
+{{- include "apps-utils.enterScope" (list $ "service") }}
 ---
-{{-         include "apps-utils.printPath" $ }}
-{{-         if empty (include "fl.value" (list $ . $service.selector)) }}
-{{-           $_ := set $service "selector" (include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim) }}
-{{-         end }}
-{{-         if include "fl.isTrue" (list $ . $service.headless) }}
-{{-           $_ := set $service "clusterIP" "None" }}
-{{-         end }}
-{{-         include "apps-components._service" (list $ $service) }}
-{{-         include "apps-utils.leaveScope" $ }}
-{{-       end }}
-{{-     end }}
-{{-   end }}
+{{- include "apps-utils.printPath" $ }}
+{{- if empty (include "fl.value" (list $ . $service.selector)) }}
+{{- $_ := set $service "selector" (include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim) }}
+{{- end }}
+{{- if include "fl.isTrue" (list $ . $service.headless) }}
+{{- $_ := set $service "clusterIP" "None" }}
+{{- end }}
+{{- include "apps-components._service" (list $ $service) }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- define "apps-components._service" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
-{{-   include "apps-compat.normalizeServiceSpec" (list $ $RelatedScope) }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- include "apps-compat.normalizeServiceSpec" (list $ $RelatedScope) }}
 apiVersion: v1
 kind: Service
 {{- include "apps-helpers.metadataGenerator" (list $ $RelatedScope) }}
@@ -141,13 +141,13 @@ spec:
 
 
 {{- define "apps-components.horizontalPodAutoscaler" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
-{{-   include "apps-utils.enterScope" (list $ "horizontalPodAutoscaler") }}
-{{-   $kind := index . 2 }}
-{{-   with $RelatedScope }}
-{{-     if $.CurrentApp.horizontalPodAutoscaler }}
-{{-       if include "fl.isTrue" (list $ . $.CurrentApp.horizontalPodAutoscaler.enabled) }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- include "apps-utils.enterScope" (list $ "horizontalPodAutoscaler") }}
+{{- $kind := index . 2 }}
+{{- with $RelatedScope }}
+{{- if $.CurrentApp.horizontalPodAutoscaler }}
+{{- if include "fl.isTrue" (list $ . $.CurrentApp.horizontalPodAutoscaler.enabled) }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: {{ include "apps-api-versions.horizontalPodAutoscaler" $ }}
@@ -162,54 +162,54 @@ spec:
     kind: {{ $kind }}
     name: {{ $.CurrentApp.name | quote }}
   metrics:
-{{-         $hpaMetrics := $.CurrentApp.horizontalPodAutoscaler.metrics }}
-{{-         if not $hpaMetrics }}
-{{-           include "apps-utils.error" (list $ "E_HPA_METRICS_REQUIRED" (printf "horizontalPodAutoscaler.metrics is required for app '%s'" $.CurrentApp.name) "set metrics as YAML string or map" "docs/reference-values.md#param-hpa-metrics") }}
-{{-         else if kindIs "string" $hpaMetrics }}
-{{-           print (include "fl.value" (list $ . $hpaMetrics)) | nindent 2 }}
-{{-         else if kindIs "map" $hpaMetrics }}
-{{-           include "apps-helpers.generateHPAMetrics" (list $ $RelatedScope) | trim | nindent 2 }}
-{{-         else }}
-{{-           include "apps-utils.error" (list $ "E_HPA_METRICS_TYPE" (printf "horizontalPodAutoscaler.metrics has unsupported type for app '%s'" $.CurrentApp.name) "use string (raw YAML) or map" "docs/reference-values.md#param-hpa-metrics") }}
-{{-         end }}
-  {{-         with include "apps-compat.renderRaw" (list $ . $.CurrentApp.horizontalPodAutoscaler.extraSpec) | trim }}
-  {{-           . | nindent 2 }}
-  {{-         end }}
+{{- $hpaMetrics := $.CurrentApp.horizontalPodAutoscaler.metrics }}
+{{- if not $hpaMetrics }}
+{{- include "apps-utils.error" (list $ "E_HPA_METRICS_REQUIRED" (printf "horizontalPodAutoscaler.metrics is required for app '%s'" $.CurrentApp.name) "set metrics as YAML string or map" "docs/reference-values.md#param-hpa-metrics") }}
+{{- else if kindIs "string" $hpaMetrics }}
+{{- print (include "fl.value" (list $ . $hpaMetrics)) | nindent 2 }}
+{{- else if kindIs "map" $hpaMetrics }}
+{{- include "apps-helpers.generateHPAMetrics" (list $ $RelatedScope) | trim | nindent 2 }}
+{{- else }}
+{{- include "apps-utils.error" (list $ "E_HPA_METRICS_TYPE" (printf "horizontalPodAutoscaler.metrics has unsupported type for app '%s'" $.CurrentApp.name) "use string (raw YAML) or map" "docs/reference-values.md#param-hpa-metrics") }}
+{{- end }}
+  {{- with include "apps-compat.renderRaw" (list $ . $.CurrentApp.horizontalPodAutoscaler.extraSpec) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 
-{{-         range $_customMetricResourceName, $_customMetricResource := $.CurrentApp.horizontalPodAutoscaler.customMetricResources }}
-{{-           include "apps-utils.enterScope" (list $ $_customMetricResourceName) }}
-{{-           if include "fl.isTrue" (list $ . .enabled) }}
-{{-             $_ := set . "name" $_customMetricResourceName }}
-{{-             $currentApp := $.CurrentApp}}
-{{-             $_ = set $ "CurrentApp" . }}
+{{- range $_customMetricResourceName, $_customMetricResource := $.CurrentApp.horizontalPodAutoscaler.customMetricResources }}
+{{- include "apps-utils.enterScope" (list $ $_customMetricResourceName) }}
+{{- if include "fl.isTrue" (list $ . .enabled) }}
+{{- $_ := set . "name" $_customMetricResourceName }}
+{{- $currentApp := $.CurrentApp}}
+{{- $_ = set $ "CurrentApp" . }}
 ---
 {{- include "apps-utils.printPath" $ }}
 {{- include "apps-deckhouse-metrics.render" $ }}
-{{-             $_ = set $ "CurrentApp" $currentApp }}
-{{-           end }}
-{{-           include "apps-utils.leaveScope" $ }}
-{{-         end }}
-{{-       end }}
-{{-     end }}
-{{-   end }}
-{{-   include "apps-utils.leaveScope" $ }}
+{{- $_ = set $ "CurrentApp" $currentApp }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 
 {{- define "apps-components.generateConfigMapsAndSecrets" }}
-{{-   $ := . }}
+{{- $ := . }}
 {{- /* Loop through containers to generate ConfigMaps and Secrets */ -}}
-{{-   range $_, $containersType := list "initContainers" "containers" }}
-{{-   include "apps-utils.enterScope" (list $ $containersType) }}
-{{-     range $_containerName, $_container := index $.CurrentApp $containersType }}
-{{-   include "apps-utils.enterScope" (list $ $_containerName) }}
-{{-       if include "fl.isTrue" (list $ . .enabled) }}
-{{-         $_ := set . "name" $_containerName }}
-{{-         $_ = set $ "CurrentContainer" $_container }}
+{{- range $_, $containersType := list "initContainers" "containers" }}
+{{- include "apps-utils.enterScope" (list $ $containersType) }}
+{{- range $_containerName, $_container := index $.CurrentApp $containersType }}
+{{- include "apps-utils.enterScope" (list $ $_containerName) }}
+{{- if include "fl.isTrue" (list $ . .enabled) }}
+{{- $_ := set . "name" $_containerName }}
+{{- $_ = set $ "CurrentContainer" $_container }}
 {{- /* ConfigMaps created by "configFiles:" option */ -}}
-{{-   include "apps-utils.enterScope" (list $ "configFiles") }}
-{{-         range $configFileName, $configFile := .configFiles }}
-{{-           if include "fl.value" (list $ . .content) }}
-{{-           include "apps-utils.enterScope" (list $ $configFileName) }}
+{{- include "apps-utils.enterScope" (list $ "configFiles") }}
+{{- range $configFileName, $configFile := .configFiles }}
+{{- if include "fl.value" (list $ . .content) }}
+{{- include "apps-utils.enterScope" (list $ $configFileName) }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: v1
@@ -222,15 +222,15 @@ metadata:
   labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 data:
   {{ $configFileName | quote }}: | {{ include "fl.value" (list $ . .content) | trim | nindent 4 }}
-{{-           include "apps-utils.leaveScope" $ }}
-{{-           end }}
-{{-         end }}
-{{-           include "apps-utils.leaveScope" $ }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
 {{- /* ConfigMaps created by "configFilesYAML:" option */ -}}
-{{-   include "apps-utils.enterScope" (list $ "configFilesYAML") }}
-{{-         range $configFileName, $configFile := .configFilesYAML }}
-{{-           if kindIs "map" .content }}
-{{-           include "apps-utils.enterScope" (list $ $configFileName) }}
+{{- include "apps-utils.enterScope" (list $ "configFilesYAML") }}
+{{- range $configFileName, $configFile := .configFilesYAML }}
+{{- if kindIs "map" .content }}
+{{- include "apps-utils.enterScope" (list $ $configFileName) }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: v1
@@ -245,14 +245,14 @@ data:
 
 {{- include "apps-helpers.generateConfigYAML" (list $ .content .content "content") }}
   {{ $configFileName | quote }}: | {{ toYaml .content | trim | nindent 4 }}
-{{-           include "apps-utils.leaveScope" $ }}
-{{-           end }}
-{{-         end }}
-{{-           include "apps-utils.leaveScope" $ }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
 {{- /* Secrets created by "secretConfigFiles:" option */ -}}
-{{-         range $secretConfigFileName, $secretConfigFile := .secretConfigFiles }}
-{{-           if include "fl.value" (list $ . .content) }}
-{{-           include "apps-utils.enterScope" (list $ $secretConfigFileName) }}
+{{- range $secretConfigFileName, $secretConfigFile := .secretConfigFiles }}
+{{- if include "fl.value" (list $ . .content) }}
+{{- include "apps-utils.enterScope" (list $ $secretConfigFileName) }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: v1
@@ -266,12 +266,12 @@ metadata:
 type: Opaque
 data:
   {{ $secretConfigFileName | quote }}: {{ include "fl.value" (list $ . .content) | b64enc | quote }}
-{{-           include "apps-utils.leaveScope" $ }}
-{{-           end }}
-{{-         end }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
 {{- /* Secret created by "secretEnvVars:" option */ -}}
-{{-         if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
-{{-           include "apps-utils.enterScope" (list $ "secretEnvVars") }}
+{{- if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
+{{- include "apps-utils.enterScope" (list $ "secretEnvVars") }}
 ---
 {{- include "apps-utils.printPath" $ }}
 apiVersion: v1
@@ -284,49 +284,49 @@ metadata:
   labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 type: Opaque
 data: {{ include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) | trim | nindent 2 }}
-{{-   include "apps-utils.leaveScope" $ }}
-{{-         end }}
-{{-       end }}
-{{-   include "apps-utils.leaveScope" $ }}
-{{-     end }}
-{{-   include "apps-utils.leaveScope" $ }}
-{{-   end }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ }}
+{{- end }}
 {{- end }}
 
 {{- define "apps-components.generate-config-checksum" }}
-{{-   $ := index . 0 }}
-{{-   $RelatedScope := index . 1 }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
   {{- /* Loop through containers to generate Pod volumes */ -}}
-{{-   $allConfigMaps := "" }}
-{{-   range $_, $containersType := list "initContainers" "containers" }}
-{{-     range $_containerName, $_container := index $.CurrentApp $containersType }}
-{{-         $_ := set $ "CurrentContainer" . }}
+{{- $allConfigMaps := "" }}
+{{- range $_, $containersType := list "initContainers" "containers" }}
+{{- range $_containerName, $_container := index $.CurrentApp $containersType }}
+{{- $_ := set $ "CurrentContainer" . }}
 {{- if hasKey . "enabled" }}
-{{-       if include "fl.isTrue" (list $ . .enabled) }}
-{{-           $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" $) }}
-{{-       end }}
-{{- else }}
-{{-           $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" $) }}
+{{- if include "fl.isTrue" (list $ . .enabled) }}
+{{- $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" $) }}
 {{- end }}
-{{-   end }}
+{{- else }}
+{{- $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" $) }}
+{{- end }}
+{{- end }}
 
-{{-   end }}
-{{-   printf "checksum/config: '%s'" ($allConfigMaps | sha256sum) }}
+{{- end }}
+{{- printf "checksum/config: '%s'" ($allConfigMaps | sha256sum) }}
 {{- end }}
 
 {{- define "apps-components._generate-config-checksum" }}
 {{- $ := . }}
 {{- with $.CurrentApp }}
-{{-         range $_, $configFile := $.CurrentContainer.configFiles }}
-{{-           print (include "fl.value" (list $ . $configFile.content)) }}
-{{-         end }}
-{{-         range $_, $configFile :=  $.CurrentContainer.secretConfigFiles }}
-{{-           print (include "fl.value" (list $ . $configFile.content)) }}
-{{-         end }}
-{{-         range $_, $configFile :=  $.CurrentContainer.configFilesYAML }}
+{{- range $_, $configFile := $.CurrentContainer.configFiles }}
+{{- print (include "fl.value" (list $ . $configFile.content)) }}
+{{- end }}
+{{- range $_, $configFile :=  $.CurrentContainer.secretConfigFiles }}
+{{- print (include "fl.value" (list $ . $configFile.content)) }}
+{{- end }}
+{{- range $_, $configFile :=  $.CurrentContainer.configFilesYAML }}
 
 {{- include "apps-helpers.generateConfigYAML" (list $ $configFile.content $configFile.content "content") }}
 {{- $configFile.content | toYaml }}
-{{-         end }}
+{{- end }}
 {{- end }}
 {{- end }}

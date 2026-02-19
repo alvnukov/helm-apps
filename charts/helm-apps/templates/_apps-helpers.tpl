@@ -176,8 +176,8 @@ spec:
 
 {{- define "apps-helpers.activateContainerForDefault" }}
 {{- $ := . }}
-{{-   range $_, $containersType := list "initContainers" "containers" }}
-{{-     range $_containerName, $_container := index $.CurrentApp $containersType }}
+{{- range $_, $containersType := list "initContainers" "containers" }}
+{{- range $_containerName, $_container := index $.CurrentApp $containersType }}
 {{- if not (hasKey . "enabled") }}
 {{- $_ := set . "enabled" true }}
 {{- end -}}
@@ -440,22 +440,22 @@ metadata:
 {{- $content := index . 0 }}
 {{- $indicatorMap := index . 1 }}
 {{- range $CurrentKey, $CurrentDict := $content }}
-{{-   if kindIs "map" $CurrentDict }}
-{{-   if eq (len $CurrentDict) 0 }}
-{{-     $_ := set $indicatorMap "indicator" true }}
-{{-     $_ = unset $content $CurrentKey }}
-{{-   else }}
-{{-    $i := dict "indicator" true }}
-{{-    range $_,$_ := until 10 }}
-{{-      if $i.indicator }}
-{{-         $_ := set $i "indicator" false }}
-{{-         include "apps-helpers._generateConfigYAML.clean" (list $CurrentDict $i) }}
-{{-         if $i.indicator }}
-{{-           $_ := set $indicatorMap.indicator true }}
-{{-         end }}
-{{-      end }}
-{{-    end }}
-{{-    end }}
-{{-    end }}
+{{- if kindIs "map" $CurrentDict }}
+{{- if eq (len $CurrentDict) 0 }}
+{{- $_ := set $indicatorMap "indicator" true }}
+{{- $_ = unset $content $CurrentKey }}
+{{- else }}
+{{- $i := dict "indicator" true }}
+{{- range $_,$_ := until 10 }}
+{{- if $i.indicator }}
+{{- $_ := set $i "indicator" false }}
+{{- include "apps-helpers._generateConfigYAML.clean" (list $CurrentDict $i) }}
+{{- if $i.indicator }}
+{{- $_ := set $indicatorMap.indicator true }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

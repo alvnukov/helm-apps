@@ -216,10 +216,10 @@ metadata:
 spec:
   topicName: {{ $name }}
   partitions: {{ include "fl.value" (list $ . .partitions) }}
-  replicas: {{  include "fl.value" (list $ . .replicas) }}
+  replicas: {{ include "fl.value" (list $ . .replicas) }}
   config:
-    retention.ms: {{  include "fl.value" (list $ . .retention) }}
-    segment.bytes: {{  include "fl.value" (list $ . .segment_bytes) }}
-    min.insync.replicas: {{  include "fl.value" (list $ . .min_insync_replicas) }}
+    retention.ms: {{ include "fl.value" (list $ . .retention) }}
+    segment.bytes: {{ include "fl.value" (list $ . .segment_bytes) }}
+    min.insync.replicas: {{ include "fl.value" (list $ . .min_insync_replicas) }}
 {{- end }}
 {{- end }}

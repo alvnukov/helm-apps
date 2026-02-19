@@ -44,7 +44,7 @@ spec:
 {{- end -}}
 
 {{- define "apps-grafana-dashboards.render" }}
-{{- $ := .  }}
+{{- $ := . }}
 {{- with $.CurrentApp }}
 apiVersion: deckhouse.io/v1alpha1
 kind: GrafanaDashboardDefinition

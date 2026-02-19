@@ -13,7 +13,7 @@
 {{- $relativeScope := index . 1 }}
 {{- with $relativeScope }}
 matchLabels:
-{{-  if empty (include "fl.value" (list $ . .selector)) }}
+{{- if empty (include "fl.value" (list $ . .selector)) }}
 {{- include "fl.generateSelectorLabels" (list $ . .name) | nindent 2 }}
 {{- else }}
 {{- .selector | nindent 2}}

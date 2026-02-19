@@ -31,7 +31,7 @@ kind: StatefulSet
 {{- $_ := set .__annotations__ "pod-reloader.deckhouse.io/auto" "true" }}
 {{- else }}
 {{- $_ := set . "__annotations__" (include "apps-components.generate-config-checksum" (list $ .) | fromYaml) }}
-{{-  end }}
+{{- end }}
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
   {{- include "apps-compat.normalizeStatefulSetSpec" (list $ .) }}

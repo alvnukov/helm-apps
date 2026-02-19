@@ -80,30 +80,30 @@
 {{- end -}}
 
 {{- define "_fl.getValueRegex" }}
-{{-     $ := index . 0 }}
-{{-     $val := index . 1 }}
-{{-     $currentEnv := index . 2 }}
-{{-     $_ := set $ "_CurrentFuncError" "" }}
-{{-     $regexList := list }}
-{{-     if eq $currentEnv "" }}
-{{-         print "not found" }}
-{{-     else }}
-{{-     range $env, $value := omit $val "_default" $currentEnv }}
-{{-         $env = trimPrefix "^" $env }}
-{{-         $env = trimSuffix "$" $env }}
-{{-         $env = printf "^%s$" $env }}
-{{-         if regexMatch $env $currentEnv }}
-{{-             $_ := set $ "_CurrentFuncResult" $value }}
-{{-             $regexList = append $regexList $env }}
-{{-         end }}
-{{-     end }}
-{{-       if gt (len $regexList) 1 }}
-{{-           include "apps-utils.error" (list $ "E_ENV_REGEX_AMBIGUOUS" (printf "multiple env regex keys match current global.env: %s" $regexList) "leave only one matching regex key for this value" "docs/reference-values.md#param-global-env") }}
-{{-       end }}
-{{-       if eq (len $regexList) 0 }}
-{{-           print "not found" }}
-{{-       end }}
-{{-     end }}
+{{- $ := index . 0 }}
+{{- $val := index . 1 }}
+{{- $currentEnv := index . 2 }}
+{{- $_ := set $ "_CurrentFuncError" "" }}
+{{- $regexList := list }}
+{{- if eq $currentEnv "" }}
+{{- print "not found" }}
+{{- else }}
+{{- range $env, $value := omit $val "_default" $currentEnv }}
+{{- $env = trimPrefix "^" $env }}
+{{- $env = trimSuffix "$" $env }}
+{{- $env = printf "^%s$" $env }}
+{{- if regexMatch $env $currentEnv }}
+{{- $_ := set $ "_CurrentFuncResult" $value }}
+{{- $regexList = append $regexList $env }}
+{{- end }}
+{{- end }}
+{{- if gt (len $regexList) 1 }}
+{{- include "apps-utils.error" (list $ "E_ENV_REGEX_AMBIGUOUS" (printf "multiple env regex keys match current global.env: %s" $regexList) "leave only one matching regex key for this value" "docs/reference-values.md#param-global-env") }}
+{{- end }}
+{{- if eq (len $regexList) 0 }}
+{{- print "not found" }}
+{{- end }}
+{{- end }}
 {{- end -}}
 
 {{- define "fl.Result" }}

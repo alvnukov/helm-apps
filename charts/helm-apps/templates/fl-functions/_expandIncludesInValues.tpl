@@ -1,15 +1,15 @@
 {{/* The stuff below is complex and scary, and I can't make it simpler */}}
 
 {{- define "fl.expandIncludesInValues" }}
-{{-     $ := index . 0 }}
-{{-     $location := index . 1 }}  {{/* Expand includes recursively starting here */}}
-{{-     if kindIs "map" $location }}
-{{-         include "fl._recursiveMergeAndExpandIncludes" (list $ $location) }}
-{{-     else if kindIs "slice" $location }}
-{{-         range $_, $locationNested := $location }}
-{{-             include "fl.expandIncludesInValues" (list $ $locationNested) }}
-{{-         end }}
-{{-     end }}
+{{- $ := index . 0 }}
+{{- $location := index . 1 }}  {{/* Expand includes recursively starting here */}}
+{{- if kindIs "map" $location }}
+{{- include "fl._recursiveMergeAndExpandIncludes" (list $ $location) }}
+{{- else if kindIs "slice" $location }}
+{{- range $_, $locationNested := $location }}
+{{- include "fl.expandIncludesInValues" (list $ $locationNested) }}
+{{- end }}
+{{- end }}
 {{- end }}
 
 
@@ -107,59 +107,59 @@
 
 
 {{- define "_fl.make_includes_from" }}
-{{-     $ := index . 0 }}
-{{-     $prevContext := index . 1 }}
-{{-     $curContext := index . 2 }}
-{{-     $varName := index . 3 }}
-{{-     if kindIs "map" $curContext }}
-{{-         if hasKey $curContext "_include_from" }}
-{{-             $includeVar := "" }}
-{{-             $excludeParam := list }}
-{{-             $includeParams := $curContext._include_from  }}
-{{-             if kindIs "map" $includeParams }}
-{{-                 $excludeParam = $curContext._include_from.exclude }}
-{{-                 $includeVar = $curContext._include_from.path }}
-{{-             else }}
-{{-                 $includeVar = $curContext._include_from }}
-{{-             end }}
-{{-             $tmpMap := include "_getMapKeyValue" (list $.Values $includeVar) | fromJson }}
-{{-             if gt (len $excludeParam) 0 }}
-{{-                 range $e := $excludeParam }}
-{{-                     $_ := unset $tmpMap $e }}
-{{-                 end }}
-{{-             end }}
-{{-             $curContext := mergeOverwrite $curContext $tmpMap }}
-{{-             $_ := set $prevContext $varName $curContext }}
-{{-             $_ = unset $curContext "_include_from" }}
-{{-         end }}
-{{-         range $key,$varsDict := $curContext -}}
-{{-             if kindIs "map" $varsDict -}}
-{{-                 if gt (len $varsDict) 0 -}}
-{{-                     include "_fl.make_includes_from" (list $ $curContext $varsDict $key) -}}
-{{-                 end -}}
-{{-             end -}}
-{{-         end }}
-{{-     end }}
+{{- $ := index . 0 }}
+{{- $prevContext := index . 1 }}
+{{- $curContext := index . 2 }}
+{{- $varName := index . 3 }}
+{{- if kindIs "map" $curContext }}
+{{- if hasKey $curContext "_include_from" }}
+{{- $includeVar := "" }}
+{{- $excludeParam := list }}
+{{- $includeParams := $curContext._include_from }}
+{{- if kindIs "map" $includeParams }}
+{{- $excludeParam = $curContext._include_from.exclude }}
+{{- $includeVar = $curContext._include_from.path }}
+{{- else }}
+{{- $includeVar = $curContext._include_from }}
+{{- end }}
+{{- $tmpMap := include "_getMapKeyValue" (list $.Values $includeVar) | fromJson }}
+{{- if gt (len $excludeParam) 0 }}
+{{- range $e := $excludeParam }}
+{{- $_ := unset $tmpMap $e }}
+{{- end }}
+{{- end }}
+{{- $curContext := mergeOverwrite $curContext $tmpMap }}
+{{- $_ := set $prevContext $varName $curContext }}
+{{- $_ = unset $curContext "_include_from" }}
+{{- end }}
+{{- range $key,$varsDict := $curContext -}}
+{{- if kindIs "map" $varsDict -}}
+{{- if gt (len $varsDict) 0 -}}
+{{- include "_fl.make_includes_from" (list $ $curContext $varsDict $key) -}}
+{{- end -}}
+{{- end -}}
+{{- end }}
+{{- end }}
 {{- end }}
 
 {{- define "_getMapKeyValue" }}
-{{-     $map := index . 0 }}
-{{-     $path := index . 1 }}
-{{-     $tmpMap := $map }}
-{{-     if contains "." $path  }}
-{{-         $keys := regexSplit "\\." $path -1 }}
-{{-         range $k := $keys }}
-{{              if kindIs "map" $tmpMap  }}
-{{-                 $tmpValue := get $tmpMap $k }}
-{{-                 if kindIs "map" $tmpValue  }}
-{{                      $tmpMap = $tmpValue }}
-{{-                 else }}
-{{-                     include "apps-utils.error" (list $ "E_INCLUDE_FROM_PATH" (printf "_include_from path '%s' is invalid at segment '%s'" $path $k) "make sure every segment in _include_from points to a YAML map" "docs/reference-values.md#param-global-includes" (printf "Values.%s" $path)) }}
-{{-                 end }}
-{{-             end }}
-{{-         end }}
-{{-     else }}
-{{-     $tmpMap = get $tmpMap $path }}
-{{-     end }}
-{{-     toJson $tmpMap }}
+{{- $map := index . 0 }}
+{{- $path := index . 1 }}
+{{- $tmpMap := $map }}
+{{- if contains "." $path }}
+{{- $keys := regexSplit "\\." $path -1 }}
+{{- range $k := $keys }}
+{{ if kindIs "map" $tmpMap }}
+{{- $tmpValue := get $tmpMap $k }}
+{{- if kindIs "map" $tmpValue }}
+{{ $tmpMap = $tmpValue }}
+{{- else }}
+{{- include "apps-utils.error" (list $ "E_INCLUDE_FROM_PATH" (printf "_include_from path '%s' is invalid at segment '%s'" $path $k) "make sure every segment in _include_from points to a YAML map" "docs/reference-values.md#param-global-includes" (printf "Values.%s" $path)) }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- else }}
+{{- $tmpMap = get $tmpMap $path }}
+{{- end }}
+{{- toJson $tmpMap }}
 {{- end }}
