@@ -694,7 +694,7 @@ data:
       index          index.html;
       try_files $uri /index.html;
       location / {
-        proxy_set_header Authorization "***";
+        proxy_set_header Authorization "Bearer ${SECRET_TOKEN}";
         proxy_pass_header Authorization;
         proxy_pass https://backend:3000;
       }
@@ -2624,7 +2624,7 @@ metadata:
     chart: "tests"
     repo: ""
 spec:
-  query: "round(sum by(<<.GroupBy>>) (phpfpm_processes_total{state=\"active\",<<.LabelMatchers>>}) / sum by(<<.GroupBy>>) (phpfpm_processes_total{<<.LabelMatchers>>}) * 100)"
+  query: 'round(sum by(<<.GroupBy>>) (phpfpm_processes_total{state="active",<<.LabelMatchers>>}) / sum by(<<.GroupBy>>) (phpfpm_processes_total{<<.LabelMatchers>>}) * 100)'
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 # Helm Apps Library: test-hpa.hpa-app.horizontalPodAutoscaler.custom-metric-1
@@ -2639,7 +2639,7 @@ metadata:
     chart: "tests"
     repo: ""
 spec:
-  query: "sum(rate(sidekiq_jobs_enqueued_total{<<.LabelMatchers>>, queue=\"default\"}[1m])) by (<<.GroupBy>>)"
+  query: 'sum(rate(sidekiq_jobs_enqueued_total{<<.LabelMatchers>>, queue="default"}[1m])) by (<<.GroupBy>>)'
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.app-1.horizontalPodAutoscaler.metric-1
@@ -2654,7 +2654,7 @@ metadata:
     chart: "tests"
     repo: ""
 spec:
-  query: "sum(rate(sidekiq_jobs_enqueued_total{<<.LabelMatchers>>, queue=\"default\"}[1m])) by (<<.GroupBy>>)"
+  query: 'sum(rate(sidekiq_jobs_enqueued_total{<<.LabelMatchers>>, queue="default"}[1m])) by (<<.GroupBy>>)'
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless-deckhouse-metrics.app-with-deckhouse-metrics.verticalPodAutoscaler
