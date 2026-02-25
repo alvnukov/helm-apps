@@ -31,6 +31,11 @@ jobs:
         with:
           version: v2.57.1
 
+      - name: Setup Helm
+        uses: azure/setup-helm@v4
+        with:
+          version: v3.15.4
+
       - name: Install Dyff
         run: |
           curl --silent --location https://git.io/JYfAY | bash
@@ -45,18 +50,18 @@ jobs:
 
       - name: Update test chart dependencies
         run: |
-          werf helm dependency update tests/.helm
+          helm dependency update tests/.helm
 
       - name: Validate values schema
         run: |
-          werf helm lint tests/.helm --values tests/.helm/values.yaml
+          helm lint tests/.helm --values tests/.helm/values.yaml
 
       - name: Verify Kubernetes API compatibility
         run: |
           set -euo pipefail
 
           # New clusters: stable APIs must be rendered.
-          werf helm template tests tests/.helm \
+          helm template tests tests/.helm \
             --set "global.env=prod" \
             --set "global._includes.apps-defaults.enabled=true" \
             --kube-version 1.29.0 > /tmp/tests_k8s_129.yaml
@@ -69,7 +74,7 @@ jobs:
           kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/tests_k8s_129.yaml
 
           # Legacy clusters: beta APIs remain supported.
-          werf helm template tests tests/.helm \
+          helm template tests tests/.helm \
             --set "global.env=prod" \
             --set "global._includes.apps-defaults.enabled=true" \
             --kube-version 1.20.15 > /tmp/tests_k8s_120.yaml

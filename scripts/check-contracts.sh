@@ -41,8 +41,8 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if ! command -v werf >/dev/null 2>&1; then
-  echo "Missing required command: werf" >&2
+if ! command -v helm >/dev/null 2>&1; then
+  echo "Missing required command: helm" >&2
   exit 1
 fi
 
@@ -81,15 +81,15 @@ echo "==> Validate contracts snapshot YAML"
 ruby scripts/validate-yaml-stream.rb tests/contracts/test_render.snapshot.yaml
 
 echo "==> Update contract chart dependencies"
-werf helm dependency update tests/contracts
+helm dependency update tests/contracts
 
 echo "==> Render contracts (production/dev/strict + kube compatibility)"
-werf helm template contracts tests/contracts --set global.env=production > /tmp/contracts_render.yaml
-werf helm template contracts tests/contracts --set global.env=dev > /tmp/contracts_render_dev.yaml
-werf helm template contracts tests/contracts --set global.env=production --set global.validation.strict=true > /tmp/contracts_render_strict.yaml
-werf helm template contracts tests/contracts --set global.env=production --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
-werf helm template contracts tests/contracts --set global.env=production --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
-werf helm template contracts tests/contracts --set global.env=production --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
+helm template contracts tests/contracts --set global.env=production > /tmp/contracts_render.yaml
+helm template contracts tests/contracts --set global.env=dev > /tmp/contracts_render_dev.yaml
+helm template contracts tests/contracts --set global.env=production --set global.validation.strict=true > /tmp/contracts_render_strict.yaml
+helm template contracts tests/contracts --set global.env=production --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
+helm template contracts tests/contracts --set global.env=production --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
+helm template contracts tests/contracts --set global.env=production --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
 
 echo "==> Validate rendered contracts YAML streams"
 ruby scripts/validate-yaml-stream.rb \
@@ -102,7 +102,7 @@ ruby scripts/validate-yaml-stream.rb \
 
 if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
   echo "==> Contracts snapshot check (new features snapshot)"
-  werf helm template contracts tests/contracts --set global.env=production \
+  helm template contracts tests/contracts --set global.env=production \
     | sed '/werf.io\//d' > /tmp/contracts_snapshot_check.yaml
   ruby scripts/validate-yaml-stream.rb /tmp/contracts_snapshot_check.yaml
 
@@ -124,7 +124,7 @@ ruby scripts/verify-contracts-structure.rb main \
   --k119 /tmp/contracts_render_119.yaml
 
 echo "==> Release annotate-all option checks"
-werf helm template contracts tests/contracts \
+helm template contracts tests/contracts \
   --set global.env=production \
   --set global.deploy.annotateAllWithRelease=true \
   > /tmp/contracts_render_annotate_all.yaml
@@ -144,7 +144,7 @@ abort "compat-service must not get helm-apps/app-version, got #{app_version.insp
 RUBY
 
 echo "==> Env label opt-in checks"
-werf helm template contracts tests/contracts \
+helm template contracts tests/contracts \
   --set global.env=production \
   --set global.labels.addEnv=true \
   > /tmp/contracts_render_with_env_label.yaml
@@ -159,18 +159,19 @@ abort "Expected app.kubernetes.io/environment=production, got #{env_label.inspec
 RUBY
 
 echo "==> Strict negative checks"
-! werf helm template contracts tests/contracts \
+! helm template contracts tests/contracts \
   --set global.env=production \
   --set global.validation.strict=true \
   --set apps-network-policies.compat-netpol.typoField=1 >/tmp/contracts_render_strict_fail.yaml
 
-! werf helm template contracts tests/contracts \
+! helm template contracts tests/contracts \
   --set global.env=production \
   --set global.validation.strict=true \
   --set apps-typo.bad.enabled=true >/tmp/contracts_render_strict_top_fail.yaml
 
 echo "==> Missing env negative check"
-! werf helm template contracts tests/contracts \
+! helm template contracts tests/contracts \
+  --set-string global.env= \
   >/tmp/contracts_env_required.out 2>/tmp/contracts_env_required.err
 grep -q "\[helm-apps:E_ENV_REQUIRED\]" /tmp/contracts_env_required.err
 
@@ -185,7 +186,7 @@ apps-stateless:
           targetPort: 8080
 YAML
 
-! werf helm template contracts tests/contracts \
+! helm template contracts tests/contracts \
   --set global.env=production \
   --values /tmp/contracts_invalid_native_list.yaml \
   >/tmp/contracts_invalid_native_list.out 2>/tmp/contracts_invalid_native_list.err
@@ -204,7 +205,7 @@ apps-stateless:
             mountPath: /etc/missing-source.txt
 YAML
 
-! werf helm template contracts tests/contracts \
+! helm template contracts tests/contracts \
   --set global.env=production \
   --values /tmp/contracts_invalid_secret_config_file.yaml \
   >/tmp/contracts_invalid_secret_config_file.out 2>/tmp/contracts_invalid_secret_config_file.err
@@ -213,7 +214,7 @@ grep -q "\[helm-apps:E_CONFIG_FILE_SOURCE\]" /tmp/contracts_invalid_secret_confi
 grep -q "secretConfigFiles.missing-source.txt must define content or name" /tmp/contracts_invalid_secret_config_file.err
 
 echo "==> Internal-like release/deploy flow checks"
-werf helm template contracts tests/contracts \
+helm template contracts tests/contracts \
   --set global.env=production \
   --values tests/contracts/values.internal-compat.yaml > /tmp/contracts_internal_like.yaml
 

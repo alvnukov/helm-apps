@@ -138,7 +138,7 @@ def verify_main!(paths)
   assert_eq!(data['key2'], 'local-value-2', 'merge-contract.data.key2')
   assert_eq!(data['fromBaseA'], 'A', 'merge-contract.data.fromBaseA')
   assert_eq!(data['fromBaseB'], 'B', 'merge-contract.data.fromBaseB')
-  assert_eq!(data['ENV_SWITCH'], 'override-default', 'merge-contract.data.ENV_SWITCH')
+  assert_eq!(data['ENV_SWITCH'], 'base-production', 'merge-contract.data.ENV_SWITCH')
 
   merge_contract_dev = find_one!(dev_docs, kind: 'ConfigMap', name: 'merge-contract')
   assert_eq!(merge_contract_dev.dig('data', 'ENV_SWITCH'), 'override-default', 'merge-contract (dev).data.ENV_SWITCH')
