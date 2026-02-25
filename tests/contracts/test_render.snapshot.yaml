@@ -1,28 +1,31 @@
+---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-network-policies.compat-calico-netpol
 apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
 metadata:
   name: "compat-calico-netpol"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-calico-netpol"
     chart: "contracts"
-    repo: ""
 spec:
   selector: "app == 'compat-service'"
   types:
     - Ingress
     - Egress
   ingress:
-    - action: Allow
-      source:
-        selector: "kubernetes.io/metadata.name == 'ingress-nginx'"
+  - action: Allow
+    source:
+      selector: "kubernetes.io/metadata.name == 'ingress-nginx'"
+  
   egress:
-    - action: Allow
-      destination:
-        selector: "kubernetes.io/metadata.name == 'kube-system'"
+  - action: Allow
+    destination:
+      selector: "kubernetes.io/metadata.name == 'kube-system'"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-network-policies.compat-netpol
@@ -30,32 +33,35 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: "compat-netpol"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-netpol"
     chart: "contracts"
-    repo: ""
 spec:
   podSelector:
     matchLabels:
       app: compat-service
   policyTypes:
-    - Ingress
-    - Egress
+  - Ingress
+  - Egress
+  
   ingress:
-    - from:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: ingress-nginx
+  - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  
   egress:
-    - to:
-        - namespaceSelector:
-            matchLabels:
-              kubernetes.io/metadata.name: kube-system
-      ports:
-        - protocol: UDP
-          port: 53
+  - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+    ports:
+      - protocol: UDP
+        port: 53
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-limit-range.compat-limit-range
@@ -63,12 +69,13 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: "compat-limit-range"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-limit-range"
     chart: "contracts"
-    repo: ""
 spec:
   limits:
     - type: Container
@@ -78,49 +85,49 @@ spec:
         memory: 128Mi
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-stateless.compat-env-mixed.containers.main.secretEnvVars
 apiVersion: v1
 kind: Secret
 metadata:
   name: "envs-containers-compat-env-mixed-main"
   annotations:
-    helm-apps/version: "1.7.5"
-  labels:
+    helm-apps/version: "1.7.6"
+  labels: 
     app: "compat-env-mixed"
     chart: "contracts"
-    repo: ""
 type: Opaque
-data:
+data: 
   "ORDER_KEY": "ZnJvbS1zZWNyZXQtZW52LXZhcnM="
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-stateless.compat-env-old.containers.main.secretEnvVars
 apiVersion: v1
 kind: Secret
 metadata:
   name: "envs-containers-compat-env-old-main"
   annotations:
-    helm-apps/version: "1.7.5"
-  labels:
+    helm-apps/version: "1.7.6"
+  labels: 
     app: "compat-env-old"
     chart: "contracts"
-    repo: ""
 type: Opaque
-data:
+data: 
   "ORDER_KEY": "ZnJvbS1zZWNyZXQtZW52LXZhcnM="
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-stateless.compat-service.containers.main.runtime-secret.txt
 apiVersion: v1
 kind: Secret
 metadata:
   name: "config-containers-compat-service-main-runtime-secret-txt"
   annotations:
-    helm-apps/version: "1.7.5"
-  labels:
+    helm-apps/version: "1.7.6"
+  labels: 
     app: "compat-service"
     chart: "contracts"
-    repo: ""
 type: Opaque
 data:
   "runtime-secret.txt": "c3VwZXItc2VjcmV0LWRhdGE="
@@ -131,14 +138,17 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "common-runtime"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "common-runtime"
     chart: "contracts"
-    repo: ""
-type: Opaque
+type:
+  Opaque
 data:
+  
   "ORDER_KEY": "ZnJvbS1zaGFyZWQ="
   "SHARED_MODE": "c3RyaWN0"
   "SHARED_REGION": "ZXUtY2VudHJhbC0x"
@@ -149,15 +159,17 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "compat-secret"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-secret"
     chart: "contracts"
-    repo: ""
 stringData:
   token: value
-type: Opaque
+type:
+  Opaque
 data:
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
@@ -166,14 +178,17 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "manual-env-mixed"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "manual-env-mixed"
     chart: "contracts"
-    repo: ""
-type: Opaque
+type:
+  Opaque
 data:
+  
   "ORDER_KEY": "ZnJvbS1tYW51YWwtbWl4ZWQ="
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
@@ -182,14 +197,17 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "manual-env-old"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "manual-env-old"
     chart: "contracts"
-    repo: ""
-type: Opaque
+type:
+  Opaque
 data:
+  
   "ORDER_KEY": "ZnJvbS1tYW51YWwtb2xk"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
@@ -198,12 +216,14 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "custom-group-cm"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "custom-group-cm"
     chart: "contracts"
-    repo: ""
+
 data:
   "custom": "ok"
 ---
@@ -213,15 +233,17 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "common-runtime-cm"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "common-runtime-cm"
     chart: "contracts"
-    repo: ""
+
 data:
   "APP_MODE": "runtime"
-  "APP_ZONE": "eu-west-1"
+  "APP_ZONE": "eu-central-1"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-configmaps.compat-config
@@ -229,13 +251,15 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "compat-config"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-config"
     chart: "contracts"
-    repo: ""
 immutable: true
+
 data:
   "key": "value"
 ---
@@ -245,16 +269,19 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "merge-contract"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "merge-contract"
     chart: "contracts"
-    repo: ""
+
 data:
   "A": "2"
-  "ENV_SWITCH": "override-default"
+  "ENV_SWITCH": "base-production"
   "LOCAL": "ok"
+  
   "fromBaseA": "A"
   "fromBaseB": "B"
   "key1": "value-1"
@@ -268,64 +295,73 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: "compat-pvc"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-pvc"
     chart: "contracts"
-    repo: ""
-spec:
-  accessModes:
-    - ReadWriteOnce
-  resources:
+spec:  
+  accessModes: 
+  - ReadWriteOnce
+  resources: 
     requests:
       storage: 1Gi
   volumeMode: Filesystem
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-stateless.compat-service.service
 apiVersion: v1
 kind: Service
 metadata:
   name: "compat-service"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-service"
     chart: "contracts"
-    repo: ""
 spec:
-  ipFamilies:
-    - IPv4
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-  selector:
+  
+  ipFamilies: 
+  - IPv4
+  ports: 
+  - name: http
+    port: 80
+    targetPort: 8080
+  selector: 
     app: "compat-service"
+  internalTrafficPolicy: "Local"
   ipFamilyPolicy: "SingleStack"
+  loadBalancerClass: "internal-vip"
   type: "LoadBalancer"
   allocateLoadBalancerNodePorts: true
   externalTrafficPolicy: Local
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-stateful.compat-stateful.service
 apiVersion: v1
 kind: Service
 metadata:
   name: "compat-stateful"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-stateful"
     chart: "contracts"
-    repo: ""
 spec:
-  ports:
-    - name: http
-      port: 81
-      targetPort: 8081
-  selector:
+  
+  ports: 
+  - name: http
+    port: 81
+    targetPort: 8081
+  selector: 
     app: "compat-stateful"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
@@ -334,245 +370,283 @@ apiVersion: v1
 kind: Service
 metadata:
   name: "compat-standalone-service"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-standalone-service"
     chart: "contracts"
-    repo: ""
 spec:
-  ports:
-    - name: metrics
-      port: 9090
-      targetPort: 9090
-  selector:
+  
+  ports: 
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+  selector: 
     app: compat-service
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.compat-env-mixed
 
+
 apiVersion: apps/v1
 kind: Deployment
+
 metadata:
   name: "compat-env-mixed"
+  
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-env-mixed"
     chart: "contracts"
-    repo: ""
-spec:
-  template:
+spec:  
+  template: 
     metadata:
       name: "compat-env-mixed"
+      
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       labels:
+        
         app: "compat-env-mixed"
         chart: "contracts"
-        repo: ""
     spec:
+      
       containers:
-        - name: "main"
-          image: alpine:3
-          envFrom:
-            - secretRef:
-                name: "common-runtime"
-            - secretRef:
-                name: "manual-env-mixed"
-            - secretRef:
-                name: "envs-containers-compat-env-mixed-main"
-          args:
-            - -c
-            - sleep 3600
-          command:
-            - sh
-  selector:
+      - name: "main"
+        image: alpine:3
+        envFrom:
+        - secretRef:
+            name: "common-runtime"
+        - secretRef:
+            name: "manual-env-mixed"
+        - secretRef:
+            name: "envs-containers-compat-env-mixed-main"
+        
+        args: 
+        - -c
+        - sleep 3600
+        command: 
+        - sh
+  selector: 
     matchLabels:
+      
       app: "compat-env-mixed"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.compat-env-old
 
+
 apiVersion: apps/v1
 kind: Deployment
+
 metadata:
   name: "compat-env-old"
+  
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-env-old"
     chart: "contracts"
-    repo: ""
-spec:
-  template:
+spec:  
+  template: 
     metadata:
       name: "compat-env-old"
+      
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       labels:
+        
         app: "compat-env-old"
         chart: "contracts"
-        repo: ""
     spec:
+      
       containers:
-        - name: "main"
-          image: alpine:3
-          envFrom:
-            - secretRef:
-                name: "manual-env-old"
-            - secretRef:
-                name: "envs-containers-compat-env-old-main"
-          args:
-            - -c
-            - sleep 3600
-          command:
-            - sh
-  selector:
+      - name: "main"
+        image: alpine:3
+        envFrom:
+        - secretRef:
+            name: "manual-env-old"
+        - secretRef:
+            name: "envs-containers-compat-env-old-main"
+        
+        args: 
+        - -c
+        - sleep 3600
+        command: 
+        - sh
+  selector: 
     matchLabels:
+      
       app: "compat-env-old"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.compat-service
 
+
 apiVersion: apps/v1
 kind: Deployment
+
 metadata:
   name: "compat-service"
+  
   annotations:
     checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-service"
     chart: "contracts"
-    repo: ""
-spec:
-  template:
+spec:  
+  template: 
     metadata:
       name: "compat-service"
+      
       annotations:
         checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
       labels:
+        
         app: "compat-service"
         chart: "contracts"
-        repo: ""
     spec:
+      
       containers:
-        - name: "main"
-          image: alpine:3
-          envFrom:
-            - configMapRef:
-                name: "common-runtime-cm"
-            - secretRef:
-                name: "common-runtime"
-          volumeMounts:
-            - name: "config-containers-compat-service-main-runtime-secret-txt"
-              subPath: "runtime-secret.txt"
-              mountPath: "/etc/runtime-secret.txt"
-          args:
-            - -c
-            - sleep 3600
-          command:
-            - sh
-          ports:
-            - name: http
-              containerPort: 8080
-          workingDir: "/app"
-          resizePolicy:
-            - resourceName: cpu
-              restartPolicy: NotRequired
-      volumes:
+      - name: "main"
+        image: alpine:3
+        envFrom:
+        - configMapRef:
+            name: "common-runtime-cm"
+        - secretRef:
+            name: "common-runtime"
+        
+        volumeMounts: 
         - name: "config-containers-compat-service-main-runtime-secret-txt"
-          secret:
-            secretName: "config-containers-compat-service-main-runtime-secret-txt"
+          subPath: "runtime-secret.txt"
+          mountPath: "/etc/runtime-secret.txt"
+        args: 
+        - -c
+        - sleep 3600
+        command: 
+        - sh
+        ports: 
+        - name: http
+          containerPort: 8080
+        workingDir: "/app"
+        resizePolicy:
+          - resourceName: cpu
+            restartPolicy: NotRequired
+      volumes: 
+      - name: "config-containers-compat-service-main-runtime-secret-txt"
+        secret:
+          secretName: "config-containers-compat-service-main-runtime-secret-txt"
       os:
         name: linux
-  selector:
+  selector: 
     matchLabels:
+      
       app: "compat-service"
   paused: true
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.release-auto-app
 
+
 apiVersion: apps/v1
 kind: Deployment
+
 metadata:
   name: "release-auto-app"
+  
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     helm-apps/app-version: "3.19"
     helm-apps/release: "production-v1"
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "release-auto-app"
     chart: "contracts"
-    repo: ""
-spec:
-  template:
+spec:  
+  template: 
     metadata:
       name: "release-auto-app"
+      
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         helm-apps/app-version: "3.19"
         helm-apps/release: "production-v1"
       labels:
+        
         app: "release-auto-app"
         chart: "contracts"
-        repo: ""
     spec:
+      
       containers:
-        - name: "main"
-          image: alpine:3.19
-          args:
-            - -c
-            - sleep 3600
-          command:
-            - sh
-  selector:
+      - name: "main"
+        image: alpine:3.19
+        
+        args: 
+        - -c
+        - sleep 3600
+        command: 
+        - sh
+  selector: 
     matchLabels:
+      
       app: "release-auto-app"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateful.compat-stateful
 
+
 apiVersion: apps/v1
 kind: StatefulSet
+
 metadata:
   name: "compat-stateful"
+  
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-stateful"
     chart: "contracts"
-    repo: ""
 spec:
-  template:
+  
+  template: 
     metadata:
       name: "compat-stateful"
+      
       annotations:
         checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
       labels:
+        
         app: "compat-stateful"
         chart: "contracts"
-        repo: ""
     spec:
+      
       containers:
-        - name: "main"
-          image: alpine:3
-          args:
-            - -c
-            - sleep 3600
-          command:
-            - sh
-          ports:
-            - name: http
-              containerPort: 8081
-  selector:
+      - name: "main"
+        image: alpine:3
+        
+        args: 
+        - -c
+        - sleep 3600
+        command: 
+        - sh
+        ports: 
+        - name: http
+          containerPort: 8081
+  selector: 
     matchLabels:
+      
       app: "compat-stateful"
   serviceName: "compat-stateful"
   replicas: 1
@@ -583,66 +657,77 @@ apiVersion: batch/v1
 kind: Job
 metadata:
   name: "compat-job"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-job"
     chart: "contracts"
-    repo: ""
 spec:
+  
   podFailurePolicy:
     rules: []
-  template:
+  template: 
     metadata:
       name: "compat-job"
+      
       labels:
+        
         app: "compat-job"
         chart: "contracts"
-        repo: ""
     spec:
+      
       containers:
-        - name: "main"
-          image: alpine:3
-          args:
-            - -c
-            - echo test
-          command:
-            - sh
+      - name: "main"
+        image: alpine:3
+        
+        args: 
+        - -c
+        - echo test
+        command: 
+        - sh
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-cronjobs.compat-cron
-apiVersion: batch/v1beta1
+apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: "compat-cron"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-cron"
     chart: "contracts"
-    repo: ""
-spec:
+spec:  
   schedule: "*/10 * * * *"
   failedJobsHistoryLimit: 1
   successfulJobsHistoryLimit: 1
-  jobTemplate:
+  jobTemplate: 
+    
     spec:
-      template:
+      
+      template: 
         metadata:
           name: "compat-cron"
+          
           labels:
+            
             app: "compat-cron"
             chart: "contracts"
-            repo: ""
         spec:
+          
           containers:
-            - name: "main"
-              image: alpine:3
-              args:
-                - -c
-                - echo cron
-              command:
-                - sh
+          - name: "main"
+            image: alpine:3
+            
+            args: 
+            - -c
+            - echo cron
+            command: 
+            - sh
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-routes-contract.compat-route
@@ -651,22 +736,23 @@ kind: Ingress
 metadata:
   name: "compat-route"
   annotations:
+    
   labels:
+    
     app: "compat-route"
     chart: "contracts"
-    repo: ""
 spec:
   rules:
-    - host: "route.example.com"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: compat-service
-                port:
-                  number: 80
+  - host: "route.example.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: compat-service
+            port:
+              number: 80
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-ingresses.compat-ingress
@@ -675,27 +761,32 @@ kind: Ingress
 metadata:
   name: "compat-ingress"
   annotations:
+    
   labels:
+    
     app: "compat-ingress"
     chart: "contracts"
-    repo: ""
 spec:
   rules:
-    - host: "app.example.com"
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: compat-service
-                port:
-                  number: 80
+  - host: "app.example.com"
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: compat-service
+            port:
+              number: 80
+      
   defaultBackend:
     service:
       name: compat-service
       port:
         number: 80
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Source: apps.utils:  fl.expandIncludesInValues
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-certificates.compat-certificate
@@ -704,14 +795,13 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: compat-certificate
-  annotations:
 spec:
   secretName: compat-certificate
   issuerRef:
     kind: ClusterIssuer
     name: letsencrypt
   dnsNames:
-    - "compat.example.com"
+  - "compat.example.com"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-network-policies.compat-cilium-netpol
@@ -719,12 +809,13 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: "compat-cilium-netpol"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-cilium-netpol"
     chart: "contracts"
-    repo: ""
 spec:
   endpointSelector:
     matchLabels:
@@ -740,10 +831,12 @@ apiVersion: deckhouse.io/v1
 kind: CustomPrometheusRules
 metadata:
   labels:
+    
+    app: "compat-rules"
+    chart: "contracts"
     component: rules
     prometheus: main
   name: compat-rules
-  annotations:
 spec:
   groups:
     - name: compat-group
@@ -762,15 +855,16 @@ apiVersion: deckhouse.io/v1
 kind: DexAuthenticator
 metadata:
   name: "compat-dex-auth"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-dex-auth"
     chart: "contracts"
-    repo: ""
 spec:
-  allowedGroups:
-    - platform-admins
+  allowedGroups: 
+  - platform-admins
   applicationDomain: "compat.example.com"
   applicationIngressCertificateSecretName: "compat-example-tls"
   applicationIngressClassName: "nginx"
@@ -782,15 +876,16 @@ apiVersion: deckhouse.io/v1alpha1
 kind: DexClient
 metadata:
   name: "compat-dex-client"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-dex-client"
     chart: "contracts"
-    repo: ""
 spec:
-  redirectURIs:
-    - "https://compat.example.com/callback"
+  redirectURIs: 
+  - "https://compat.example.com/callback"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-grafana-dashboards.compat-dashboard
@@ -798,15 +893,17 @@ apiVersion: deckhouse.io/v1alpha1
 kind: GrafanaDashboardDefinition
 metadata:
   name: "compat-dashboard"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-dashboard"
     chart: "contracts"
-    repo: ""
 spec:
   folder: Compatibility
-  definition: |2
+  definition: |
+    
     {
       "title": "Compatibility Dashboard",
       "schemaVersion": 36,
@@ -819,13 +916,13 @@ spec:
 apiVersion: kafka.strimzi.io/v1beta2
 kind: Kafka
 metadata:
-  name: compat-kafka-
-  annotations:
+  name: compat-kafka-production
 spec:
   kafkaExporter:
     groupRegex: ".*"
     topicRegex: ".*"
     resources:
+      
       limits:
         memory: 128Mi
       requests:
@@ -839,27 +936,30 @@ spec:
           annotations:
             prometheus.deckhouse.io/port: "9404"
             prometheus.deckhouse.io/sample-limit: "10000"
+            
   kafka:
     version: 3.7.0
     replicas: 1
-    resources:
+    resources: 
+      
       limits:
         memory: 512Mi
       requests:
         cpu: 100m
         memory: 512Mi
-    jvmOptions:
+    jvmOptions: 
       -Xms: 256m
       -Xmx: 256m
+      
     listeners:
-      - name: plain
-        port: 9092
-        type: internal
-        tls: false
-      - name: tls
-        port: 9093
-        type: internal
-        tls: true
+    - name: plain
+      port: 9092
+      type: internal
+      tls: false
+    - name: tls
+      port: 9093
+      type: internal
+      tls: true
     template:
       pod:
         metadata:
@@ -868,7 +968,7 @@ spec:
           annotations:
             prometheus.deckhouse.io/port: "9404"
             prometheus.deckhouse.io/sample-limit: "50000"
-        priorityClassName:
+        priorityClassName: 
         terminationGracePeriodSeconds: 120
     metricsConfig:
       type: jmxPrometheusExporter
@@ -886,15 +986,16 @@ spec:
     storage:
       type: jbod
       volumes:
-        - id: 0
-          type: persistent-claim
-          size: 1Gi
-          class: standard
-          deleteClaim: false
+      - id: 0
+        type: persistent-claim
+        size: 1Gi
+        class: standard
+        deleteClaim: false
   zookeeper:
-    priorityClassName:
+    priorityClassName: 
     replicas: 1
-    resources:
+    resources: 
+      
       limits:
         memory: 512Mi
       requests:
@@ -908,7 +1009,7 @@ spec:
           annotations:
             prometheus.deckhouse.io/port: "9404"
             prometheus.deckhouse.io/sample-limit: "5000"
-        priorityClassName:
+        priorityClassName: 
         affinity:
           nodeAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
@@ -918,44 +1019,49 @@ spec:
                       operator: In
                       values:
                         - linux
+          
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
-              - topologyKey: "kubernetes.io/hostname"
-                labelSelector:
-                  matchLabels:
-                    strimzi.io/name: compat-kafka--zookeeper
+            - topologyKey: "kubernetes.io/hostname"
+              labelSelector:
+                matchLabels:
+                  strimzi.io/name: compat-kafka-production-zookeeper
         terminationGracePeriodSeconds: 120
-    metricsConfig:
+    metricsConfig: 
       type: jmxPrometheusExporter
       valueFrom:
         configMapKeyRef:
           name: kafka-metrics
           key: zookeeper.yml
-    jvmOptions:
+      
+    jvmOptions: 
       -Xms: 256m
       -Xmx: 256m
+      
     storage:
       type: persistent-claim
       size: 1Gi
       class: standard
       deleteClaim: false
   entityOperator:
-    priorityClassName:
+    priorityClassName: 
     template:
       pod:
         metadata:
           labels:
             apps-kafka-strimzi: entity-operator
-        priorityClassName:
+        priorityClassName: 
     topicOperator:
-      resources:
+      resources: 
+        
         limits:
           memory: 256Mi
         requests:
           cpu: 50m
           memory: 256Mi
     userOperator:
-      resources:
+      resources: 
+        
         limits:
           memory: 256Mi
         requests:
@@ -968,8 +1074,7 @@ kind: KafkaTopic
 metadata:
   name: compat-topic
   labels:
-    strimzi.io/cluster: compat-kafka-
-  annotations:
+    strimzi.io/cluster: compat-kafka-production
 spec:
   topicName: compat-topic
   partitions: 1
@@ -986,7 +1091,9 @@ kind: NodeGroup
 metadata:
   name: "compat-group"
   annotations:
+    
   labels:
+    
 spec:
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
@@ -997,27 +1104,31 @@ metadata:
   name: "compat-user"
   annotations:
     owner: platform
+    
   labels:
     team: platform
-spec:
+    
+spec:  
   uid: 2001
   isSudoer: true
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-cronjobs.compat-cron.verticalPodAutoscaler
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
   name: "compat-cron"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-cron"
     chart: "contracts"
-    repo: ""
 spec:
   targetRef:
-    apiVersion: "batch/v1beta1"
+    apiVersion: "batch/v1"
     kind: CronJob
     name: "compat-cron"
   updatePolicy:
@@ -1025,17 +1136,19 @@ spec:
   resourcePolicy: {}
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+---
 # Helm Apps Library: apps-jobs.compat-job.verticalPodAutoscaler
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
   name: "compat-job"
+  
   annotations:
-    helm-apps/version: "1.7.5"
+    helm-apps/version: "1.7.6"
   labels:
+    
     app: "compat-job"
     chart: "contracts"
-    repo: ""
 spec:
   targetRef:
     apiVersion: "batch/v1"
@@ -1049,13 +1162,12 @@ spec:
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: compat-kafka--kafka
-  annotations:
+  name: compat-kafka-production-kafka
 spec:
   targetRef:
     apiVersion: "apps/v1"
     kind: StatefulSet
-    name: compat-kafka--kafka
+    name: compat-kafka-production-kafka
   updatePolicy:
     updateMode: "Off"
 ---
@@ -1063,13 +1175,12 @@ spec:
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: compat-kafka--zookeeper
-  annotations:
+  name: compat-kafka-production-zookeeper
 spec:
   targetRef:
     apiVersion: "apps/v1"
     kind: StatefulSet
-    name: compat-kafka--zookeeper
+    name: compat-kafka-production-zookeeper
   updatePolicy:
     updateMode: "Off"
 ---
@@ -1077,13 +1188,12 @@ spec:
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: compat-kafka--entity-operator
-  annotations:
+  name: compat-kafka-production-entity-operator
 spec:
   targetRef:
     apiVersion: "apps/v1"
     kind: Deployment
-    name: compat-kafka--entity-operator
+    name: compat-kafka-production-entity-operator
   updatePolicy:
     updateMode: "Off"
 ---
@@ -1091,12 +1201,11 @@ spec:
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
-  name: compat-kafka--kafka-exporter
-  annotations:
+  name: compat-kafka-production-kafka-exporter
 spec:
   targetRef:
     apiVersion: "apps/v1"
     kind: Deployment
-    name: compat-kafka--kafka-exporter
+    name: compat-kafka-production-kafka-exporter
   updatePolicy:
     updateMode: "Off"
