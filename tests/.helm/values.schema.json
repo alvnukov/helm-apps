@@ -963,6 +963,15 @@
         "env": {
           "type": "string"
         },
+        "labels": {
+          "type": "object",
+          "properties": {
+            "addEnv": {
+              "$ref": "#/$defs/envValue"
+            }
+          },
+          "additionalProperties": true
+        },
         "_includes": {
           "type": "object",
           "additionalProperties": true

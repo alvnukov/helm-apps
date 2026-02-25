@@ -10,6 +10,17 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.7.6] - 2026-02-25
+
+### Added
+- Optional env label propagation for rendered entities:
+  - `global.labels.addEnv=true` adds `app.kubernetes.io/environment=<current env>` to metadata labels.
+
+### Fixed
+- Added fail-fast validation for env-aware values rendering:
+  - render now fails with `E_ENV_REQUIRED` when both `werf.env` and `global.env` are empty;
+  - error message explicitly points to setting env at deploy/render stage.
+
 ## [1.7.5] - 2026-02-19
 
 ### Added

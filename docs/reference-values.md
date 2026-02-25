@@ -466,6 +466,10 @@ field:
 - `_default` для базового значения;
 - явный env-ключ для таргет окружения;
 - regex только когда реально нужен паттерн.
+- окружение задавайте на стадии рендера/деплоя: `werf.env` или `global.env`.
+- для автоматической маркировки ресурсов окружением включите `global.labels.addEnv: true`.
+
+Если окружение не задано, рендер завершится ошибкой `E_ENV_REQUIRED`.
 
 ## 7. Ресурсы контейнера
 
@@ -823,6 +827,7 @@ data:
 |---|---|---|
 | `_include` | `array[string]` | Конкатенируется между include-профилями, затем применяется merge.
 | `global.env` | `string` | Выбирает env-значение из map (`_default`, `production`, regex).
+| `global.labels.addEnv` | `bool` или env-map bool | Если `true`, добавляет label `app.kubernetes.io/environment=<current env>` в metadata labels рендеримых сущностей.
 | `replicas`, `enabled`, `werfWeight`, `priorityClassName` | scalar или env-map scalar | Резолвится через `fl.value` как скаляр.
 | `envVars.<KEY>` / `secretEnvVars.<KEY>` | scalar или env-map scalar | Рендерится как env var value.
 | `sharedEnvConfigMaps[]` | `string` или env-map string | Преобразуется в `envFrom.configMapRef.name` на уровне контейнера.

@@ -30,6 +30,11 @@ metadata:
   annotations:
     {{- include "fl.value" (list $ . .annotations) | nindent 4 }}
   labels:
+    {{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) (hasKey $.Values.global "labels") (kindIs "map" $.Values.global.labels) (hasKey $.Values.global.labels "addEnv") }}
+    {{- if include "fl.isTrue" (list $ . $.Values.global.labels.addEnv) }}
+    app.kubernetes.io/environment: {{ include "fl.currentEnv" (list $) | quote }}
+    {{- end }}
+    {{- end }}
     {{- include "fl.value" (list $ . .labels) | nindent 4 }}
 spec:
    {{- $specs := dict }}
@@ -66,6 +71,11 @@ metadata:
   annotations:
     {{- include "fl.value" (list $ . .annotations) | nindent 4 }}
   labels:
+    {{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) (hasKey $.Values.global "labels") (kindIs "map" $.Values.global.labels) (hasKey $.Values.global.labels "addEnv") }}
+    {{- if include "fl.isTrue" (list $ . $.Values.global.labels.addEnv) }}
+    app.kubernetes.io/environment: {{ include "fl.currentEnv" (list $) | quote }}
+    {{- end }}
+    {{- end }}
     {{- include "fl.value" (list $ . .labels) | nindent 4 }}
 spec:
    {{- $specs := dict }}

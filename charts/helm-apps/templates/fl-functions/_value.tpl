@@ -58,10 +58,33 @@
 {{- define "fl.currentEnv" -}}
 {{- $ := index . 0 -}}
 {{- $env := "" -}}
-{{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) -}}
+{{- if and (hasKey $.Values "werf") (kindIs "map" $.Values.werf) -}}
+{{- with $.Values.werf.env }}
+{{- $env = toString . }}
+{{- end }}
+{{- end }}
+{{- if and (eq $env "") (hasKey $.Values "global") (kindIs "map" $.Values.global) -}}
 {{- with $.Values.global.env }}
 {{- $env = toString . }}
 {{- end }}
+{{- end }}
+{{- if and (eq $env "") (hasKey $ "werf") (kindIs "map" $.werf) -}}
+{{- with $.werf.env }}
+{{- $env = toString . }}
+{{- end }}
+{{- end }}
+{{- if and (eq $env "") (hasKey $ "global") (kindIs "map" $.global) -}}
+{{- with $.global.env }}
+{{- $env = toString . }}
+{{- end }}
+{{- end }}
+{{- if and (eq $env "") (hasKey $ "env") -}}
+{{- with $.env }}
+{{- $env = toString . }}
+{{- end }}
+{{- end }}
+{{- if eq (trim $env) "" -}}
+{{- include "apps-utils.error" (list $ "E_ENV_REQUIRED" "environment is not set for env-aware values rendering" "set werf.env (werf --env <env>) or global.env (helm --set global.env=<env>) at render/deploy stage" "docs/reference-values.md#param-global-env") -}}
 {{- end }}
 {{- $env -}}
 {{- end -}}

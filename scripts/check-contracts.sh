@@ -143,6 +143,21 @@ app_version = deployment.dig('metadata', 'annotations', 'helm-apps/app-version')
 abort "compat-service must not get helm-apps/app-version, got #{app_version.inspect}" unless app_version.nil?
 RUBY
 
+echo "==> Env label opt-in checks"
+werf helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.labels.addEnv=true \
+  > /tmp/contracts_render_with_env_label.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+docs = YAML.load_stream(File.read('/tmp/contracts_render_with_env_label.yaml')).compact
+deployment = docs.find { |d| d.is_a?(Hash) && d['kind'] == 'Deployment' && d.dig('metadata', 'name') == 'compat-service' }
+abort 'Deployment compat-service not found in env label check output' if deployment.nil?
+env_label = deployment.dig('metadata', 'labels', 'app.kubernetes.io/environment')
+abort "Expected app.kubernetes.io/environment=production, got #{env_label.inspect}" unless env_label == 'production'
+RUBY
+
 echo "==> Strict negative checks"
 ! werf helm template contracts tests/contracts \
   --set global.env=production \
@@ -153,6 +168,11 @@ echo "==> Strict negative checks"
   --set global.env=production \
   --set global.validation.strict=true \
   --set apps-typo.bad.enabled=true >/tmp/contracts_render_strict_top_fail.yaml
+
+echo "==> Missing env negative check"
+! werf helm template contracts tests/contracts \
+  >/tmp/contracts_env_required.out 2>/tmp/contracts_env_required.err
+grep -q "\[helm-apps:E_ENV_REQUIRED\]" /tmp/contracts_env_required.err
 
 echo "==> Native list policy negative check"
 cat > /tmp/contracts_invalid_native_list.yaml <<'YAML'

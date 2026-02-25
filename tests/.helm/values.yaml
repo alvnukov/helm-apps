@@ -1,4 +1,7 @@
 global:
+  env: prod
+  labels:
+    addEnv: false
   ci_url: example.com
   deploy:
     enabled: true

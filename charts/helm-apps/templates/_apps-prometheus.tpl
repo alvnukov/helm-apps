@@ -14,6 +14,7 @@ apiVersion: deckhouse.io/v1
 kind: CustomPrometheusRules
 metadata:
   labels:
+    {{- include "fl.generateLabels" (list $ . $.CurrentApp.name) | nindent 4 }}
     component: rules
     prometheus: main
   name: {{ include "fl.value" (list $ . .name)}}
