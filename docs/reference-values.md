@@ -31,6 +31,7 @@
 - `apps-jobs`
 - `apps-cronjobs`
 - `apps-services`
+- `apps-service-accounts`
 - `apps-ingresses`
 - `apps-network-policies`
 - `apps-configmaps`
@@ -281,6 +282,11 @@ apps-stateless:
 - задайте `apiVersion`, `kind`;
 - `metadata`, `spec`, `data`, `stringData`, `binaryData` лучше передавать через YAML block string (`|`);
 - неизвестные top-level поля можно передавать напрямую (implicit residual) или через `extraFields`.
+
+Для распространённых standalone RBAC-объектов есть built-in секции:
+- `apps-service-accounts` для `ServiceAccount`;
+- внутри `apps-service-accounts` можно описывать `roles` и `clusterRoles`, а библиотека автоматически создаст binding'и на этот ServiceAccount;
+- остаточные top-level поля поддерживаются через `extraFields`.
 
 ## 4. Workload app-поля
 

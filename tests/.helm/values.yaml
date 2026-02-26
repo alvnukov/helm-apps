@@ -2015,6 +2015,38 @@ apps-services:
     selector: |
       app: test-app
 
+apps-service-accounts:
+  service-account-example:
+    enabled: false
+    automountServiceAccountToken: false
+    imagePullSecrets: |
+      - name: regcred
+    extraFields: |
+      secrets:
+        - name: static-token
+    roles:
+      reader:
+        rules:
+          read-pods:
+            apiGroups:
+              - ""
+            resources:
+              - pods
+            verbs:
+              - get
+              - list
+    clusterRoles:
+      node-reader:
+        rules:
+          read-nodes:
+            apiGroups:
+              - ""
+            resources:
+              - nodes
+            verbs:
+              - get
+              - list
+
 test-env-yaml:
   __GroupVars__:
     type: apps-stateless

@@ -104,6 +104,24 @@ spec:
         memory: 128Mi
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-service-accounts.compat-standalone-sa
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "compat-standalone-sa"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+  namespace: "compat"
+automountServiceAccountToken: false
+imagePullSecrets:
+  - name: compat-regcred
+secrets:
+  - name: compat-static-token
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-k8s-manifests.compat-generic-serviceaccount
 
 apiVersion: v1
@@ -334,6 +352,148 @@ spec:
     requests:
       storage: 1Gi
   volumeMode: Filesystem
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "compat-standalone-sa-metrics-reader"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+rules:
+
+-
+ apiGroups:
+  - ""
+ resources:
+  - pods
+  - nodes
+ verbs:
+  - get
+  - list
+aggregationRule:
+  clusterRoleSelectors:
+    - matchLabels:
+        rbac.example.com/aggregate-to-compat: "true"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "compat-standalone-sa-metrics-reader"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+subjects:
+  - kind: ServiceAccount
+    name: compat-standalone-sa
+    namespace: compat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: compat-standalone-sa-metrics-reader
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "compat-standalone-sa-reader"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+  namespace: "compat"
+rules:
+
+-
+ apiGroups:
+  - ""
+ resources:
+  - configmaps
+ verbs:
+  - get
+  - list
+  - watch
+
+-
+ apiGroups:
+  - ""
+ resources:
+  - secrets
+ verbs:
+  - get
+  - list
+ resourceNames:
+   - compat-secret
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: "compat-standalone-sa-writer"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+  namespace: "compat"
+rules:
+
+-
+ apiGroups:
+  - ""
+ resources:
+  - configmaps
+ verbs:
+  - create
+  - update
+  - patch
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "compat-standalone-sa-reader"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+  namespace: "compat"
+subjects:
+  - kind: ServiceAccount
+    name: compat-standalone-sa
+    namespace: compat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: compat-standalone-sa-reader
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "compat-standalone-sa-writer"
+  
+  labels:
+    
+    app: "compat-standalone-sa"
+    chart: "contracts"
+  namespace: "compat"
+subjects:
+  - kind: ServiceAccount
+    name: compat-standalone-sa
+    namespace: compat
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: compat-standalone-sa-writer
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-k8s-manifests.compat-generic-rolebinding

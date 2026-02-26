@@ -281,6 +281,7 @@ Values
 "pvcs"
 "certificates"
 "services"
+"service-accounts"
 "network-policies"
 "k8s-manifests"
 }}

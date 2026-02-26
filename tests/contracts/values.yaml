@@ -364,6 +364,68 @@ apps-services:
         port: 9090
         targetPort: 9090
 
+apps-service-accounts:
+  compat-standalone-sa:
+    enabled: true
+    namespace: compat
+    automountServiceAccountToken: false
+    imagePullSecrets: |
+      - name: compat-regcred
+    extraFields: |
+      secrets:
+        - name: compat-static-token
+    roles:
+      reader:
+        rules:
+          read-configmaps:
+            apiGroups:
+              - ""
+            resources:
+              - configmaps
+            verbs:
+              - get
+              - list
+              - watch
+          read-secrets:
+            apiGroups:
+              - ""
+            resources:
+              - secrets
+            verbs:
+              - get
+              - list
+            extraFields: |
+              resourceNames:
+                - compat-secret
+      writer:
+        rules:
+          write-configmaps:
+            apiGroups:
+              - ""
+            resources:
+              - configmaps
+            verbs:
+              - create
+              - update
+              - patch
+    clusterRoles:
+      metrics-reader:
+        rules:
+          core-read:
+            apiGroups:
+              - ""
+            resources:
+              - pods
+              - nodes
+            verbs:
+              - get
+              - list
+        extraFields: |
+          aggregationRule:
+            clusterRoleSelectors:
+              - matchLabels:
+                  rbac.example.com/aggregate-to-compat: "true"
+
 apps-k8s-manifests:
   compat-generic-serviceaccount:
     enabled: true

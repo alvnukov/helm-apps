@@ -88,11 +88,13 @@
   {{- $isAllowedGlobalInclude := regexMatch "^Values\\.global\\._includes\\..*" $pathString -}}
   {{- $isAllowedConfigFilesYAMLContent := regexMatch "^Values\\..*\\.configFilesYAML\\..*\\.content\\..*" $pathString -}}
   {{- $isAllowedEnvYAML := regexMatch "^Values\\..*\\.envYAML\\..*" $pathString -}}
+  {{- $isAllowedExtraFieldsAnyLevel := regexMatch "^Values\\..*\\.extraFields(\\..*)?$" $pathString -}}
+  {{- $isAllowedServiceAccountRbacRuleList := regexMatch "^Values\\.apps-service-accounts\\.[^.]+\\.(roles|clusterRoles)\\.[^.]+\\.rules\\.[^.]+\\.(apiGroups|resources|verbs|resourceNames|nonResourceURLs)$" $pathString -}}
   {{- $isAllowedContainerSharedEnvConfigMaps := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvConfigMaps$" $pathString -}}
   {{- $isAllowedInitContainerSharedEnvConfigMaps := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvConfigMaps$" $pathString -}}
   {{- $isAllowedContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
   {{- $isAllowedInitContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
-  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedContainerSharedEnvConfigMaps $isAllowedInitContainerSharedEnvConfigMaps $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets) -}}
+  {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedExtraFieldsAnyLevel $isAllowedServiceAccountRbacRuleList $isAllowedContainerSharedEnvConfigMaps $isAllowedInitContainerSharedEnvConfigMaps $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets) -}}
     {{- include "apps-utils.error" (list $ "E_UNEXPECTED_LIST" "native YAML list is not allowed here" "for Kubernetes list fields use YAML block string ('|'); native lists are allowed only for _include/_include_files and documented exceptions" "docs/faq.md#2-почему-list-в-values-почти-везде-запрещены" $pathString) -}}
   {{- end -}}
 {{- else if kindIs "map" $value -}}
