@@ -2160,6 +2160,43 @@ apps-network-policies:
         destination:
           selector: "kubernetes.io/metadata.name == 'kube-system'"
 
+apps-k8s-manifests:
+  # Generic built-in fallback for arbitrary Kubernetes objects.
+  # Prefer specialized apps-* groups when entity is covered by the library.
+  generic-rolebinding-example:
+    enabled: false
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata: |
+      namespace: demo
+      labels:
+        source: importer
+    extraFields: |
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: read-secrets
+      subjects:
+        - kind: ServiceAccount
+          name: app
+          namespace: demo
+  generic-cr-example:
+    enabled: false
+    apiVersion: monitoring.example.io/v1alpha1
+    kind: ScrapePolicy
+    metadata: |
+      namespace: monitoring
+    spec: |
+      selector:
+        matchLabels:
+          app: demo
+      endpoints:
+        - port: metrics
+          interval: 30s
+    extraFields: |
+      x-vendor-options:
+        owner: platform
+
 apps-infra:
   node-users:
     infra-user-example:

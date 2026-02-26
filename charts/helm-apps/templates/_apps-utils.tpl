@@ -282,6 +282,7 @@ Values
 "certificates"
 "services"
 "network-policies"
+"k8s-manifests"
 }}
 {{- $knownTopLevel := list "global" "enabled" "_include" "werf" "helm-apps" }}
 {{- range $app := $Library }}

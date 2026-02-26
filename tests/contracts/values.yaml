@@ -364,6 +364,96 @@ apps-services:
         port: 9090
         targetPort: 9090
 
+apps-k8s-manifests:
+  compat-generic-serviceaccount:
+    enabled: true
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata: |
+      namespace: compat
+      labels:
+        imported-by: helm-apps-importer
+    extraFields: |
+      automountServiceAccountToken: false
+      imagePullSecrets:
+        - name: compat-regcred
+      secrets:
+        - name: compat-token
+  compat-generic-rolebinding:
+    enabled: true
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: RoleBinding
+    metadata: |
+      namespace: compat
+    extraFields: |
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: Role
+        name: compat-reader
+      subjects:
+        - kind: ServiceAccount
+          name: compat-sa
+          namespace: compat
+  compat-generic-priorityclass:
+    enabled: true
+    apiVersion: scheduling.k8s.io/v1
+    kind: PriorityClass
+    value: 100000
+    globalDefault: false
+    description: "compat priority class"
+    preemptionPolicy: PreemptLowerPriority
+  compat-generic-validating-webhook:
+    enabled: true
+    apiVersion: admissionregistration.k8s.io/v1
+    kind: ValidatingWebhookConfiguration
+    webhooks: |
+      - name: validate.compat.example.com
+        admissionReviewVersions:
+          - v1
+        sideEffects: None
+        failurePolicy: Ignore
+        clientConfig:
+          service:
+            namespace: compat
+            name: compat-webhook
+            path: /validate
+            port: 443
+        rules:
+          - apiGroups: [""]
+            apiVersions: ["v1"]
+            operations: ["CREATE","UPDATE"]
+            resources: ["pods"]
+        namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: compat
+  compat-generic-lease:
+    enabled: true
+    apiVersion: coordination.k8s.io/v1
+    kind: Lease
+    metadata: |
+      namespace: compat
+    spec: |
+      holderIdentity: compat-controller
+      leaseDurationSeconds: 30
+      renewTime: "2025-01-01T00:00:00Z"
+  compat-generic-cr:
+    enabled: true
+    apiVersion: example.io/v1alpha1
+    kind: WidgetPolicy
+    metadata: |
+      namespace: compat
+      annotations:
+        importer/source-chart: kube-prometheus-stack
+    spec: |
+      selector:
+        matchLabels:
+          app: compat-service
+      rules:
+        - action: allow
+          port: 9090
+    status: |
+      observedGeneration: 1
+
 apps-limit-range:
   compat-limit-range:
     enabled: true

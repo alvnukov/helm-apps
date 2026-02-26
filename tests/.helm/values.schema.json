@@ -58,6 +58,9 @@
     "apps-network-policies": {
       "$ref": "#/$defs/networkPolicyAppMap"
     },
+    "apps-k8s-manifests": {
+      "$ref": "#/$defs/appMap"
+    },
     "apps-infra": {
       "$ref": "#/$defs/appsInfra"
     },

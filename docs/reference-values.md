@@ -44,6 +44,7 @@
 - `apps-grafana-dashboards`
 - `apps-kafka-strimzi`
 - `apps-infra`
+- `apps-k8s-manifests` (generic built-in fallback для arbitrary Kubernetes объектов)
 - произвольные custom-группы с `__GroupVars__`
 
 Служебные ключи, которые могут появляться в merged values:
@@ -275,6 +276,11 @@ apps-stateless:
 - `versionKey`
 - `annotations`
 - `labels`
+
+Для fallback-импорта arbitrary объектов используйте `apps-k8s-manifests`:
+- задайте `apiVersion`, `kind`;
+- `metadata`, `spec`, `data`, `stringData`, `binaryData` лучше передавать через YAML block string (`|`);
+- неизвестные top-level поля можно передавать напрямую (implicit residual) или через `extraFields`.
 
 ## 4. Workload app-поля
 

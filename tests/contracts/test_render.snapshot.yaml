@@ -1,13 +1,36 @@
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-k8s-manifests.compat-generic-priorityclass
+
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: "compat-generic-priorityclass"
+  
+  labels:
+    
+    app: "compat-generic-priorityclass"
+    chart: "contracts"
+
+
+
+
+
+description: "compat priority class"
+
+globalDefault: false
+
+preemptionPolicy: "PreemptLowerPriority"
+
+value: 100000
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-network-policies.compat-calico-netpol
 apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
 metadata:
   name: "compat-calico-netpol"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-calico-netpol"
@@ -34,8 +57,6 @@ kind: NetworkPolicy
 metadata:
   name: "compat-netpol"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-netpol"
@@ -70,8 +91,6 @@ kind: LimitRange
 metadata:
   name: "compat-limit-range"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-limit-range"
@@ -85,14 +104,42 @@ spec:
         memory: 128Mi
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-k8s-manifests.compat-generic-serviceaccount
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: "compat-generic-serviceaccount"
+  
+  labels:
+    
+    app: "compat-generic-serviceaccount"
+    chart: "contracts"
+    imported-by: helm-apps-importer
+
+  namespace: compat
+
+
+
+
+
+automountServiceAccountToken: false
+
+imagePullSecrets:
+
+  - name: compat-regcred
+
+secrets:
+
+  - name: compat-token
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 ---
 # Helm Apps Library: apps-stateless.compat-env-mixed.containers.main.secretEnvVars
 apiVersion: v1
 kind: Secret
 metadata:
   name: "envs-containers-compat-env-mixed-main"
-  annotations:
-    helm-apps/version: "1.7.6"
   labels: 
     app: "compat-env-mixed"
     chart: "contracts"
@@ -107,8 +154,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "envs-containers-compat-env-old-main"
-  annotations:
-    helm-apps/version: "1.7.6"
   labels: 
     app: "compat-env-old"
     chart: "contracts"
@@ -123,8 +168,6 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "config-containers-compat-service-main-runtime-secret-txt"
-  annotations:
-    helm-apps/version: "1.7.6"
   labels: 
     app: "compat-service"
     chart: "contracts"
@@ -139,8 +182,6 @@ kind: Secret
 metadata:
   name: "common-runtime"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "common-runtime"
@@ -160,8 +201,6 @@ kind: Secret
 metadata:
   name: "compat-secret"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-secret"
@@ -179,8 +218,6 @@ kind: Secret
 metadata:
   name: "manual-env-mixed"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "manual-env-mixed"
@@ -198,8 +235,6 @@ kind: Secret
 metadata:
   name: "manual-env-old"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "manual-env-old"
@@ -217,8 +252,6 @@ kind: ConfigMap
 metadata:
   name: "custom-group-cm"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "custom-group-cm"
@@ -234,8 +267,6 @@ kind: ConfigMap
 metadata:
   name: "common-runtime-cm"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "common-runtime-cm"
@@ -252,8 +283,6 @@ kind: ConfigMap
 metadata:
   name: "compat-config"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-config"
@@ -270,8 +299,6 @@ kind: ConfigMap
 metadata:
   name: "merge-contract"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "merge-contract"
@@ -296,8 +323,6 @@ apiVersion: v1
 metadata:
   name: "compat-pvc"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-pvc"
@@ -311,6 +336,37 @@ spec:
   volumeMode: Filesystem
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-k8s-manifests.compat-generic-rolebinding
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: "compat-generic-rolebinding"
+  
+  labels:
+    
+    app: "compat-generic-rolebinding"
+    chart: "contracts"
+
+  namespace: compat
+
+
+
+
+
+roleRef:
+
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: compat-reader
+
+subjects:
+
+  - kind: ServiceAccount
+    name: compat-sa
+    namespace: compat
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 ---
 # Helm Apps Library: apps-stateless.compat-service.service
 apiVersion: v1
@@ -318,8 +374,6 @@ kind: Service
 metadata:
   name: "compat-service"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-service"
@@ -349,8 +403,6 @@ kind: Service
 metadata:
   name: "compat-stateful"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-stateful"
@@ -371,8 +423,6 @@ kind: Service
 metadata:
   name: "compat-standalone-service"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-standalone-service"
@@ -398,7 +448,6 @@ metadata:
   
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-env-mixed"
@@ -449,7 +498,6 @@ metadata:
   
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-env-old"
@@ -498,7 +546,6 @@ metadata:
   
   annotations:
     checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-service"
@@ -567,7 +614,6 @@ metadata:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     helm-apps/app-version: "3.19"
     helm-apps/release: "production-v1"
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "release-auto-app"
@@ -613,7 +659,6 @@ metadata:
   
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-stateful"
@@ -658,8 +703,6 @@ kind: Job
 metadata:
   name: "compat-job"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-job"
@@ -695,8 +738,6 @@ kind: CronJob
 metadata:
   name: "compat-cron"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-cron"
@@ -810,8 +851,6 @@ kind: CiliumNetworkPolicy
 metadata:
   name: "compat-cilium-netpol"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-cilium-netpol"
@@ -856,8 +895,6 @@ kind: DexAuthenticator
 metadata:
   name: "compat-dex-auth"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-dex-auth"
@@ -877,8 +914,6 @@ kind: DexClient
 metadata:
   name: "compat-dex-client"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-dex-client"
@@ -894,8 +929,6 @@ kind: GrafanaDashboardDefinition
 metadata:
   name: "compat-dashboard"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-dashboard"
@@ -1085,6 +1118,30 @@ spec:
     min.insync.replicas: 1
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-k8s-manifests.compat-generic-lease
+
+apiVersion: coordination.k8s.io/v1
+kind: Lease
+metadata:
+  name: "compat-generic-lease"
+  
+  labels:
+    
+    app: "compat-generic-lease"
+    chart: "contracts"
+
+  namespace: compat
+
+
+
+
+spec:
+
+  holderIdentity: compat-controller
+  leaseDurationSeconds: 30
+  renewTime: "2025-01-01T00:00:00Z"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-infra.node-groups.compat-group
 apiVersion: deckhouse.io/v1
 kind: NodeGroup
@@ -1113,6 +1170,50 @@ spec:
   isSudoer: true
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-k8s-manifests.compat-generic-validating-webhook
+
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: "compat-generic-validating-webhook"
+  
+  labels:
+    
+    app: "compat-generic-validating-webhook"
+    chart: "contracts"
+
+
+
+
+
+webhooks:
+
+  - admissionReviewVersions:
+    - v1
+    clientConfig:
+      service:
+        name: compat-webhook
+        namespace: compat
+        path: /validate
+        port: 443
+    failurePolicy: Ignore
+    name: validate.compat.example.com
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: compat
+    rules:
+    - apiGroups:
+      - ""
+      apiVersions:
+      - v1
+      operations:
+      - CREATE
+      - UPDATE
+      resources:
+      - pods
+    sideEffects: None
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 ---
 # Helm Apps Library: apps-cronjobs.compat-cron.verticalPodAutoscaler
 apiVersion: autoscaling.k8s.io/v1
@@ -1120,8 +1221,6 @@ kind: VerticalPodAutoscaler
 metadata:
   name: "compat-cron"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-cron"
@@ -1143,8 +1242,6 @@ kind: VerticalPodAutoscaler
 metadata:
   name: "compat-job"
   
-  annotations:
-    helm-apps/version: "1.7.6"
   labels:
     
     app: "compat-job"
@@ -1209,3 +1306,37 @@ spec:
     name: compat-kafka-production-kafka-exporter
   updatePolicy:
     updateMode: "Off"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-k8s-manifests.compat-generic-cr
+
+apiVersion: example.io/v1alpha1
+kind: WidgetPolicy
+metadata:
+  name: "compat-generic-cr"
+  
+  annotations:
+    importer/source-chart: "kube-prometheus-stack"
+  labels:
+    
+    app: "compat-generic-cr"
+    chart: "contracts"
+
+  namespace: compat
+
+
+
+
+spec:
+
+  rules:
+  - action: allow
+    port: 9090
+  selector:
+    matchLabels:
+      app: compat-service
+
+
+status:
+
+  observedGeneration: 1
