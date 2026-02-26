@@ -45,6 +45,7 @@ jobs:
         uses: golangci/golangci-lint-action@v6
         with:
           version: v1.64.8
+          working-directory: cmd/happ
           install-mode: binary
           skip-cache: true
           skip-save-cache: true
