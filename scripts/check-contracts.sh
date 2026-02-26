@@ -188,6 +188,7 @@ YAML
 
 ! helm template contracts tests/contracts \
   --set global.env=production \
+  --set global.validation.allowNativeListsInBuiltInListFields=false \
   --values /tmp/contracts_invalid_native_list.yaml \
   >/tmp/contracts_invalid_native_list.out 2>/tmp/contracts_invalid_native_list.err
 
