@@ -48,7 +48,6 @@ jobs:
           install-mode: binary
           skip-cache: true
           skip-save-cache: true
-          args: --version
 
       - name: Install Dyff
         run: |
