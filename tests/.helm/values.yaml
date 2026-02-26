@@ -15,6 +15,9 @@ global:
   # validation:
   #   # Opt-in strict checks (currently applied for apps-network-policies).
   #   strict: false
+  #   # Experimental: allow native YAML lists in built-in K8s list fields (args/ports/tolerations/etc).
+  #   # Default=false keeps the current "block string only" contract.
+  #   allowNativeListsInBuiltInListFields: false
   ## Альтернатива ограниченным yaml-алиасам Helm'а. Даёт возможность не дублировать одну и ту же конфигурацию много раз.
   #
   # Здесь, в "global._includes", объявляются блоки конфигурации, которые потом можно использовать в любых values-файлах.
@@ -2026,6 +2029,16 @@ apps-service-accounts:
         - name: static-token
     roles:
       reader:
+        binding:
+          name: compat-reader-binding
+          labels: |
+            rbac.example.com/source: compat
+          subjects:
+            - kind: ServiceAccount
+              name: service-account-example
+              namespace: compat
+            - kind: User
+              name: alice@example.com
         rules:
           read-pods:
             apiGroups:

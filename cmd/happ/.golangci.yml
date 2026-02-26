@@ -1,0 +1,86 @@
+run:
+  timeout: 8m
+  tests: true
+
+output:
+  sort-results: true
+
+linters:
+  disable-all: true
+  enable:
+    - asasalint
+    - bidichk
+    - bodyclose
+    - copyloopvar
+    - durationcheck
+    - errcheck
+    - errorlint
+    - exhaustive
+    - gofmt
+    - goimports
+    - gosimple
+    - govet
+    - ineffassign
+    - misspell
+    - nakedret
+    - nilerr
+    - nilnil
+    - noctx
+    - nolintlint
+    - revive
+    - staticcheck
+    - thelper
+    - unconvert
+    - unused
+    - wastedassign
+    - whitespace
+
+linters-settings:
+  errcheck:
+    check-type-assertions: true
+    check-blank: false
+  exhaustive:
+    default-signifies-exhaustive: true
+  govet:
+    disable:
+      - fieldalignment
+  revive:
+    rules:
+      - name: blank-imports
+      - name: context-as-argument
+      - name: context-keys-type
+      - name: dot-imports
+      - name: empty-block
+      - name: error-return
+      - name: error-strings
+      - name: error-naming
+      - name: exported
+        disabled: true
+      - name: if-return
+      - name: increment-decrement
+      - name: indent-error-flow
+      - name: range
+      - name: receiver-naming
+      - name: redefines-builtin-id
+      - name: superfluous-else
+      - name: time-naming
+      - name: unchecked-type-assertion
+        disabled: true
+      - name: unexported-return
+      - name: unreachable-code
+      - name: unused-parameter
+        disabled: true
+
+issues:
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  exclude-rules:
+    - path: _test\.go
+      linters:
+        - noctx
+        - errcheck
+        - thelper
+    - path: internal/inspectweb/templates_.*\.go
+      linters:
+        - gofmt
+        - goimports

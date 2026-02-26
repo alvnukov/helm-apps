@@ -30,6 +30,15 @@
 - `sharedEnvSecrets`
 - `sharedEnvConfigMaps`
 
+Также есть opt-in режим:
+- `global.validation.allowNativeListsInBuiltInListFields: true`
+
+Он разрешает native YAML lists только для части встроенных Kubernetes list-полей (например `args`, `command`, `ports`, `tolerations`).
+
+Важно:
+- строковый формат (`|`) остается базовым и полностью поддерживается;
+- merge/includes для native lists сохраняют текущую семантику библиотеки (конкатенация списков), поэтому при `_include` возможны дубли элементов.
+
 ## 3. Как задавать окружения правильно?
 
 Через `global.env` + env-map:

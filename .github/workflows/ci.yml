@@ -25,6 +25,20 @@ jobs:
         with:
           version: v2.57.1
 
+      - name: Setup Go (for happ)
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: cmd/happ/go.mod
+
+      - name: Setup golangci-lint (for happ)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+          install-mode: binary
+          skip-cache: true
+          skip-save-cache: true
+          args: --version
+
       - name: Install Dyff
         run: |
           curl --silent --location https://git.io/JYfAY | bash
@@ -104,6 +118,24 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/fuzz-contracts.sh --iterations 40 --seed 20260216
+
+      - name: Sync happ embedded library asset
+        run: |
+          set -euo pipefail
+          cd cmd/happ
+          go generate ./assets
+
+      - name: Lint happ
+        run: |
+          set -euo pipefail
+          cd cmd/happ
+          golangci-lint run
+
+      - name: Test happ
+        run: |
+          set -euo pipefail
+          cd cmd/happ
+          go test ./...
 
   kube-compatibility-matrix:
     runs-on: ubuntu-latest

@@ -83,6 +83,14 @@ global:
 - На top-level strict-check валидирует только `apps-*` имена:
   - встроенные `apps-*` группы разрешены;
   - custom-группы разрешены через `__GroupVars__.type`;
+
+Дополнительно в `global.validation` доступен experimental opt-in флаг:
+- `allowNativeListsInBuiltInListFields: true`
+
+Что делает флаг:
+- разрешает native YAML lists в ограниченном наборе встроенных Kubernetes list-полей (`args`, `command`, `ports`, `tolerations` и др.);
+- не меняет поведение по умолчанию (по умолчанию контракт с YAML block string остается прежним);
+- не меняет merge-семантику include: native lists по-прежнему могут конкатенироваться при `_include`.
   - неизвестная `apps-*` секция без `__GroupVars__` даёт fail.
 
 ### 2.1 `global.deploy` + `global.releases`
@@ -852,7 +860,7 @@ data:
 
 Практика:
 - если поле описано как Kubernetes-блок, используйте YAML строку (`|`);
-- native YAML list в values запрещены, кроме явно разрешенных путей (`_include`, `_include_files`, `*.containers.*.sharedEnvConfigMaps`, `*.initContainers.*.sharedEnvConfigMaps`, `*.containers.*.sharedEnvSecrets`, `*.initContainers.*.sharedEnvSecrets` и т.д.);
+- native YAML list в values запрещены, кроме явно разрешенных путей (`_include`, `_include_files`, `*.containers.*.sharedEnvConfigMaps`, `*.initContainers.*.sharedEnvConfigMaps`, `*.containers.*.sharedEnvSecrets`, `*.initContainers.*.sharedEnvSecrets` и т.д.) и experimental opt-in режима `global.validation.allowNativeListsInBuiltInListFields=true` для части built-in list-полей;
 - для env-значений используйте scalar/env-map;
 - итог всегда проверяйте через `helm template ... --set global.env=<env>`.
 

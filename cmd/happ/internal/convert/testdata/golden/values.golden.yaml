@@ -1,0 +1,29 @@
+apps-k8s-manifests:
+    config-map-app-a:
+        _include:
+            - imported-data-1
+            - imported-metadata-2
+        apiVersion: v1
+        enabled: true
+        kind: ConfigMap
+        name: app-a
+    config-map-app-b:
+        _include:
+            - imported-data-1
+            - imported-metadata-2
+        apiVersion: v1
+        enabled: true
+        kind: ConfigMap
+        name: app-b
+global:
+    _includes:
+        imported-data-1:
+            data: |-
+                A: "1"
+                MODE: prod
+        imported-metadata-2:
+            metadata: |-
+                labels:
+                    app: demo
+                    team: platform
+    env: prod

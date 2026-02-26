@@ -36,6 +36,20 @@ jobs:
         with:
           version: v3.15.4
 
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: cmd/happ/go.mod
+
+      - name: Setup golangci-lint (for happ)
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.64.8
+          install-mode: binary
+          skip-cache: true
+          skip-save-cache: true
+          args: --version
+
       - name: Install Dyff
         run: |
           curl --silent --location https://git.io/JYfAY | bash
@@ -111,6 +125,41 @@ jobs:
           set -euo pipefail
           bash scripts/check-contracts.sh
 
+      - name: Test and lint happ
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+          cd cmd/happ
+          go generate ./assets
+          golangci-lint run
+          go test ./...
+
+      - name: Build happ binaries
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+
+          cd cmd/happ
+
+          mkdir -p dist
+
+          build_one() {
+            local goos="$1"
+            local goarch="$2"
+            local ext=""
+            if [ "$goos" = "windows" ]; then
+              ext=".exe"
+            fi
+            local bin="happ_${goos}_${goarch}${ext}"
+            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "dist/${bin}" .
+          }
+
+          build_one linux amd64
+          build_one linux arm64
+          build_one darwin amd64
+          build_one darwin arm64
+          build_one windows amd64
+
       - name: Run chart-releaser
         if: ${{ github.ref == 'refs/heads/main' }}
         uses: helm/chart-releaser-action@v1.4.0
@@ -119,6 +168,22 @@ jobs:
           config: cr.yaml
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Upload happ binaries to GitHub release
+        if: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          set -euo pipefail
+
+          TAG="helm-apps-${LIB_VERSION}"
+
+          if ! gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "Release ${TAG} not found (nothing new to publish), skipping happ upload."
+            exit 0
+          fi
+
+          gh release upload "${TAG}" cmd/happ/dist/* --clobber
 
       - name: Generate and update GitHub release notes
         if: ${{ github.ref == 'refs/heads/main' }}

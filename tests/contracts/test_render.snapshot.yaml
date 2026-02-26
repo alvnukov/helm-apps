@@ -459,17 +459,21 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
-  name: "compat-standalone-sa-reader"
+  name: "compat-reader-binding"
   
   labels:
     
     app: "compat-standalone-sa"
     chart: "contracts"
+    rbac.example.com/source: compat
+    
   namespace: "compat"
 subjects:
   - kind: ServiceAccount
     name: compat-standalone-sa
     namespace: compat
+  - kind: User
+    name: alice@example.com
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -554,6 +558,27 @@ spec:
   type: "LoadBalancer"
   allocateLoadBalancerNodePorts: true
   externalTrafficPolicy: Local
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+---
+# Helm Apps Library: apps-stateless.native-list-optin.service
+apiVersion: v1
+kind: Service
+metadata:
+  name: "native-list-optin"
+  
+  labels:
+    
+    app: "native-list-optin"
+    chart: "contracts"
+spec:
+  
+  ports: 
+  - name: http
+    port: 8088
+    targetPort: 8088
+  selector: 
+    app: "native-list-optin"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 ---
@@ -759,6 +784,52 @@ spec:
       
       app: "compat-service"
   paused: true
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.native-list-optin
+
+
+apiVersion: apps/v1
+kind: Deployment
+
+metadata:
+  name: "native-list-optin"
+  
+  annotations:
+    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  labels:
+    
+    app: "native-list-optin"
+    chart: "contracts"
+spec:  
+  template: 
+    metadata:
+      name: "native-list-optin"
+      
+      annotations:
+        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      labels:
+        
+        app: "native-list-optin"
+        chart: "contracts"
+    spec:
+      
+      containers:
+      - name: "main"
+        image: alpine:3
+        
+        args: 
+        - -c
+        - sleep 3600
+        command: 
+        - sh
+        ports: 
+        - containerPort: 8088
+          name: http
+  selector: 
+    matchLabels:
+      
+      app: "native-list-optin"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.release-auto-app

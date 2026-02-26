@@ -1,0 +1,60 @@
+name: sample-stack
+services:
+  web:
+    image: nginx:1.27
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    environment:
+      DB_HOST: db
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8080:80"
+    volumes:
+      - web-data:/var/www/html
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    configs:
+      - source: app-config
+        target: /app/config.yml
+    secrets:
+      - source: app-secret
+        target: /run/secrets/app-secret
+    networks:
+      - frontend
+      - backend
+    labels:
+      traefik.enable: "true"
+  worker:
+    image: app:latest
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: postgres://db:5432/app
+    profiles: [jobs]
+    networks:
+      backend:
+        aliases: [jobs-worker]
+    volumes:
+      - web-data:/shared
+  db:
+    image: postgres:16
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    networks: [backend]
+  redis:
+    image: redis:7
+    networks: [backend]
+volumes:
+  web-data: {}
+  db-data: {}
+networks:
+  frontend: {}
+  backend: {}
+configs:
+  app-config:
+    file: ./config.yml
+secrets:
+  app-secret:
+    file: ./secret.txt

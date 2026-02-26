@@ -1,5 +1,7 @@
 global:
   env: production
+  validation:
+    allowNativeListsInBuiltInListFields: true
   deploy:
     enabled: true
     annotateAllWithRelease: false
@@ -66,6 +68,27 @@ apps-configmaps:
       key: value
 
 apps-stateless:
+  native-list-optin:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command:
+          - sh
+        args:
+          - -c
+          - sleep 3600
+        ports:
+          - name: http
+            containerPort: 8088
+    service:
+      enabled: true
+      ports:
+        - name: http
+          port: 8088
+          targetPort: 8088
   release-auto-app:
     enabled: false
     versionKey: release-web
@@ -376,6 +399,16 @@ apps-service-accounts:
         - name: compat-static-token
     roles:
       reader:
+        binding:
+          name: compat-reader-binding
+          labels: |
+            rbac.example.com/source: compat
+          subjects:
+            - kind: ServiceAccount
+              name: compat-standalone-sa
+              namespace: compat
+            - kind: User
+              name: alice@example.com
         rules:
           read-configmaps:
             apiGroups:

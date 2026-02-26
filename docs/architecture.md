@@ -87,6 +87,7 @@
 - native YAML lists в values запрещены почти везде;
 - list/map-блоки Kubernetes обычно передаются как YAML block string (`|`);
 - исключения для native list: `_include`, `_include_files`, `sharedEnvSecrets`, `sharedEnvConfigMaps`.
+- есть experimental opt-in `global.validation.allowNativeListsInBuiltInListFields=true` для части встроенных K8s list-полей (без изменения default-контракта).
 
 Проверка обеспечивается schema и runtime-валидацией.
 

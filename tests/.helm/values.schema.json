@@ -988,6 +988,10 @@
             "strict": {
               "type": "boolean",
               "description": "Opt-in strict mode contract. Default=false for 1.x compatibility."
+            },
+            "allowNativeListsInBuiltInListFields": {
+              "type": "boolean",
+              "description": "Experimental opt-in: allow native YAML lists in selected built-in Kubernetes list fields while keeping string block format as default."
             }
           },
           "additionalProperties": true

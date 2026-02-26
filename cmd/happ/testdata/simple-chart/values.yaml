@@ -1,0 +1,5 @@
+nameOverride: ""
+service:
+  port: 8080
+config:
+  mode: dev
