@@ -92,6 +92,7 @@
 {{- define "fl._validateTplValue" -}}
 {{- $ := index . 0 -}}
 {{- $value := toString (index . 1) -}}
+{{- if include "fl.tplDelimitersValidationEnabled" (list $) -}}
 {{- $openCount := len (regexFindAll "\\{\\{" $value -1) -}}
 {{- $closeCount := len (regexFindAll "\\}\\}" $value -1) -}}
 {{- if ne $openCount $closeCount -}}
@@ -100,6 +101,25 @@
 {{- if or (contains "{{{" $value) (contains "}}}" $value) -}}
 {{- include "apps-utils.error" (list $ "E_TPL_BRACES" "unexpected triple braces in template value" "use Go template delimiters '{{' and '}}'; if you need literal braces, escape them" "docs/faq.md#flvalue-tpl-errors") -}}
 {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "fl.tplDelimitersValidationEnabled" -}}
+{{- $ := index . 0 -}}
+{{- $enabled := false -}}
+{{- with $.Values.global -}}
+  {{- with .validation -}}
+    {{- if hasKey . "validateTplDelimiters" -}}
+      {{- $raw := .validateTplDelimiters -}}
+      {{- if and (kindIs "bool" $raw) $raw -}}
+        {{- $enabled = true -}}
+      {{- else if and (kindIs "string" $raw) (regexMatch "^(?i:true|1|yes|on)$" (trim $raw)) -}}
+        {{- $enabled = true -}}
+      {{- end -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if $enabled }}true{{ end -}}
 {{- end -}}
 
 {{- define "_fl.getValueRegex" }}

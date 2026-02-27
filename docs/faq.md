@@ -78,6 +78,16 @@
 
 Ссылки:
 - [cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars](cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars)
+
+## 7. Почему появляется ошибка `E_TPL_DELIMITERS`?
+
+Эта проверка относится к строкам, которые рендерятся через `fl.value`.
+
+Если у вас literal-контент с `{{ ... }}` (например Grafana dashboards, alert templates, конфиги), включенная проверка может мешать.
+
+Начиная с текущей версии, проверка опциональная:
+- `global.validation.validateTplDelimiters: true` — включить строгую проверку;
+- по умолчанию `false` — обратная совместимость и меньше ложных падений на literal-данных.
 - [architecture.md#arch-container-env-order](architecture.md#arch-container-env-order)
 
 ## 7. Можно ли использовать секреты из другого релиза/namespace?

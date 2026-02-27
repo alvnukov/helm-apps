@@ -214,6 +214,26 @@ YAML
 grep -q "\[helm-apps:E_CONFIG_FILE_SOURCE\]" /tmp/contracts_invalid_secret_config_file.err
 grep -q "secretConfigFiles.missing-source.txt must define content or name" /tmp/contracts_invalid_secret_config_file.err
 
+echo "==> TPL delimiter validation opt-in negative check"
+cat > /tmp/contracts_invalid_tpl_delimiters.yaml <<'YAML'
+global:
+  validation:
+    validateTplDelimiters: true
+apps-configmaps:
+  tpl-delim-bad:
+    enabled: true
+    name: tpl-delim-bad
+    data: |
+      value: "{{ bad"
+YAML
+
+! helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_invalid_tpl_delimiters.yaml \
+  >/tmp/contracts_invalid_tpl_delimiters.out 2>/tmp/contracts_invalid_tpl_delimiters.err
+
+grep -q "\[helm-apps:E_TPL_DELIMITERS\]" /tmp/contracts_invalid_tpl_delimiters.err
+
 echo "==> Internal-like release/deploy flow checks"
 helm template contracts tests/contracts \
   --set global.env=production \

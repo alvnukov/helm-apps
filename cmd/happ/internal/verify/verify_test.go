@@ -141,6 +141,44 @@ func TestEquivalent_TreatsNullFieldAsAbsent(t *testing.T) {
 	}
 }
 
+func TestEquivalent_TreatsEmptyMapAsNull(t *testing.T) {
+	src := []map[string]any{
+		{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   map[string]any{"name": "demo", "namespace": "default"},
+			"spec": map[string]any{
+				"selector": map[string]any{"matchLabels": map[string]any{"app": "demo"}},
+				"strategy": map[string]any{"rollingUpdate": map[string]any{}},
+				"template": map[string]any{
+					"metadata": map[string]any{},
+					"spec":     map[string]any{"containers": []any{map[string]any{"name": "app", "image": "nginx"}}},
+				},
+			},
+		},
+	}
+	gen := []map[string]any{
+		{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   map[string]any{"name": "demo"},
+			"spec": map[string]any{
+				"selector": map[string]any{"matchLabels": map[string]any{"app": "demo"}},
+				"strategy": map[string]any{"rollingUpdate": nil},
+				"template": map[string]any{
+					"metadata": map[string]any{"name": "demo"},
+					"spec":     map[string]any{"containers": []any{map[string]any{"name": "app", "image": "nginx"}}},
+				},
+			},
+		},
+	}
+
+	res := Equivalent(src, gen)
+	if !res.Equal {
+		t.Fatalf("expected empty-map and null to be equivalent, got: %+v", res)
+	}
+}
+
 func TestEquivalent_IgnoresPodTemplateMetadataName(t *testing.T) {
 	src := []map[string]any{
 		{

@@ -86,12 +86,18 @@ global:
 
 Дополнительно в `global.validation` доступен experimental opt-in флаг:
 - `allowNativeListsInBuiltInListFields: true`
+- `validateTplDelimiters: true`
 
 Что делает флаг:
 - разрешает native YAML lists в ограниченном наборе встроенных Kubernetes list-полей (`args`, `command`, `ports`, `tolerations` и др.);
 - не меняет поведение по умолчанию (по умолчанию контракт с YAML block string остается прежним);
 - не меняет merge-семантику include: native lists по-прежнему могут конкатенироваться при `_include`.
   - неизвестная `apps-*` секция без `__GroupVars__` даёт fail.
+
+Что делает `validateTplDelimiters`:
+- включает проверку баланса `{{`/`}}` и запрет `{{{`/`}}}` в строках, проходящих через `fl.value`;
+- по умолчанию выключен (`false`) для обратной совместимости с literal-контентом, где `{{ ... }}` — это данные (например dashboards/alerts/templates);
+- при включении ошибки рендера будут вида `E_TPL_DELIMITERS` / `E_TPL_BRACES`.
 
 ### 2.1 `global.deploy` + `global.releases`
 <a id="param-global-deploy"></a>

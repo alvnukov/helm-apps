@@ -132,6 +132,13 @@ func maxInt(a, b int) int {
 }
 
 func firstDiffPath(a, b any, path string) (string, any, any, bool) {
+	if (isEmptyMap(a) && isNilValue(b)) || (isNilValue(a) && isEmptyMap(b)) {
+		return "", nil, nil, false
+	}
+	if (isEmptySlice(a) && isNilValue(b)) || (isNilValue(a) && isEmptySlice(b)) {
+		return "", nil, nil, false
+	}
+
 	switch ax := a.(type) {
 	case map[string]any:
 		bx, ok := b.(map[string]any)
@@ -181,6 +188,20 @@ func firstDiffPath(a, b any, path string) (string, any, any, bool) {
 		}
 		return "", nil, nil, false
 	}
+}
+
+func isNilValue(v any) bool {
+	return v == nil
+}
+
+func isEmptyMap(v any) bool {
+	m, ok := v.(map[string]any)
+	return ok && len(m) == 0
+}
+
+func isEmptySlice(v any) bool {
+	s, ok := v.([]any)
+	return ok && len(s) == 0
 }
 
 func valuesEqual(a, b any) bool {
@@ -303,6 +324,9 @@ func normalizeAny(v any) any {
 			}
 			out[k] = nv
 		}
+		if len(out) == 0 {
+			return nil
+		}
 		return out
 	case []any:
 		arr := make([]any, len(x))
@@ -310,7 +334,13 @@ func normalizeAny(v any) any {
 			arr[i] = normalizeAny(x[i])
 		}
 		if sorted, ok := sortSemanticList(arr); ok {
+			if len(sorted) == 0 {
+				return nil
+			}
 			return sorted
+		}
+		if len(arr) == 0 {
+			return nil
 		}
 		return arr
 	default:

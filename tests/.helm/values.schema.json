@@ -992,6 +992,10 @@
             "allowNativeListsInBuiltInListFields": {
               "type": "boolean",
               "description": "Experimental opt-in: allow native YAML lists in selected built-in Kubernetes list fields while keeping string block format as default."
+            },
+            "validateTplDelimiters": {
+              "type": "boolean",
+              "description": "Opt-in validation for '{{'/'}}' delimiter balance in string values rendered via fl.value. Default=false for backward compatibility."
             }
           },
           "additionalProperties": true

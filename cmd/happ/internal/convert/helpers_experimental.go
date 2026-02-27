@@ -203,10 +203,10 @@ func mapConfigMapToAppsConfigmaps(doc map[string]any) (string, map[string]any, b
 	if s := yamlBody(metadata["annotations"]); s != nil {
 		app["annotations"] = *s
 	}
-	if s := yamlBody(doc["data"]); s != nil {
+	if s := yamlBody(escapeTplDelimitersAny(doc["data"])); s != nil {
 		app["data"] = *s
 	}
-	if s := yamlBody(doc["binaryData"]); s != nil {
+	if s := yamlBody(escapeTplDelimitersAny(doc["binaryData"])); s != nil {
 		app["binaryData"] = *s
 	}
 	if v, ok := doc["immutable"]; ok {
@@ -223,6 +223,59 @@ func mapConfigMapToAppsConfigmaps(doc map[string]any) (string, map[string]any, b
 		}
 	}
 	return sanitizeKey(name), app, true
+}
+
+func escapeTplDelimitersAny(v any) any {
+	switch x := v.(type) {
+	case string:
+		return escapeTplDelimitersString(x)
+	case map[string]any:
+		out := make(map[string]any, len(x))
+		for k, vv := range x {
+			out[k] = escapeTplDelimitersAny(vv)
+		}
+		return out
+	case []any:
+		out := make([]any, len(x))
+		for i, vv := range x {
+			out[i] = escapeTplDelimitersAny(vv)
+		}
+		return out
+	default:
+		return v
+	}
+}
+
+func escapeTplDelimitersString(s string) string {
+	if !strings.Contains(s, "{{") {
+		return s
+	}
+	var b strings.Builder
+	i := 0
+	for i < len(s) {
+		open := strings.Index(s[i:], "{{")
+		if open < 0 {
+			b.WriteString(s[i:])
+			break
+		}
+		open += i
+		b.WriteString(s[i:open])
+
+		close := strings.Index(s[open+2:], "}}")
+		if close < 0 {
+			// Unmatched opening delimiter; escape it and keep remainder as-is.
+			b.WriteString(`{{ "{{" }}`)
+			b.WriteString(s[open+2:])
+			break
+		}
+		close += open + 2
+		inner := s[open+2 : close]
+		b.WriteString(`{{ "{{" }}`)
+		b.WriteString(inner)
+		b.WriteString(`{{ "}}" }}`)
+		i = close + 2
+	}
+	return b.String()
 }
 
 func mapSecretToAppsSecrets(doc map[string]any) (string, map[string]any, bool) {
@@ -348,7 +401,10 @@ func mapDeploymentToAppsStateless(doc map[string]any) (string, map[string]any, b
 	copyScalarIfPresent(app, podSpec, "priorityClassName")
 	copyScalarIfPresent(app, podSpec, "serviceAccountName")
 	copyScalarIfPresent(app, podSpec, "terminationGracePeriodSeconds")
-	for _, key := range []string{"affinity", "tolerations", "volumes", "securityContext", "imagePullSecrets", "nodeSelector", "topologySpreadConstraints"} {
+	for _, key := range []string{
+		"affinity", "tolerations", "volumes", "securityContext", "imagePullSecrets",
+		"nodeSelector", "topologySpreadConstraints", "hostAliases", "dnsConfig", "readinessGates", "overhead",
+	} {
 		if s := yamlBody(cleanAny(podSpec[key])); s != nil {
 			app[key] = *s
 		}

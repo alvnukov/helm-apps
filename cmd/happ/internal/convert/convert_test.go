@@ -223,6 +223,53 @@ func TestBuildValuesHelpersExperimental_MapsContainerEnvHelpers(t *testing.T) {
 	}
 }
 
+func TestBuildValuesHelpersExperimental_DeploymentHostAliasesPreserved(t *testing.T) {
+	cfg := config.Config{
+		Env:            "dev",
+		GroupName:      "imported-manifests",
+		GroupType:      "imported-raw-manifest",
+		ImportStrategy: config.ImportStrategyHelpersExperimental,
+	}
+	docs := []map[string]any{
+		{
+			"apiVersion": "apps/v1",
+			"kind":       "Deployment",
+			"metadata":   map[string]any{"name": "demo", "namespace": "default"},
+			"spec": map[string]any{
+				"selector": map[string]any{"matchLabels": map[string]any{"app": "demo"}},
+				"template": map[string]any{
+					"metadata": map[string]any{"labels": map[string]any{"app": "demo"}},
+					"spec": map[string]any{
+						"hostAliases": []any{
+							map[string]any{
+								"ip":        "127.0.0.1",
+								"hostnames": []any{"foo.local"},
+							},
+						},
+						"containers": []any{
+							map[string]any{
+								"name":  "app",
+								"image": "nginx:1.25",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	values, err := BuildValuesHelpersExperimental(cfg, docs)
+	if err != nil {
+		t.Fatalf("BuildValuesHelpersExperimental returned error: %v", err)
+	}
+	stateless := values["apps-stateless"].(map[string]any)
+	app := stateless["demo"].(map[string]any)
+	hostAliases, _ := app["hostAliases"].(string)
+	if !strings.Contains(hostAliases, "ip: 127.0.0.1") || !strings.Contains(hostAliases, "foo.local") {
+		t.Fatalf("expected hostAliases to be preserved, got %q", hostAliases)
+	}
+}
+
 func TestBuildValuesHelpersExperimental_SecretStringDataDoesNotFallback(t *testing.T) {
 	cfg := config.Config{
 		Env:            "dev",
@@ -703,6 +750,22 @@ func TestMapConfigMapToAppsConfigmaps_ServiceAndNetworkPolicyMappers(t *testing.
 		}
 	})
 
+	t.Run("configmap escapes tpl delimiters in data", func(t *testing.T) {
+		_, app, ok := mapConfigMapToAppsConfigmaps(map[string]any{
+			"apiVersion": "v1",
+			"kind":       "ConfigMap",
+			"metadata":   map[string]any{"name": "cm-tpl", "namespace": "default"},
+			"data":       map[string]any{"dashboard.json": `{"expr":"{{ printf \"x\" }}"}`},
+		})
+		if !ok {
+			t.Fatalf("expected configmap mapper to succeed")
+		}
+		dataYAML, _ := app["data"].(string)
+		if !strings.Contains(dataYAML, `{{ "{{" }}`) || !strings.Contains(dataYAML, `{{ "}}" }}`) {
+			t.Fatalf("expected escaped delimiters in data YAML, got:\n%s", dataYAML)
+		}
+	})
+
 	t.Run("service", func(t *testing.T) {
 		key, app, ok := mapServiceToAppsServices(map[string]any{
 			"apiVersion": "v1",
@@ -752,6 +815,24 @@ func TestMapConfigMapToAppsConfigmaps_ServiceAndNetworkPolicyMappers(t *testing.
 		}
 		if specYAML, _ := app["spec"].(string); !strings.Contains(specYAML, "custom: x") {
 			t.Fatalf("expected residual spec in spec field, got %q", specYAML)
+		}
+	})
+}
+
+func TestEscapeTplDelimitersString(t *testing.T) {
+	t.Run("escapes go-template delimiters", func(t *testing.T) {
+		in := `value={{ $labels.namespace }}`
+		out := escapeTplDelimitersString(in)
+		if !strings.Contains(out, `{{ "{{" }}`) || !strings.Contains(out, `{{ "}}" }}`) {
+			t.Fatalf("expected escaped delimiters, got: %q", out)
+		}
+	})
+
+	t.Run("does not alter plain json braces", func(t *testing.T) {
+		in := `{"a":{"b":1}}`
+		out := escapeTplDelimitersString(in)
+		if out != in {
+			t.Fatalf("expected JSON braces unchanged, got: %q", out)
 		}
 	})
 }
