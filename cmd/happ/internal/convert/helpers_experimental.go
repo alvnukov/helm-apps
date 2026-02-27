@@ -261,19 +261,19 @@ func escapeTplDelimitersString(s string) string {
 		open += i
 		b.WriteString(s[i:open])
 
-		close := strings.Index(s[open+2:], "}}")
-		if close < 0 {
+		closeIdx := strings.Index(s[open+2:], "}}")
+		if closeIdx < 0 {
 			// Unmatched opening delimiter; escape it and keep remainder as-is.
 			b.WriteString(`{{ "{{" }}`)
 			b.WriteString(s[open+2:])
 			break
 		}
-		close += open + 2
-		inner := s[open+2 : close]
+		closeIdx += open + 2
+		inner := s[open+2 : closeIdx]
 		b.WriteString(`{{ "{{" }}`)
 		b.WriteString(inner)
 		b.WriteString(`{{ "}}" }}`)
-		i = close + 2
+		i = closeIdx + 2
 	}
 	return b.String()
 }
