@@ -182,6 +182,44 @@ jobs:
           build_one windows amd64
           build_one windows arm64
 
+      - name: Build happ linux DEB/RPM packages
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+
+          GOBIN="/tmp/bin" go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.3
+          export PATH="/tmp/bin:${PATH}"
+
+          cd cmd/happ
+
+          package_one() {
+            local arch="$1"
+            local format="$2"
+            local bin_path="dist/happ_linux_${arch}"
+            local target="dist/happ_${LIB_VERSION}_linux_${arch}.${format}"
+            local staging_dir="dist/.pkg-${arch}"
+            local config_path="dist/nfpm_${arch}.yaml"
+
+            mkdir -p "${staging_dir}"
+            cp "${bin_path}" "${staging_dir}/happ"
+
+            sed \
+              -e "s|__NFPM_ARCH__|${arch}|g" \
+              -e "s|__HAPP_VERSION__|${LIB_VERSION}|g" \
+              -e "s|__HAPP_BIN__|${staging_dir}/happ|g" \
+              packaging/nfpm.yaml > "${config_path}"
+
+            nfpm package \
+              --config "${config_path}" \
+              --packager "${format}" \
+              --target "${target}"
+          }
+
+          package_one amd64 deb
+          package_one arm64 deb
+          package_one amd64 rpm
+          package_one arm64 rpm
+
       - name: Check chart release tag
         id: check_chart_release
         if: ${{ github.ref == 'refs/heads/main' }}

@@ -46,6 +46,9 @@ brew install happ
 brew install alvnukov/helm-apps/happ
 ```
 
+Linux пакеты `deb` и `rpm` публикуются в assets каждого релиза:
+[`Releases`](https://github.com/alvnukov/helm-apps/releases)
+
 ## Старт здесь (самый короткий путь)
 
 1. Первый успешный рендер за 10 минут: [`docs/quickstart.md`](docs/quickstart.md)

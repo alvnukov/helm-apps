@@ -1,0 +1,15 @@
+name: happ
+arch: __NFPM_ARCH__
+platform: linux
+version: __HAPP_VERSION__
+section: utils
+priority: optional
+maintainer: helm-apps maintainers
+description: Helm chart and manifest importer/converter for helm-apps
+homepage: https://github.com/alvnukov/helm-apps
+license: Apache-2.0
+contents:
+  - src: __HAPP_BIN__
+    dst: /usr/local/bin/happ
+    file_info:
+      mode: 0755
