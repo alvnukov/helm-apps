@@ -47,7 +47,7 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 - CLI `happ`: [`cmd/happ/README.md`](cmd/happ/README.md)
 - VS Code extension: [`extensions/helm-apps/README.md`](extensions/helm-apps/README.md)
 
-## Почему это enterprise-формат
+## Практическая польза для команды
 
 | Для роли | Что получает команда |
 |---|---|
@@ -206,15 +206,15 @@ helm template my-app .helm --set global.env=prod
 
 | Возможность | Что дает | Где смотреть |
 |---|---|---|
-| `global._includes` + `_include` | Переиспользование профилей, рекурсивный merge map | [README merge section](#example-global-includes-merge) |
+| `global._includes` + `_include` | Переиспользование профилей и рекурсивный merge map | [Базовый паттерн include-merge](#example-global-includes-merge) |
 | `global.env` + `_default` + regex | Мульти-окружения в одном `values.yaml` | [`docs/reference-values.md#param-global-env`](docs/reference-values.md#param-global-env) |
-| Release mode (`global.deploy` + `global.releases`) | Централизованная матрица версий app по `global.env` | [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy) |
-| Shared env из Secret/ConfigMap | Подключение общих env-блоков в контейнеры | [`docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars`](docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
-| Custom renderer (`__GroupVars__.type`) | Рендер собственных сущностей через цикл библиотеки | [`docs/library-guide.md#param-custom-renderer`](docs/library-guide.md#param-custom-renderer) |
-| Контрактная стабильность | Предсказуемость и защита от регрессий | [`docs/stability.md`](docs/stability.md) |
+| Release mode (`global.deploy` + `global.releases`) | Централизованная матрица версий по окружениям | [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy) |
+| Shared env из Secret/ConfigMap | Предсказуемые приоритеты источников env-переменных | [`docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars`](docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
+| Custom renderer (`__GroupVars__.type`) | Расширение библиотеки своими типами ресурсов | [`docs/library-guide.md#param-custom-renderer`](docs/library-guide.md#param-custom-renderer) |
+| Контрактная стабильность | Снижение регрессий при развитии шаблонов | [`docs/stability.md`](docs/stability.md) |
 
 <a id="example-global-includes-merge"></a>
-## Ключевая механика: `global._includes` и рекурсивный merge
+## Базовый паттерн include-merge: `global._includes` + `_include`
 
 `global._includes` это библиотека переиспользуемых конфигурационных блоков.  
 Приложение подключает блоки через `_include`, после чего библиотека объединяет значения рекурсивно.
@@ -254,17 +254,17 @@ apps-stateless:
           name: nginx
 ```
 
-Что важно:
+Правила merge:
 
-1. Merge рекурсивный для map-структур.
-2. Порядок `_include` важен: следующий профиль может переопределять предыдущий.
-3. Локальные поля приложения имеют приоритет над include-профилями.
-4. Основной DRY-механизм библиотеки строится именно на `_include`.
-5. Native YAML list в values запрещены (кроме `_include` и `_include_files`): для list-полей Kubernetes используйте YAML block string (`|`).
+- Merge рекурсивный для map-структур.
+- Порядок `_include` важен: следующий профиль может переопределять предыдущий.
+- Локальные поля приложения имеют приоритет над include-профилями.
+- Основной DRY-механизм библиотеки строится именно на `_include`.
+- Native YAML list в values запрещены (кроме `_include` и `_include_files`): для list-полей Kubernetes используйте YAML block string (`|`).
 
-### Примеры merge-поведения
+### Практические кейсы merge
 
-#### Пример 1: Рекурсивный merge map
+#### 1. Рекурсивный merge map
 
 ```yaml
 global:
@@ -289,7 +289,7 @@ apps-stateless:
 - `headless: false`
 - `ports: ...`
 
-#### Пример 2: Порядок include (последний имеет приоритет)
+#### 2. Порядок include (последний имеет приоритет)
 
 ```yaml
 global:
@@ -306,7 +306,7 @@ apps-stateless:
 
 Итог: `replicas: 5`.
 
-#### Пример 3: Локальный override сильнее include
+#### 3. Локальный override сильнее include
 
 ```yaml
 global:
@@ -322,7 +322,7 @@ apps-stateless:
 
 Итог: `replicas: 3`.
 
-#### Пример 4: Env-map merge с `_default` и явным env
+#### 4. Env-map merge с `_default` и явным env
 
 ```yaml
 global:
@@ -350,7 +350,7 @@ apps-stateless:
 - всегда проверяйте итоговый рендер в target env (`helm template ... --set global.env=<env>`).
 
 <a id="example-include-concat"></a>
-#### Пример 5: `_include`-списки конкатенируются
+#### 5. `_include`-списки конкатенируются
 
 Если include-профиль сам содержит `_include`, итоговый список объединяется.
 
@@ -372,22 +372,24 @@ apps-stateless:
 
 Итоговый include-chain для `api` объединяет оба списка (`base-a` + `base-b`) и затем применяет локальные поля.
 
-## Release mode (`global.deploy` + `global.releases`)
+## Production-паттерны
 
-Опциональный режим для централизованного управления версиями:
+### Release mode (`global.deploy` + `global.releases`)
+
+Опциональный режим централизованного управления версиями:
+
 - релиз выбирается по `global.env` через `global.deploy.release`;
 - матрица версий хранится в `global.releases`;
 - app key берется из `versionKey`, а если он не задан — из имени app;
 - при `global.deploy.enabled=true` app включается автоматически, когда версия найдена;
-- при `global.deploy.annotateAllWithRelease=true` аннотация `helm-apps/release` добавляется всем ресурсам текущего деплоя;
+- при `global.deploy.annotateAllWithRelease=true` аннотация `helm-apps/release` добавляется всем ресурсам деплоя;
 - если `image.staticTag` не задан, используется версия из релизной матрицы.
 
-Практический референс и пример: [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy)
+Практический пример: [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy)
 
-## Custom renderer: расширение библиотеки своими типами
+### Custom renderer (`__GroupVars__.type`)
 
-Библиотека поддерживает пользовательские группы через `__GroupVars__.type`.
-Это позволяет рендерить custom-ресурсы в том же цикле, где рендерятся встроенные `apps-*`.
+Позволяет рендерить custom-ресурсы в том же цикле, где рендерятся встроенные `apps-*`.
 
 Ключевые моменты:
 - в группе задается `__GroupVars__.type: <custom-type>`;
@@ -397,15 +399,15 @@ apps-stateless:
 Пример и полный контракт контекста:
 - [`docs/library-guide.md#param-custom-renderer`](docs/library-guide.md#param-custom-renderer)
 
-## Shared env и приоритеты переменных
+### Shared env и приоритеты переменных
 
-Лицевая страница оставляет только общий ориентир: библиотека поддерживает подключение общих `ConfigMap/Secret` и предсказуемый контракт приоритетов переменных.
+Библиотека поддерживает подключение общих `ConfigMap/Secret` и предсказуемый контракт приоритетов переменных.
 
 Детальный технический порядок источников (`sharedEnvConfigMaps`, `sharedEnvSecrets`, `envFrom`, `secretEnvVars`, `envVars`) вынесен в профильные документы:
 - [`docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars`](docs/cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars)
 - [`docs/architecture.md#arch-container-env-order`](docs/architecture.md#arch-container-env-order)
 
-## Стабильность и надежность
+## Стабильность, совместимость и качество
 
 Текущий фокус: **стабильный production-рендер и контролируемая эволюция**.
 
@@ -418,13 +420,15 @@ apps-stateless:
 
 Детально: [`docs/stability.md`](docs/stability.md)
 
-## Совместимость
+Матрица совместимости:
 
-- Helm: полностью поддерживается.
-- werf: полностью совместим, часто удобнее как единый delivery workflow.
-- Kubernetes: совместимость проверяется в CI по нескольким версиям.
+| Компонент | Статус |
+|---|---|
+| Helm | Полностью поддерживается |
+| werf | Полностью совместим |
+| Kubernetes | Проверяется в CI по нескольким версиям |
 
-## Карта документации
+## Карта документации и артефактов
 
 - Точка входа: [`docs/README.md`](docs/README.md)
 - Быстрый путь до первого результата: [`docs/quickstart.md`](docs/quickstart.md)
@@ -441,15 +445,23 @@ apps-stateless:
 - Модель стабильности: [`docs/stability.md`](docs/stability.md)
 
 Практические артефакты:
-- полный пример values: [`tests/.helm/values.yaml`](tests/.helm/values.yaml)
-- schema values: [`tests/.helm/values.schema.json`](tests/.helm/values.schema.json)
-- контрактный набор сущностей: [`tests/contracts/values.yaml`](tests/contracts/values.yaml)
+
+- полный пример values: [`tests/.helm/values.yaml`](tests/.helm/values.yaml);
+- schema values: [`tests/.helm/values.schema.json`](tests/.helm/values.schema.json);
+- контрактный набор сущностей: [`tests/contracts/values.yaml`](tests/contracts/values.yaml).
 
 ## Для контрибьюторов
 
-При изменении возможностей библиотеки обновляйте синхронно:
+При изменении поведения библиотеки обновляйте синхронно:
 
 1. шаблоны в `charts/helm-apps/templates`;
 2. примеры в `tests/.helm/values.yaml` и/или `tests/contracts/values.yaml`;
 3. schema в `tests/.helm/values.schema.json`;
 4. документацию в `docs/reference-values.md`, `docs/cookbook.md`, `docs/parameter-index.md`.
+
+Базовый локальный check перед PR:
+
+```bash
+werf helm lint tests/.helm --values tests/.helm/values.yaml
+werf helm template contracts tests/contracts
+```
