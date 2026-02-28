@@ -7,6 +7,18 @@
   <a href="https://github.com/alvnukov/helm-apps/releases">
     <img src="https://img.shields.io/github/v/tag/alvnukov/helm-apps?style=for-the-badge&label=Latest%20Release&color=0A84FF" alt="Latest release" />
   </a>
+  <a href="https://github.com/alvnukov/helm-apps/releases">
+    <img src="https://img.shields.io/badge/happ-CLI-111827?style=for-the-badge&logo=go&logoColor=00ADD8" alt="happ CLI" />
+  </a>
+  <a href="https://github.com/alvnukov/helm-apps/releases">
+    <img src="https://img.shields.io/badge/VS%20Code-Extension-2563EB?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Code extension" />
+  </a>
+  <a href="https://github.com/alvnukov/helm-apps#установка-cli-happ">
+    <img src="https://img.shields.io/badge/Homebrew-supported-FBBF24?style=for-the-badge&logo=homebrew&logoColor=111827" alt="Homebrew supported" />
+  </a>
+  <a href="https://github.com/alvnukov/helm-apps/releases">
+    <img src="https://img.shields.io/badge/Linux-DEB%20%7C%20RPM-374151?style=for-the-badge&logo=linux&logoColor=white" alt="DEB RPM packages" />
+  </a>
   <a href="tests/contracts/values.yaml">
     <img src="https://img.shields.io/badge/Apps%20Entity%20Coverage-100%25-16A34A?style=for-the-badge" alt="Apps entity coverage" />
   </a>
@@ -48,6 +60,26 @@ brew install alvnukov/helm-apps/happ
 
 Linux пакеты `deb` и `rpm` публикуются в assets каждого релиза:
 [`Releases`](https://github.com/alvnukov/helm-apps/releases)
+
+## VS Code extension (`helm-apps`) — ключевое преимущество
+
+Для работы с `values.yaml` есть отдельное расширение VS Code, которое ускоряет рефакторинг и снижает ошибки при работе с библиотекой.
+
+Что дает расширение:
+
+- Контекстные подсказки и hover-документация по ключам `helm-apps`.
+- Превью итоговой сущности с учетом `_include`, `_include_files` и env-резолва.
+- Переход к определению include-профилей и поиск использований.
+- Рефакторинг-команды прямо из editor context menu.
+- Валидация значений через `happ`.
+
+Установка из релиза:
+
+1. Скачать `helm-apps.vsix` из [`Releases`](https://github.com/alvnukov/helm-apps/releases).
+2. В VS Code: `Extensions` -> `...` -> `Install from VSIX...`.
+
+Документация расширения:
+[`extensions/helm-apps/README.md`](extensions/helm-apps/README.md)
 
 ## Старт здесь (самый короткий путь)
 
