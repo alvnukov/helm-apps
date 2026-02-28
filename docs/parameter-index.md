@@ -42,6 +42,7 @@
 | `sharedEnvConfigMaps` | [Описание](reference-values.md#param-sharedenvconfigmaps) | [Пример](cookbook.md#example-sharedenvconfigmaps) |
 | `envFrom` | [Описание](reference-values.md#param-containers) | [Пример](cookbook.md#example-sharedenvsecrets-priority) |
 | `envYAML` | [Описание](reference-values.md#param-envyaml) | [Пример](../tests/.helm/values.yaml) |
+| `resources` | [Описание](reference-values.md#param-resources) | [Пример](cookbook.md#example-basic-api) |
 | `configFiles` | [Описание](reference-values.md#param-configfiles) | [Пример](cookbook.md#example-configfiles) |
 | `configFilesYAML` | [Описание](reference-values.md#param-configfilesyaml) | [Пример](cookbook.md#example-configfilesyaml) |
 | `secretConfigFiles` | [Описание](reference-values.md#param-secretconfigfiles) | [Пример](reference-values.md#param-secretconfigfiles) |

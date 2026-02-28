@@ -1,0 +1,36 @@
+global:
+  _includes:
+    apps-defaults:
+      _include:
+        - base
+      labels: |-
+        team: devops
+
+apps-service-accounts:
+  app-sa:
+    roles:
+      role-a:
+        rules:
+          r1:
+            verbs:
+              - get
+            resources:
+              - pods
+        binding:
+          subjects:
+            - kind: ServiceAccount
+              name: app-sa
+              namespace: default
+
+apps-stateless:
+  api:
+    containers:
+      main:
+        sharedEnvConfigMaps:
+          - app-config
+        sharedEnvSecrets:
+          - app-secret
+        envYAML:
+          default: |-
+            - name: LOG_LEVEL
+              value: info

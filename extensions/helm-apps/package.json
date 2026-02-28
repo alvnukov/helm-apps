@@ -1,0 +1,174 @@
+{
+  "name": "helm-apps",
+  "displayName": "%ext.displayName%",
+  "description": "%ext.description%",
+  "version": "0.1.0",
+  "publisher": "alvnukov",
+  "license": "Apache-2.0",
+  "engines": {
+    "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onLanguage:yaml",
+    "onView:helmAppsValuesStructure",
+    "onCommand:helm-apps.configureSchema",
+    "onCommand:helm-apps.validateCurrentFile",
+    "onCommand:helm-apps.revealValuesNode",
+    "onCommand:helm-apps.extractToGlobalInclude",
+    "onCommand:helm-apps.safeRenameAppKey",
+    "onCommand:helm-apps.previewResolvedEntity",
+    "onCommand:helm-apps.goToIncludeDefinition",
+    "onCommand:helm-apps.openLibrarySettings",
+    "onCommand:helm-apps.generateLibraryHelp",
+    "onCommand:helm-apps.findUsages",
+    "onCommand:helm-apps.openDependencyGraph",
+    "onCommand:helm-apps.pasteAsHelmApps"
+  ],
+  "main": "./out/src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "helm-apps.configureSchema",
+        "title": "%cmd.configureSchema.title%"
+      },
+      {
+        "command": "helm-apps.validateCurrentFile",
+        "title": "%cmd.validateCurrentFile.title%"
+      },
+      {
+        "command": "helm-apps.revealValuesNode",
+        "title": "%cmd.revealValuesNode.title%"
+      },
+      {
+        "command": "helm-apps.extractToGlobalInclude",
+        "title": "%cmd.extractToGlobalInclude.title%"
+      },
+      {
+        "command": "helm-apps.safeRenameAppKey",
+        "title": "%cmd.safeRenameAppKey.title%"
+      },
+      {
+        "command": "helm-apps.previewResolvedEntity",
+        "title": "%cmd.previewResolvedEntity.title%"
+      },
+      {
+        "command": "helm-apps.goToIncludeDefinition",
+        "title": "%cmd.goToIncludeDefinition.title%"
+      },
+      {
+        "command": "helm-apps.openLibrarySettings",
+        "title": "%cmd.openLibrarySettings.title%"
+      },
+      {
+        "command": "helm-apps.generateLibraryHelp",
+        "title": "%cmd.generateLibraryHelp.title%"
+      },
+      {
+        "command": "helm-apps.findUsages",
+        "title": "%cmd.findUsages.title%"
+      },
+      {
+        "command": "helm-apps.openDependencyGraph",
+        "title": "%cmd.openDependencyGraph.title%"
+      },
+      {
+        "command": "helm-apps.pasteAsHelmApps",
+        "title": "%cmd.pasteAsHelmApps.title%"
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "helmAppsValuesStructure",
+          "name": "%view.valuesStructure.name%"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "helm-apps.extractToGlobalInclude",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@50"
+        },
+        {
+          "command": "helm-apps.safeRenameAppKey",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@51"
+        },
+        {
+          "command": "helm-apps.previewResolvedEntity",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@52"
+        },
+        {
+          "command": "helm-apps.goToIncludeDefinition",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@53"
+        },
+        {
+          "command": "helm-apps.openLibrarySettings",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@54"
+        },
+        {
+          "command": "helm-apps.generateLibraryHelp",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@55"
+        },
+        {
+          "command": "helm-apps.findUsages",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@56"
+        },
+        {
+          "command": "helm-apps.openDependencyGraph",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@57"
+        },
+        {
+          "command": "helm-apps.pasteAsHelmApps",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@58"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "%cfg.title%",
+      "properties": {
+        "helm-apps.schemaFileMatch": {
+          "type": "array",
+          "default": [],
+          "description": "%cfg.schemaFileMatch.description%"
+        },
+        "helm-apps.happPath": {
+          "type": "string",
+          "default": "happ",
+          "description": "%cfg.happPath.description%"
+        },
+        "helm-apps.disableYamlSchemaHover": {
+          "type": "boolean",
+          "default": true,
+          "description": "%cfg.disableYamlSchemaHover.description%"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "package": "vsce package",
+    "test": "tsc -p . && node --test out/test/**/*.test.js"
+  },
+  "dependencies": {
+    "yaml": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.5",
+    "@types/vscode": "^1.90.0",
+    "typescript": "^5.6.2"
+  }
+}

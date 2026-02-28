@@ -1,0 +1,21 @@
+{
+  "ext.displayName": "helm-apps",
+  "ext.description": "Tooling for helm-apps values.yaml: schema, hints and validation",
+  "cmd.configureSchema.title": "Configure YAML Schema",
+  "cmd.validateCurrentFile.title": "Validate Current values.yaml",
+  "cmd.revealValuesNode.title": "Reveal Values Node",
+  "cmd.extractToGlobalInclude.title": "Extract Field to global._includes",
+  "cmd.safeRenameAppKey.title": "Rename App Key (Safe)",
+  "cmd.previewResolvedEntity.title": "Open Entity Preview",
+  "cmd.goToIncludeDefinition.title": "Go to Include Definition",
+  "cmd.openLibrarySettings.title": "Open Library Settings",
+  "cmd.generateLibraryHelp.title": "Generate Library Settings Help",
+  "cmd.findUsages.title": "Find Symbol Usages",
+  "cmd.openDependencyGraph.title": "Open Dependency Graph",
+  "cmd.pasteAsHelmApps.title": "Paste as helm-apps",
+  "view.valuesStructure.name": "helm-apps Values Structure",
+  "cfg.title": "helm-apps",
+  "cfg.schemaFileMatch.description": "Optional manual file patterns for helm-apps schema in yaml.schemas (empty = auto-detect helm-apps charts).",
+  "cfg.happPath.description": "Path to happ binary used by validation command.",
+  "cfg.disableYamlSchemaHover.description": "Disable YAML extension schema hover blocks (e.g. 'Source: values.schema.json') to keep only helm-apps contextual hovers."
+}

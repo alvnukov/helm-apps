@@ -1,0 +1,1032 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://helm-apps.local/tests/.helm/values.schema.json",
+  "title": "Helm Apps Values Schema",
+  "type": "object",
+  "properties": {
+    "global": {
+      "$ref": "#/$defs/global"
+    },
+    "apps-configmaps": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-cronjobs": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-ingresses": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-jobs": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-secrets": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-stateful": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-stateless": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-custom-prometheus-rules": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-limit-range": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-pvcs": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-certificates": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-kafka-strimzi": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-dex-authenticators": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-dex-clients": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-grafana-dashboards": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-services": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-service-accounts": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-network-policies": {
+      "$ref": "#/$defs/networkPolicyAppMap"
+    },
+    "apps-k8s-manifests": {
+      "$ref": "#/$defs/appMap"
+    },
+    "apps-infra": {
+      "$ref": "#/$defs/appsInfra"
+    },
+    "werf": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "helm-apps": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "scalar": {
+      "type": ["string", "number", "integer", "boolean", "null"]
+    },
+    "envStringValue": {
+      "description": "Строка или map по окружениям, где значения строковые.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": ["string", "null"]
+          }
+        }
+      ]
+    },
+    "yamlScalar": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/scalar"
+        },
+        {
+          "type": "array"
+        },
+        {
+          "type": "object"
+        }
+      ]
+    },
+    "envValue": {
+      "description": "Обычное значение или map вида {_default: ..., prod: ..., ^prod.*: ...}.",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/scalar"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/scalar"
+          }
+        }
+      ]
+    },
+    "envMap": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/yamlScalar"
+      }
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": {
+          "$ref": "#/$defs/resourcesGroup"
+        },
+        "limits": {
+          "$ref": "#/$defs/resourcesGroup"
+        }
+      },
+      "additionalProperties": false
+    },
+    "resourcesGroup": {
+      "type": "object",
+      "properties": {
+        "mcpu": {
+          "$ref": "#/$defs/envValue"
+        },
+        "memoryMb": {
+          "$ref": "#/$defs/envValue"
+        },
+        "ephemeralStorageMb": {
+          "$ref": "#/$defs/envValue"
+        }
+      },
+      "additionalProperties": true
+    },
+    "image": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "staticTag": {
+          "$ref": "#/$defs/envValue"
+        },
+        "generateSignatureBasedTag": {
+          "$ref": "#/$defs/envValue"
+        }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "configFile": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "mountPath": {
+          "$ref": "#/$defs/envValue"
+        },
+        "defaultMode": {
+          "$ref": "#/$defs/envValue"
+        },
+        "content": {
+          "$ref": "#/$defs/yamlScalar"
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["content"]
+        },
+        {
+          "required": ["name"]
+        }
+      ],
+      "additionalProperties": true
+    },
+    "container": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "image": {
+          "$ref": "#/$defs/image"
+        },
+        "command": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "args": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "envVars": {
+          "$ref": "#/$defs/envMap"
+        },
+        "envYAML": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "secretEnvVars": {
+          "$ref": "#/$defs/envMap"
+        },
+        "fromSecretsEnvVars": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/envValue"
+            }
+          }
+        },
+        "env": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "envFrom": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "sharedEnvSecrets": {
+          "$ref": "#/$defs/sharedEnvSecretsSelection"
+        },
+        "sharedEnvConfigMaps": {
+          "$ref": "#/$defs/sharedEnvConfigMapsSelection"
+        },
+        "resources": {
+          "$ref": "#/$defs/resources"
+        },
+        "lifecycle": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "livenessProbe": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "readinessProbe": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "startupProbe": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "securityContext": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "volumeMounts": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "volumes": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "ports": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "configFiles": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/configFile"
+          }
+        },
+        "configFilesYAML": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": {
+                "$ref": "#/$defs/configFile"
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "secretConfigFiles": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/configFile"
+          }
+        },
+        "persistantVolumes": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "mountPath": {
+                "$ref": "#/$defs/envValue"
+              },
+              "size": {
+                "$ref": "#/$defs/envValue"
+              },
+              "storageClass": {
+                "$ref": "#/$defs/envValue"
+              },
+              "accessModes": {
+                "$ref": "#/$defs/envStringValue"
+              }
+            },
+            "required": ["mountPath", "size", "storageClass"],
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "vpa": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "updateMode": {
+          "$ref": "#/$defs/envValue"
+        },
+        "resourcePolicy": {
+          "$ref": "#/$defs/envStringValue"
+        }
+      },
+      "additionalProperties": true
+    },
+    "hpa": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "minReplicas": {
+          "$ref": "#/$defs/envValue"
+        },
+        "maxReplicas": {
+          "$ref": "#/$defs/envValue"
+        },
+        "behavior": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "metrics": {
+          "$ref": "#/$defs/yamlScalar"
+        },
+        "customMetricResources": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "$ref": "#/$defs/envValue"
+              },
+              "kind": {
+                "$ref": "#/$defs/envValue"
+              },
+              "name": {
+                "$ref": "#/$defs/envValue"
+              },
+              "query": {
+                "$ref": "#/$defs/envValue"
+              }
+            },
+            "required": ["kind", "query"],
+            "additionalProperties": true
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "pdb": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "maxUnavailable": {
+          "$ref": "#/$defs/envValue"
+        },
+        "minAvailable": {
+          "$ref": "#/$defs/envValue"
+        }
+      },
+      "additionalProperties": true
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "headless": {
+          "$ref": "#/$defs/envValue"
+        },
+        "ports": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "selector": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "annotations": {
+          "$ref": "#/$defs/envStringValue"
+        }
+      },
+      "additionalProperties": true
+    },
+    "serviceAccount": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "clusterRole": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "$ref": "#/$defs/envValue"
+            },
+            "rules": {
+              "$ref": "#/$defs/envStringValue"
+            }
+          },
+          "required": ["name", "rules"],
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "tls": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "secret_name": {
+          "$ref": "#/$defs/envValue"
+        }
+      },
+      "additionalProperties": true
+    },
+    "sharedEnvSecretNameValue": {
+      "description": "Secret name or env-map of secret names.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "sharedEnvSecretsSelection": {
+      "type": "array",
+      "description": "List of apps-secrets names to mount via envFrom.secretRef.",
+      "items": {
+        "$ref": "#/$defs/sharedEnvSecretNameValue"
+      }
+    },
+    "sharedEnvConfigMapNameValue": {
+      "description": "ConfigMap name or env-map of ConfigMap names.",
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      ]
+    },
+    "sharedEnvConfigMapsSelection": {
+      "type": "array",
+      "description": "List of apps-configmaps names to mount via envFrom.configMapRef.",
+      "items": {
+        "$ref": "#/$defs/sharedEnvConfigMapNameValue"
+      }
+    },
+    "app": {
+      "type": "object",
+      "properties": {
+        "_include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "__AppType__": {
+          "type": "string"
+        },
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "randomName": {
+          "$ref": "#/$defs/envValue"
+        },
+        "alwaysRestart": {
+          "$ref": "#/$defs/envValue"
+        },
+        "werfWeight": {
+          "$ref": "#/$defs/envValue"
+        },
+        "versionKey": {
+          "$ref": "#/$defs/envValue"
+        },
+        "annotations": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "labels": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "selector": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "containers": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/container"
+              },
+              {
+                "$ref": "#/$defs/yamlScalar"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
+        },
+        "initContainers": {
+          "type": "object",
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/container"
+              },
+              {
+                "$ref": "#/$defs/yamlScalar"
+              },
+              {
+                "type": "object",
+                "additionalProperties": true
+              }
+            ]
+          }
+        },
+        "verticalPodAutoscaler": {
+          "$ref": "#/$defs/vpa"
+        },
+        "horizontalPodAutoscaler": {
+          "$ref": "#/$defs/hpa"
+        },
+        "podDisruptionBudget": {
+          "$ref": "#/$defs/pdb"
+        },
+        "service": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/service"
+            },
+            {
+              "$ref": "#/$defs/envValue"
+            },
+            {
+              "$ref": "#/$defs/envStringValue"
+            }
+          ]
+        },
+        "serviceAccount": {
+          "$ref": "#/$defs/serviceAccount"
+        },
+        "schedule": {
+          "$ref": "#/$defs/envValue"
+        },
+        "concurrencyPolicy": {
+          "$ref": "#/$defs/envValue"
+        },
+        "successfulJobsHistoryLimit": {
+          "$ref": "#/$defs/envValue"
+        },
+        "failedJobsHistoryLimit": {
+          "$ref": "#/$defs/envValue"
+        },
+        "startingDeadlineSeconds": {
+          "$ref": "#/$defs/envValue"
+        },
+        "backoffLimit": {
+          "$ref": "#/$defs/envValue"
+        },
+        "activeDeadlineSeconds": {
+          "$ref": "#/$defs/envValue"
+        },
+        "restartPolicy": {
+          "$ref": "#/$defs/envValue"
+        },
+        "priorityClassName": {
+          "$ref": "#/$defs/envValue"
+        },
+        "affinity": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "tolerations": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "nodeSelector": {
+          "$ref": "#/$defs/yamlScalar"
+        },
+        "topologySpreadConstraints": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "volumes": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "imagePullSecrets": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "ingressClassName": {
+          "$ref": "#/$defs/envValue"
+        },
+        "class": {
+          "$ref": "#/$defs/envValue"
+        },
+        "host": {
+          "$ref": "#/$defs/envValue"
+        },
+        "hosts": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "paths": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "tls": {
+          "$ref": "#/$defs/tls"
+        },
+        "dexAuth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "$ref": "#/$defs/envValue"
+            },
+            "clusterDomain": {
+              "$ref": "#/$defs/envValue"
+            }
+          },
+          "additionalProperties": true
+        },
+        "type": {
+          "$ref": "#/$defs/envValue"
+        },
+        "data": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "binaryData": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "envVars": {
+          "$ref": "#/$defs/envMap"
+        },
+        "limits": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "storageClassName": {
+          "$ref": "#/$defs/envValue"
+        },
+        "accessModes": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "resources": {
+          "$ref": "#/$defs/yamlScalar"
+        },
+        "clusterIssuer": {
+          "$ref": "#/$defs/envValue"
+        },
+        "groups": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "folder": {
+          "$ref": "#/$defs/envValue"
+        },
+        "redirectURIs": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "applicationDomain": {
+          "$ref": "#/$defs/envValue"
+        },
+        "applicationIngressCertificateSecretName": {
+          "$ref": "#/$defs/envValue"
+        },
+        "applicationIngressClassName": {
+          "$ref": "#/$defs/envValue"
+        },
+        "allowedGroups": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "sendAuthorizationHeader": {
+          "$ref": "#/$defs/envValue"
+        },
+        "kafka": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "zookeeper": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "topics": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "entityOperator": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "exporter": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "deckhouseMetrics": {
+          "type": "object",
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "appMap": {
+      "type": "object",
+      "properties": {
+        "__GroupVars__": {
+          "$ref": "#/$defs/customGroupVars"
+        }
+      },
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
+          "$ref": "#/$defs/app"
+        }
+      },
+      "additionalProperties": false
+    },
+    "networkPolicyType": {
+      "description": "Тип реализации NetworkPolicy.",
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": ["kubernetes", "cilium", "calico"]
+        },
+        {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["kubernetes", "cilium", "calico"]
+          }
+        }
+      ]
+    },
+    "networkPolicyApp": {
+      "type": "object",
+      "properties": {
+        "_include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "name": {
+          "$ref": "#/$defs/envValue"
+        },
+        "annotations": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "labels": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "type": {
+          "$ref": "#/$defs/networkPolicyType"
+        },
+        "apiVersion": {
+          "$ref": "#/$defs/envValue"
+        },
+        "kind": {
+          "$ref": "#/$defs/envValue"
+        },
+        "spec": {
+          "$ref": "#/$defs/yamlScalar"
+        },
+        "podSelector": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "policyTypes": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "ingress": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "egress": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "endpointSelector": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "ingressDeny": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "egressDeny": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "selector": {
+          "$ref": "#/$defs/envValue"
+        },
+        "types": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "extraSpec": {
+          "$ref": "#/$defs/yamlScalar"
+        }
+      },
+      "additionalProperties": true
+    },
+    "networkPolicyAppMap": {
+      "type": "object",
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
+          "$ref": "#/$defs/networkPolicyApp"
+        }
+      },
+      "additionalProperties": false
+    },
+    "customGroupVars": {
+      "type": "object",
+      "properties": {
+        "_include": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "type": {
+          "$ref": "#/$defs/envValue"
+        },
+        "_preRenderGroupHook": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "_preRenderAppHook": {
+          "$ref": "#/$defs/envStringValue"
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": true
+    },
+    "customGroup": {
+      "type": "object",
+      "properties": {
+        "__GroupVars__": {
+          "$ref": "#/$defs/customGroupVars"
+        }
+      },
+      "required": ["__GroupVars__"],
+      "patternProperties": {
+        "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
+          "$ref": "#/$defs/app"
+        }
+      },
+      "additionalProperties": false
+    },
+    "appsInfraNodeUser": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "$ref": "#/$defs/envValue"
+        },
+        "uid": {
+          "$ref": "#/$defs/envValue"
+        },
+        "passwordHash": {
+          "$ref": "#/$defs/envValue"
+        },
+        "sshPublicKey": {
+          "$ref": "#/$defs/envValue"
+        },
+        "sshPublicKeys": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "extraGroups": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "nodeGroups": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "isSudoer": {
+          "$ref": "#/$defs/envValue"
+        },
+        "labels": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "annotations": {
+          "$ref": "#/$defs/envStringValue"
+        }
+      },
+      "required": ["uid"],
+      "additionalProperties": true
+    },
+    "appsInfra": {
+      "type": "object",
+      "properties": {
+        "node-users": {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
+              "$ref": "#/$defs/appsInfraNodeUser"
+            }
+          },
+          "additionalProperties": false
+        },
+        "node-groups": {
+          "type": "object",
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9_.-]*$": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": true
+    },
+    "global": {
+      "type": "object",
+      "properties": {
+        "ci_url": {
+          "$ref": "#/$defs/envValue"
+        },
+        "env": {
+          "type": "string"
+        },
+        "labels": {
+          "type": "object",
+          "properties": {
+            "addEnv": {
+              "$ref": "#/$defs/envValue"
+            }
+          },
+          "additionalProperties": true
+        },
+        "_includes": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "validation": {
+          "type": "object",
+          "properties": {
+            "strict": {
+              "type": "boolean",
+              "description": "Opt-in strict mode contract. Default=false for 1.x compatibility."
+            },
+            "allowNativeListsInBuiltInListFields": {
+              "type": "boolean",
+              "description": "Experimental opt-in: allow native YAML lists in selected built-in Kubernetes list fields while keeping string block format as default."
+            },
+            "validateTplDelimiters": {
+              "type": "boolean",
+              "description": "Opt-in validation for '{{'/'}}' delimiter balance in string values rendered via fl.value. Default=false for backward compatibility."
+            }
+          },
+          "additionalProperties": true
+        },
+        "deploy": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "$ref": "#/$defs/envValue"
+            },
+            "annotateAllWithRelease": {
+              "$ref": "#/$defs/envValue"
+            },
+            "release": {
+              "$ref": "#/$defs/envValue"
+            }
+          },
+          "additionalProperties": true
+        },
+        "releases": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "$ref": "#/$defs/envValue"
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

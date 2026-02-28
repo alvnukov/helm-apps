@@ -1,0 +1,23 @@
+global:
+  labels: |-
+    app: demo
+
+apps-stateless:
+  api:
+    containers:
+      main:
+        env:
+          - name: A
+            value: B
+
+apps-k8s-manifests:
+  keep-valid:
+    spec: |-
+      containers:
+        - name: inside-block
+
+apps-services:
+  my-service:
+    ports:
+      - name: http
+        port: 80

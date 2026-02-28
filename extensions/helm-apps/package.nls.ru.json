@@ -1,0 +1,21 @@
+{
+  "ext.displayName": "helm-apps",
+  "ext.description": "Инструменты для helm-apps values.yaml: схема, подсказки и валидация",
+  "cmd.configureSchema.title": "Настроить YAML-схему",
+  "cmd.validateCurrentFile.title": "Проверить текущий values.yaml",
+  "cmd.revealValuesNode.title": "Показать узел в структуре values",
+  "cmd.extractToGlobalInclude.title": "Вынести поле в global._includes",
+  "cmd.safeRenameAppKey.title": "Переименовать ключ приложения (безопасно)",
+  "cmd.previewResolvedEntity.title": "Открыть превью сущности",
+  "cmd.goToIncludeDefinition.title": "Перейти к определению include",
+  "cmd.openLibrarySettings.title": "Открыть настройки библиотеки",
+  "cmd.generateLibraryHelp.title": "Сгенерировать help по настройкам библиотеки",
+  "cmd.findUsages.title": "Найти использования символа",
+  "cmd.openDependencyGraph.title": "Открыть граф зависимостей",
+  "cmd.pasteAsHelmApps.title": "Вставить как helm-apps",
+  "view.valuesStructure.name": "Структура values (helm-apps)",
+  "cfg.title": "helm-apps",
+  "cfg.schemaFileMatch.description": "Необязательные ручные шаблоны файлов для схемы helm-apps в yaml.schemas (пусто = автоопределение чартов с helm-apps).",
+  "cfg.happPath.description": "Путь к бинарнику happ для команды валидации.",
+  "cfg.disableYamlSchemaHover.description": "Отключить schema-hover от YAML-расширения (например, 'Source: values.schema.json'), оставив только контекстные hover helm-apps."
+}

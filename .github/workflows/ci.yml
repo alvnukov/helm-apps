@@ -30,6 +30,11 @@ jobs:
         with:
           go-version-file: cmd/happ/go.mod
 
+      - name: Setup Node.js (for VS Code extension)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
       - name: Setup golangci-lint (for happ)
         uses: golangci/golangci-lint-action@v6
         with:
@@ -136,6 +141,24 @@ jobs:
           set -euo pipefail
           cd cmd/happ
           go test ./...
+
+      - name: Install extension dependencies
+        run: |
+          set -euo pipefail
+          cd extensions/helm-apps
+          npm ci
+
+      - name: Build extension
+        run: |
+          set -euo pipefail
+          cd extensions/helm-apps
+          npm run build
+
+      - name: Test extension
+        run: |
+          set -euo pipefail
+          cd extensions/helm-apps
+          npm test
 
   kube-compatibility-matrix:
     runs-on: ubuntu-latest

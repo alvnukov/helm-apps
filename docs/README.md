@@ -32,6 +32,7 @@
 | Поднять новый API сервис | [cookbook.md#example-basic-api](cookbook.md#example-basic-api) |
 | Настроить Ingress/TLS | [cookbook.md#example-ingress-tls](cookbook.md#example-ingress-tls) |
 | Подключить shared env из Secret/ConfigMap | [cookbook.md#61-общие-secret-через-sharedenvsecrets](cookbook.md#61-общие-secret-через-sharedenvsecrets), [cookbook.md#62-общие-configmap-через-sharedenvconfigmaps](cookbook.md#62-общие-configmap-через-sharedenvconfigmaps) |
+| Быстро понять kubernetes-поля (для разработчика) | [k8s-fields-guide.md](k8s-fields-guide.md) |
 | Понять порядок приоритетов env | [cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars](cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
 | Включить release matrix | [reference-values.md#param-global-deploy](reference-values.md#param-global-deploy) |
 | Сделать переиспользование через include-профили | [reference-values.md#param-global-includes](reference-values.md#param-global-includes), [../README.md#example-global-includes-merge](../README.md#example-global-includes-merge) |
@@ -48,6 +49,8 @@
 - Индекс параметров: [parameter-index.md](parameter-index.md)
 - Карта use-cases: [use-case-map.md](use-case-map.md)
 - Практические рецепты: [cookbook.md](cookbook.md)
+- Kubernetes-поля простым языком (RU): [k8s-fields-guide.md](k8s-fields-guide.md)
+- Kubernetes fields quick guide (EN): [k8s-fields-guide.en.md](k8s-fields-guide.en.md)
 - Эксплуатация и triage: [operations.md](operations.md)
 - Вопросы и ответы: [faq.md](faq.md)
 - Термины: [glossary.md](glossary.md)

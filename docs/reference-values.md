@@ -238,6 +238,30 @@ apps-stateless:
     _include: ["base", "canary"]
 ```
 
+### 2.3 `_include_from_file` и `_include_files`
+<a id="param-include-from-file"></a>
+<a id="param-include-files"></a>
+
+Используйте эти ключи, чтобы подключать include-профили из файлов:
+
+```yaml
+global:
+  _includes:
+    _include_from_file: helm-apps-defaults.yaml
+
+apps-stateless:
+  api:
+    _include_files:
+      - defaults.yaml
+      - profile-prod.yaml
+```
+
+Поведение:
+- `_include_from_file` загружает YAML map и мержит его в текущий узел;
+- `_include_files` загружает набор файлов как include-профили и добавляет их в `_include`;
+- относительные пути считаются от текущего `values.yaml`;
+- отсутствующие файлы пропускаются (рекомендуется контролировать это в CI/линт-проверках).
+
 Поведение в результате merge:
 - ключ `production` будет взят из `base` (значение `4`);
 - `_default` будет взят из `canary` (значение `1`).
@@ -406,6 +430,27 @@ containers:
 - `secretConfigFiles`
 - `persistantVolumes`
 
+### 5.0 `envVars`
+<a id="param-envvars-usage"></a>
+
+Назначение:
+- задать явные env-переменные контейнера как map (`NAME: value`);
+- использовать env-map (`_default`/env/regex) для переключения значений по окружению.
+
+Формат:
+
+```yaml
+envVars:
+  LOG_LEVEL: info
+  APP_MODE:
+    _default: safe
+    production: fast
+```
+
+Важно:
+- `envVars` работает на уровне контейнера (`containers.*` / `initContainers.*`);
+- при конфликте имен явные `env` значения имеют приоритет над значениями из `envFrom`.
+
 ### 5.1 `sharedEnvSecrets`
 
 Назначение:
@@ -498,6 +543,7 @@ field:
 Если окружение не задано, рендер завершится ошибкой `E_ENV_REQUIRED`.
 
 ## 7. Ресурсы контейнера
+<a id="param-resources"></a>
 
 Форма:
 
