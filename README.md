@@ -31,6 +31,21 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 
 История изменений: [`CHANGELOG.md`](CHANGELOG.md)
 
+## Установка CLI `happ`
+
+Через Homebrew:
+
+```bash
+brew tap alvnukov/helm-apps https://github.com/alvnukov/helm-apps
+brew install happ
+```
+
+Без tap (напрямую из репозитория формулы):
+
+```bash
+brew install alvnukov/helm-apps/happ
+```
+
 ## Старт здесь (самый короткий путь)
 
 1. Первый успешный рендер за 10 минут: [`docs/quickstart.md`](docs/quickstart.md)
