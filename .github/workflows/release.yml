@@ -182,9 +182,25 @@ jobs:
           build_one windows amd64
           build_one windows arm64
 
-      - name: Run chart-releaser
+      - name: Check chart release tag
+        id: check_chart_release
         if: ${{ github.ref == 'refs/heads/main' }}
-        uses: helm/chart-releaser-action@v1.4.0
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          set -euo pipefail
+          TAG="helm-apps-${LIB_VERSION}"
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "release_exists=true" >> "${GITHUB_OUTPUT}"
+            echo "Release ${TAG} already exists, chart-releaser will be skipped."
+          else
+            echo "release_exists=false" >> "${GITHUB_OUTPUT}"
+            echo "Release ${TAG} does not exist, chart-releaser will run."
+          fi
+
+      - name: Run chart-releaser
+        if: ${{ github.ref == 'refs/heads/main' && steps.check_chart_release.outputs.release_exists != 'true' }}
+        uses: helm/chart-releaser-action@v1.6.0
         with:
           charts_dir: charts
           config: cr.yaml
