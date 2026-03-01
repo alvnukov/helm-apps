@@ -6,6 +6,7 @@
 tests/test_render_check.yaml
 .idea/
 /.tmp/
+cmd/happ/dist/
 
 # Internal planning
 .internal/
