@@ -13,6 +13,7 @@ thiserror = "1"
 indexmap = { version = "2", features = ["serde"] }
 regex = "1"
 unsafe-libyaml = "0.2"
+base64 = "0.22"
 
 [dev-dependencies]
 pretty_assertions = "1"

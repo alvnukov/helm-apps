@@ -81,6 +81,16 @@ pub fn generate_consumer_chart(
     Ok(())
 }
 
+pub fn copy_chart_crds_if_any(source_chart_path: &str, out_dir: &str) -> Result<bool, Error> {
+    let src_crds = Path::new(source_chart_path).join("crds");
+    if !src_crds.exists() || !src_crds.is_dir() {
+        return Ok(false);
+    }
+    let dst_crds = Path::new(out_dir).join("crds");
+    copy_dir(&src_crds, &dst_crds)?;
+    Ok(true)
+}
+
 fn resolve_library_path(explicit: Option<&str>) -> Option<PathBuf> {
     if let Some(p) = explicit {
         let pb = PathBuf::from(p);
@@ -149,5 +159,22 @@ mod tests {
         assert!(out.join("Chart.yaml").exists());
         assert!(out.join("values.yaml").exists());
         assert!(out.join("templates/init-helm-apps-library.yaml").exists());
+    }
+
+    #[test]
+    fn copies_crds_from_source_chart_when_present() {
+        let td = TempDir::new().expect("tmp");
+        let src = td.path().join("src-chart");
+        let out = td.path().join("out-chart");
+        fs::create_dir_all(src.join("crds")).expect("mkdir");
+        fs::write(src.join("crds/demo.example.com.yaml"), "kind: CustomResourceDefinition\n").expect("write");
+
+        let copied = copy_chart_crds_if_any(
+            src.to_str().expect("src"),
+            out.to_str().expect("out"),
+        )
+        .expect("copy");
+        assert!(copied);
+        assert!(out.join("crds/demo.example.com.yaml").exists());
     }
 }

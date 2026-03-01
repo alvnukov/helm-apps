@@ -1,7 +1,9 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 const VUE_GLOBAL_PROD_JS: &str = include_str!("../assets/vue.global.prod.js");
 const MAX_HTTP_REQUEST_BYTES: usize = 64 * 1024 * 1024;
@@ -58,14 +60,22 @@ fn serve_with_renderer(
     let listener = TcpListener::bind(addr).map_err(|e| format!("bind {addr}: {e}"))?;
     let running = Arc::new(AtomicBool::new(true));
     if open_browser {
-        let _ = open_in_browser(&format!("http://{addr}"));
+        let url = format!("http://{addr}");
+        std::thread::spawn(move || {
+            let _ = open_in_browser(&url);
+        });
     }
     while running.load(Ordering::SeqCst) {
         let (mut stream, _) = match listener.accept() {
             Ok(s) => s,
             Err(e) => return Err(format!("accept error: {e}")),
         };
+        let _ = stream.set_read_timeout(Some(Duration::from_millis(220)));
+        let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
         if let Err(e) = handle_connection(&mut stream, &running, &html_renderer, json_renderer.as_ref().map(|f| f.as_ref())) {
+            if e == "read timeout" || e == "request closed before headers" {
+                continue;
+            }
             let _ = write_response(&mut stream, 500, "text/plain; charset=utf-8", e.as_bytes());
         }
     }
@@ -170,6 +180,281 @@ fn handle_connection(
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
         return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
     }
+    if path == "/api/import" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source_type = payload.get("sourceType").and_then(|v| v.as_str()).unwrap_or("chart");
+        let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or_default();
+        let env = payload.get("env").and_then(|v| v.as_str()).unwrap_or("dev");
+        let group_name = payload
+            .get("groupName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("apps-k8s-manifests");
+        let group_type = payload
+            .get("groupType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("apps-k8s-manifests");
+        let import_strategy = payload
+            .get("importStrategy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("helpers");
+        let release_name = payload
+            .get("releaseName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("imported");
+        let namespace = payload
+            .get("namespace")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let min_include_bytes = payload
+            .get("minIncludeBytes")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize)
+            .unwrap_or(24);
+        let include_status = payload
+            .get("includeStatus")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let values_files = payload_string_list(&payload, "valuesFiles");
+        let set_values = payload_string_list(&payload, "setValues");
+        let set_string_values = payload_string_list(&payload, "setStringValues");
+        let set_file_values = payload_string_list(&payload, "setFileValues");
+        let set_json_values = payload_string_list(&payload, "setJsonValues");
+        let api_versions = payload_string_list(&payload, "apiVersions");
+        let kube_version = payload
+            .get("kubeVersion")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let include_crds = payload
+            .get("includeCrds")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let chart_values_yaml = payload
+            .get("chartValuesYaml")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let (ok, values_yaml, message, source_count) = match import_payload(
+            source_type,
+            path,
+            env,
+            group_name,
+            group_type,
+            import_strategy,
+            release_name,
+            namespace,
+            min_include_bytes,
+            include_status,
+            values_files,
+            set_values,
+            set_string_values,
+            set_file_values,
+            set_json_values,
+            kube_version,
+            api_versions,
+            include_crds,
+            chart_values_yaml,
+        ) {
+            Ok((values, msg, cnt)) => (true, values, msg, cnt),
+            Err(e) => (false, String::new(), e, 0usize),
+        };
+        let resp = serde_json::json!({
+            "ok": ok,
+            "valuesYaml": values_yaml,
+            "message": message,
+            "sourceCount": source_count,
+        })
+        .to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
+    if path == "/api/save-chart" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source_type = payload
+            .get("sourceType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("chart");
+        let source_path = payload
+            .get("sourcePath")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let out_chart_dir = payload
+            .get("outChartDir")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let chart_name = payload
+            .get("chartName")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let library_chart_path = payload
+            .get("libraryChartPath")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let values_yaml = payload
+            .get("valuesYaml")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+
+        let (ok, message) = match save_chart_payload(
+            source_type,
+            source_path,
+            out_chart_dir,
+            chart_name.as_deref(),
+            library_chart_path.as_deref(),
+            values_yaml,
+        ) {
+            Ok(msg) => (true, msg),
+            Err(e) => (false, e),
+        };
+        let resp = serde_json::json!({
+            "ok": ok,
+            "message": message,
+        })
+        .to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
+    if path == "/api/chart-values" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let chart_path = payload.get("path").and_then(|v| v.as_str()).unwrap_or_default();
+        let (ok, values_yaml, message) = match load_chart_values_from_path(chart_path) {
+            Ok(v) => (true, v, String::new()),
+            Err(e) => (false, String::new(), e),
+        };
+        let resp = serde_json::json!({
+            "ok": ok,
+            "valuesYaml": values_yaml,
+            "message": message
+        })
+        .to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
+    if path == "/api/import-upload" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source_type = payload.get("sourceType").and_then(|v| v.as_str()).unwrap_or("chart");
+        let env = payload.get("env").and_then(|v| v.as_str()).unwrap_or("dev");
+        let group_name = payload
+            .get("groupName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("apps-k8s-manifests");
+        let group_type = payload
+            .get("groupType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("apps-k8s-manifests");
+        let import_strategy = payload
+            .get("importStrategy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("helpers");
+        let release_name = payload
+            .get("releaseName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("imported");
+        let namespace = payload
+            .get("namespace")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let min_include_bytes = payload
+            .get("minIncludeBytes")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize)
+            .unwrap_or(24);
+        let include_status = payload
+            .get("includeStatus")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let values_files = payload_string_list(&payload, "valuesFiles");
+        let set_values = payload_string_list(&payload, "setValues");
+        let set_string_values = payload_string_list(&payload, "setStringValues");
+        let set_file_values = payload_string_list(&payload, "setFileValues");
+        let set_json_values = payload_string_list(&payload, "setJsonValues");
+        let api_versions = payload_string_list(&payload, "apiVersions");
+        let kube_version = payload
+            .get("kubeVersion")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let include_crds = payload
+            .get("includeCrds")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let chart_values_yaml = payload
+            .get("chartValuesYaml")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+
+        let files = payload
+            .get("files")
+            .and_then(|v| v.as_array())
+            .ok_or_else(|| "files array is required for upload import".to_string())?;
+
+        let tmp_root = create_upload_temp_dir()?;
+        let import_path = match write_uploaded_files(&tmp_root, source_type, files) {
+            Ok(p) => p,
+            Err(e) => {
+                let _ = std::fs::remove_dir_all(&tmp_root);
+                return Err(e);
+            }
+        };
+
+        let (ok, values_yaml, message, source_count) = match import_payload(
+            source_type,
+            &import_path.to_string_lossy(),
+            env,
+            group_name,
+            group_type,
+            import_strategy,
+            release_name,
+            namespace,
+            min_include_bytes,
+            include_status,
+            values_files,
+            set_values,
+            set_string_values,
+            set_file_values,
+            set_json_values,
+            kube_version,
+            api_versions,
+            include_crds,
+            chart_values_yaml,
+        ) {
+            Ok((values, msg, cnt)) => (true, values, msg, cnt),
+            Err(e) => (false, String::new(), e, 0usize),
+        };
+        let _ = std::fs::remove_dir_all(&tmp_root);
+        let resp = serde_json::json!({
+            "ok": ok,
+            "valuesYaml": values_yaml,
+            "message": message,
+            "sourceCount": source_count,
+        })
+        .to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
+    if path == "/api/fs-list" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or("");
+        let (ok, current, parent, entries, message) = match list_fs_entries(path) {
+            Ok((current, parent, entries)) => (true, current, parent, entries, String::new()),
+            Err(e) => (false, String::new(), String::new(), Vec::new(), e),
+        };
+        let resp = serde_json::json!({
+            "ok": ok,
+            "path": current,
+            "parent": parent,
+            "entries": entries,
+            "message": message
+        })
+        .to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
 
     let html = html_renderer();
     write_response(stream, 200, "text/html; charset=utf-8", html.as_bytes()).map_err(|e| e.to_string())
@@ -182,8 +467,20 @@ fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
     let mut content_length = 0usize;
 
     loop {
-        let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
+        let n = match stream.read(&mut buf) {
+            Ok(n) => n,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => {
+                if header_end.is_some() {
+                    break;
+                }
+                return Err("read timeout".to_string());
+            }
+            Err(e) => return Err(e.to_string()),
+        };
         if n == 0 {
+            if data.is_empty() {
+                return Err("request closed before headers".to_string());
+            }
             break;
         }
         data.extend_from_slice(&buf[..n]);
@@ -204,6 +501,9 @@ fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
             return Err("request too large".to_string());
         }
     }
+    if data.is_empty() {
+        return Err("request closed before headers".to_string());
+    }
     String::from_utf8(data).map_err(|e| e.to_string())
 }
 
@@ -222,6 +522,279 @@ fn parse_content_length(header: &str) -> usize {
 
 fn http_body(req: &str) -> &str {
     req.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or("")
+}
+
+fn payload_string_list(payload: &serde_json::Value, key: &str) -> Vec<String> {
+    payload
+        .get(key)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|x| x.as_str())
+                .map(str::trim)
+                .filter(|x| !x.is_empty())
+                .map(str::to_string)
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+}
+
+fn create_upload_temp_dir() -> Result<PathBuf, String> {
+    let nanos = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_err(|e| e.to_string())?
+        .as_nanos();
+    let dir = std::env::temp_dir().join(format!("happ-upload-{nanos}"));
+    std::fs::create_dir_all(&dir).map_err(|e| format!("create temp dir: {e}"))?;
+    Ok(dir)
+}
+
+fn sanitize_relative_path(p: &str) -> Result<PathBuf, String> {
+    let path = Path::new(p);
+    if path.is_absolute() {
+        return Err(format!("absolute path is not allowed in upload: {p}"));
+    }
+    let mut out = PathBuf::new();
+    for c in path.components() {
+        match c {
+            std::path::Component::Normal(v) => out.push(v),
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                return Err(format!("parent path '..' is not allowed in upload: {p}"));
+            }
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                return Err(format!("invalid path component in upload: {p}"));
+            }
+        }
+    }
+    if out.as_os_str().is_empty() {
+        return Err("empty upload path".to_string());
+    }
+    Ok(out)
+}
+
+fn list_fs_entries(input_path: &str) -> Result<(String, String, Vec<serde_json::Value>), String> {
+    let current = if input_path.trim().is_empty() {
+        std::env::current_dir().map_err(|e| format!("current_dir: {e}"))?
+    } else {
+        PathBuf::from(input_path)
+    };
+    let current = current
+        .canonicalize()
+        .map_err(|e| format!("resolve path '{}': {e}", current.display()))?;
+    if !current.is_dir() {
+        return Err(format!("'{}' is not a directory", current.display()));
+    }
+    let parent = current
+        .parent()
+        .map(|p| p.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let mut entries = Vec::new();
+    for ent in std::fs::read_dir(&current).map_err(|e| format!("read_dir '{}': {e}", current.display()))? {
+        let ent = ent.map_err(|e| format!("read_dir entry '{}': {e}", current.display()))?;
+        let path = ent.path();
+        let name = ent.file_name().to_string_lossy().to_string();
+        let ty = ent
+            .file_type()
+            .map_err(|e| format!("file_type '{}': {e}", path.display()))?;
+        entries.push(serde_json::json!({
+            "name": name,
+            "path": path.to_string_lossy(),
+            "isDir": ty.is_dir(),
+        }));
+    }
+    entries.sort_by(|a, b| {
+        let ad = a.get("isDir").and_then(|v| v.as_bool()).unwrap_or(false);
+        let bd = b.get("isDir").and_then(|v| v.as_bool()).unwrap_or(false);
+        if ad != bd {
+            return bd.cmp(&ad);
+        }
+        let an = a.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        let bn = b.get("name").and_then(|v| v.as_str()).unwrap_or("");
+        an.cmp(bn)
+    });
+    Ok((current.to_string_lossy().to_string(), parent, entries))
+}
+
+fn load_chart_values_from_path(chart_path: &str) -> Result<String, String> {
+    if chart_path.trim().is_empty() {
+        return Err("chart path is required".to_string());
+    }
+    let root = PathBuf::from(chart_path)
+        .canonicalize()
+        .map_err(|e| format!("resolve chart path '{}': {e}", chart_path))?;
+    if !root.is_dir() {
+        return Err(format!("chart path '{}' is not a directory", root.display()));
+    }
+    let values_path = root.join("values.yaml");
+    let content = std::fs::read_to_string(&values_path)
+        .map_err(|e| format!("read '{}': {e}", values_path.display()))?;
+    Ok(content)
+}
+
+fn write_uploaded_files(tmp_root: &Path, source_type: &str, files: &[serde_json::Value]) -> Result<PathBuf, String> {
+    if files.is_empty() {
+        return Err("no files selected".to_string());
+    }
+    let mut compose_file: Option<PathBuf> = None;
+    for item in files {
+        let rel = item
+            .get("path")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "upload file.path is required".to_string())?;
+        let b64 = item
+            .get("contentB64")
+            .and_then(|v| v.as_str())
+            .ok_or_else(|| "upload file.contentB64 is required".to_string())?;
+        let safe_rel = sanitize_relative_path(rel)?;
+        let full = tmp_root.join(&safe_rel);
+        if let Some(parent) = full.parent() {
+            std::fs::create_dir_all(parent).map_err(|e| format!("create upload parent dir: {e}"))?;
+        }
+        let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
+            .map_err(|e| format!("base64 decode for '{rel}': {e}"))?;
+        std::fs::write(&full, bytes).map_err(|e| format!("write upload file '{rel}': {e}"))?;
+        if source_type.eq_ignore_ascii_case("compose") {
+            let name = rel.to_ascii_lowercase();
+            if name.ends_with(".yml") || name.ends_with(".yaml") {
+                if compose_file.is_none() {
+                    compose_file = Some(full.clone());
+                }
+            }
+        }
+    }
+    if source_type.eq_ignore_ascii_case("compose") {
+        compose_file.ok_or_else(|| "compose upload requires at least one .yml/.yaml file".to_string())
+    } else {
+        Ok(tmp_root.to_path_buf())
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn import_payload(
+    source_type: &str,
+    path: &str,
+    env: &str,
+    group_name: &str,
+    group_type: &str,
+    import_strategy: &str,
+    release_name: &str,
+    namespace: Option<String>,
+    min_include_bytes: usize,
+    include_status: bool,
+    values_files: Vec<String>,
+    set_values: Vec<String>,
+    set_string_values: Vec<String>,
+    set_file_values: Vec<String>,
+    set_json_values: Vec<String>,
+    kube_version: Option<String>,
+    api_versions: Vec<String>,
+    include_crds: bool,
+    chart_values_yaml: Option<String>,
+) -> Result<(String, String, usize), String> {
+    if path.trim().is_empty() {
+        return Err("path is required".to_string());
+    }
+    let mut values_files = values_files;
+    let mut inline_chart_values_temp: Option<PathBuf> = None;
+    if let Some(inline) = chart_values_yaml {
+        let tmp_root = create_upload_temp_dir()?;
+        let fp = tmp_root.join("chart-inline-values.yaml");
+        std::fs::write(&fp, inline).map_err(|e| format!("write inline chart values: {e}"))?;
+        values_files.insert(0, fp.to_string_lossy().to_string());
+        inline_chart_values_temp = Some(tmp_root);
+    }
+    let args = crate::cli::ImportArgs {
+        path: path.to_string(),
+        env: env.to_string(),
+        group_name: group_name.to_string(),
+        group_type: group_type.to_string(),
+        min_include_bytes,
+        include_status,
+        output: None,
+        out_chart_dir: None,
+        chart_name: None,
+        library_chart_path: None,
+        import_strategy: import_strategy.to_string(),
+        release_name: release_name.to_string(),
+        namespace,
+        values_files,
+        set_values,
+        set_string_values,
+        set_file_values,
+        set_json_values,
+        kube_version,
+        api_versions,
+        include_crds,
+        write_rendered_output: None,
+    };
+    let result = match source_type.trim().to_ascii_lowercase().as_str() {
+        "chart" => {
+            let docs = crate::source::load_documents_for_chart(&args)
+                .map_err(|e| format!("chart load error: {e}"))?;
+            let values = crate::convert::build_values(&args, &docs)
+                .map_err(|e| format!("convert error: {e}"))?;
+            let out = crate::output::values_yaml(&values)
+                .map_err(|e| format!("values encode error: {e}"))?;
+            Ok((out, format!("Imported {} rendered document(s) from chart.", docs.len()), docs.len()))
+        }
+        "manifests" => {
+            let docs = crate::source::load_documents_for_manifests(&args.path)
+                .map_err(|e| format!("manifest load error: {e}"))?;
+            let values = crate::convert::build_values(&args, &docs)
+                .map_err(|e| format!("convert error: {e}"))?;
+            let out = crate::output::values_yaml(&values)
+                .map_err(|e| format!("values encode error: {e}"))?;
+            Ok((out, format!("Imported {} document(s) from manifests.", docs.len()), docs.len()))
+        }
+        "compose" => {
+            let rep = crate::composeinspect::load(&args.path)
+                .map_err(|e| format!("compose inspect error: {e}"))?;
+            let values = crate::composeimport::build_values(&args, &rep);
+            let out = crate::output::values_yaml(&values)
+                .map_err(|e| format!("values encode error: {e}"))?;
+            let count = rep.services.len();
+            Ok((out, format!("Imported {} compose service(s).", count), count))
+        }
+        other => Err(format!(
+            "unsupported sourceType '{}' (expected chart|manifests|compose)",
+            other
+        )),
+    };
+    if let Some(tmp) = inline_chart_values_temp {
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+    result
+}
+
+fn save_chart_payload(
+    source_type: &str,
+    source_path: &str,
+    out_chart_dir: &str,
+    chart_name: Option<&str>,
+    library_chart_path: Option<&str>,
+    values_yaml: &str,
+) -> Result<String, String> {
+    if out_chart_dir.trim().is_empty() {
+        return Err("outChartDir is required".to_string());
+    }
+    if values_yaml.trim().is_empty() {
+        return Err("valuesYaml is empty, run import first".to_string());
+    }
+    let values: serde_yaml::Value =
+        serde_yaml::from_str(values_yaml).map_err(|e| format!("values yaml parse error: {e}"))?;
+    crate::output::generate_consumer_chart(out_chart_dir, chart_name, &values, library_chart_path)
+        .map_err(|e| format!("save chart error: {e}"))?;
+    let mut copied_crds = false;
+    if source_type.trim().eq_ignore_ascii_case("chart") && !source_path.trim().is_empty() {
+        copied_crds = crate::output::copy_chart_crds_if_any(source_path, out_chart_dir)
+            .map_err(|e| format!("copy crds error: {e}"))?;
+    }
+    if copied_crds {
+        Ok(format!("Chart saved: {} (CRDs copied)", out_chart_dir))
+    } else {
+        Ok(format!("Chart saved: {}", out_chart_dir))
+    }
 }
 
 fn convert_payload(mode: &str, input: &str, doc_mode: &str, doc_index: Option<usize>) -> Result<String, String> {
@@ -462,8 +1035,13 @@ pub fn render_compose_page_html(source_compose_yaml: &str, compose_report_yaml: 
 
 pub fn render_tools_page_html() -> String {
     let model = serde_json::json!({
-        "title": "happ web tools",
+        "title": "happ web",
         "utilities": [
+            {
+                "id": "main-import",
+                "title": "Main Import",
+                "description": "Import chart/manifests/compose into helm-apps values.yaml."
+            },
             {
                 "id": "converter",
                 "title": "YAML/JSON Converter",
@@ -486,7 +1064,7 @@ pub fn render_tools_page_html() -> String {
             }
         ]
     });
-    render_vue_page_html("happ web tools", &model.to_string())
+    render_vue_page_html("happ web", &model.to_string())
 }
 
 fn json_html_escape(s: &str) -> String {
@@ -504,70 +1082,423 @@ fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
 <meta charset='utf-8'/>
 <title>{}</title>
 <style>
-:root {{ color-scheme: light dark; }}
-body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin:0; padding:16px; background:linear-gradient(180deg,#f3f6fb 0%,#eef2f7 100%); color:#0f172a; }}
-#app {{ max-width: 1600px; margin: 0 auto; }}
-.top {{ display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }}
-.title {{ margin:0; flex:1; min-width:280px; font-size:44px; letter-spacing:-0.02em; font-weight:700; }}
-.toolbar {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
-button {{ border:0; background:#0f172a; color:#fff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }}
-button.secondary {{ background:#3a4a61; }}
-button.tab {{ background:#3a4a61; }}
-button.tab.active {{ background:#0f172a; box-shadow:inset 0 0 0 1px #64748b; }}
-input[type='text'] {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; }}
-select {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; background:#fff; color:#0f172a; }}
-textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:14px; line-height:1.45; box-sizing:border-box; background:#fff; }}
-textarea {{ resize:vertical; max-height:720px; }}
-.code-output {{
-  border:1px solid #cbd5e1;
+:root {{
+  --bg:#121417;
+  --surface:#1a1d22;
+  --surface-2:#20242a;
+  --surface-3:#171b20;
+  --text:#e7e9ee;
+  --muted:#9aa1ad;
+  --accent:#7aa2ff;
+  --accent-2:#6ed1bb;
+  --border:#2c323c;
+  --danger:#ff8f8f;
+  --ok:#7ad8ab;
+}}
+* {{ box-sizing:border-box; }}
+body {{
+  margin:0;
+  padding:16px;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background:
+    radial-gradient(1200px 500px at 8% -20%, #20252d 0%, transparent 60%),
+    linear-gradient(180deg, #16191e 0%, var(--bg) 100%);
+  color:var(--text);
+}}
+#app {{ max-width: 1380px; margin: 0 auto; }}
+.workspace {{ display:flex; flex-direction:column; gap:12px; }}
+.top {{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:16px;
+  padding:8px 4px 0 4px;
+}}
+.brand {{ display:flex; flex-direction:column; gap:2px; }}
+.title {{ margin:0; font-size:42px; line-height:1.04; letter-spacing:-0.03em; font-weight:800; color:#f3f4f7; }}
+.subtitle {{ margin:0; color:var(--muted); font-size:14px; }}
+.top-actions {{ display:flex; align-items:center; gap:10px; }}
+button {{
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:#e2e5eb;
+  padding:8px 13px;
+  border-radius:10px;
+  cursor:pointer;
+  font-weight:600;
+  transition: background-color .16s ease, border-color .16s ease, box-shadow .16s ease, transform .12s ease, color .16s ease;
+  will-change: transform;
+}}
+button.primary {{
+  background:linear-gradient(180deg,#5f84e4 0%, #466dcf 100%);
+  border-color:#6f90e8;
+  color:#f7faff;
+}}
+button.primary:hover {{
+  background:linear-gradient(180deg,#6a8de8 0%, #5077d8 100%);
+  border-color:#83a1f0;
+  box-shadow:0 6px 18px rgba(80,119,216,.28);
+  transform: translateY(-1px);
+}}
+button:hover {{ border-color:#4f5c70; background:#2a313b; transform: translateY(-1px); }}
+button:active {{ transform: translateY(0); }}
+button:focus-visible {{
+  outline:none;
+  border-color:#89a7ea;
+  box-shadow:0 0 0 2px rgba(126,156,233,.35);
+}}
+button.secondary {{ background:#22272f; }}
+button.tab {{ background:#20242b; border-color:#353c48; color:#cdd3dd; }}
+button.tab.active {{ background:#2a313b; border-color:#5b6880; color:#f4f5f8; }}
+.tabs-row {{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  gap:10px;
+  padding:10px;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:14px;
+  box-shadow:0 10px 26px rgba(0, 0, 0, 0.35);
+}}
+.tabs {{ display:flex; flex-wrap:wrap; gap:8px; }}
+.view-controls {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }}
+input[type='text'], select {{
+  border:1px solid var(--border);
+  border-radius:10px;
+  padding:8px 10px;
+  min-width:210px;
+  background:var(--surface);
+  color:var(--text);
+  transition: border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
+}}
+input[type='text']:hover, select:hover, textarea:hover {{
+  border-color:#455368;
+}}
+input[type='text']:focus, select:focus, textarea:focus {{
+  outline:none;
+  border-color:#7f9de2;
+  box-shadow:0 0 0 2px rgba(126,156,233,.24);
+}}
+input[type='range'] {{ accent-color: var(--accent); }}
+textarea {{
+  border:1px solid var(--border);
   border-radius:12px;
   padding:10px;
   min-height:240px;
-  max-height:720px;
+  width:100%;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size:14px;
+  line-height:1.45;
+  background:#101317;
+  color:#e7e9ee;
+  resize:vertical;
+  max-height:760px;
+}}
+.code-output {{
+  border:1px solid var(--border);
+  border-radius:12px;
+  padding:10px;
+  min-height:240px;
+  max-height:760px;
   overflow:auto;
   white-space:pre-wrap;
   word-break:break-word;
   font-family: ui-monospace, Menlo, monospace;
   font-size:14px;
   line-height:1.45;
-  box-sizing:border-box;
-  background:#fff;
+  background:#101317;
+  color:#e7e9ee;
   margin:0;
 }}
-.tok-key {{ color:#1d4ed8; font-weight:700; }}
-.tok-str {{ color:#0f766e; }}
-.tok-num {{ color:#b45309; }}
-.tok-bool {{ color:#7c3aed; font-weight:700; }}
-.tok-null {{ color:#be123c; font-weight:700; }}
-.tok-op {{ color:#64748b; }}
-.tok-diff-add {{ color:#166534; font-weight:700; }}
-.tok-diff-rem {{ color:#991b1b; font-weight:700; }}
-.tok-diff-chg {{ color:#92400e; font-weight:700; }}
-label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
-.tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px 0; }}
-.util-head {{ margin:0 0 12px 0; }}
-.workspace {{ display:flex; flex-direction:column; gap:12px; }}
+label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; color:var(--muted); }}
+.util-head {{ margin:0; padding:2px 4px 0 4px; }}
+.muted {{ color:var(--muted); font-size:14px; }}
 .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:12px; }}
-.card {{ border:1px solid #d0dae8; border-radius:14px; padding:12px; background:#ffffffd9; box-shadow:0 8px 30px rgba(15,23,42,0.06); }}
+.card {{
+  border:1px solid var(--border);
+  border-radius:16px;
+  padding:12px;
+  background:linear-gradient(180deg,var(--surface) 0%,var(--surface-2) 100%);
+  box-shadow:0 14px 30px rgba(0, 0, 0, 0.32);
+}}
 .cardhead {{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }}
-.cardhead h3 {{ margin:0; font-size:16px; }}
+.cardhead h3 {{ margin:0; font-size:28px; letter-spacing:-0.02em; color:#f1f2f5; }}
 .cardbtns {{ display:flex; gap:6px; }}
-pre {{ background:#081126; color:#d8e6ff; padding:12px; border-radius:12px; overflow:auto; min-height:280px; margin:0; white-space:pre; font-size:13px; line-height:1.45; }}
+pre {{ background:#101317; color:#dce0e8; padding:12px; border-radius:12px; overflow:auto; min-height:280px; margin:0; white-space:pre; font-size:13px; line-height:1.45; }}
 pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
-.muted {{ color:#475569; font-size:14px; }}
 .conv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; }}
 .converter-controls {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }}
 .converter-controls .muted {{ margin-left:auto; }}
-.result-meta {{ margin-top:8px; font-size:12px; color:#64748b; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }}
-.panel-label {{ margin-bottom:6px; font-size:13px; color:#334155; font-weight:600; }}
+.form-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-bottom:10px; }}
+.form-field {{ display:flex; flex-direction:column; gap:6px; }}
+.form-field > label {{ font-size:12px; color:var(--muted); font-weight:600; }}
+.import-shell {{ display:flex; flex-direction:column; gap:12px; }}
+.import-layout {{ display:grid; grid-template-columns:minmax(560px, 1.25fr) minmax(360px, 0.9fr); gap:12px; align-items:start; }}
+.import-config {{ display:flex; flex-direction:column; gap:12px; }}
+.import-output {{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--surface-3);
+  padding:10px;
+  position:sticky;
+  top:12px;
+}}
+.import-output .code-output {{ min-height:520px; max-height:72vh; }}
+.import-section {{
+  border:1px solid var(--border);
+  border-radius:12px;
+  background:var(--surface-3);
+  padding:10px;
+}}
+.import-section h4 {{
+  margin:0 0 10px 0;
+  font-size:14px;
+  color:var(--text);
+  letter-spacing:0.01em;
+}}
+.import-fields {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }}
+.path-field {{ grid-column: 1 / -1; }}
+.path-row {{ display:flex; gap:8px; align-items:center; }}
+.path-row input[type='text'] {{ flex:1; min-width:260px; }}
+.path-meta {{ font-size:12px; color:var(--muted); }}
+.import-toolbar {{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  margin-bottom:10px;
+}}
+.import-toolbar .left,
+.import-toolbar .right {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
+.import-status {{
+  border:1px solid var(--border);
+  border-radius:8px;
+  background:rgba(255,255,255,0.02);
+  padding:6px 8px;
+  font-size:12px;
+  color:var(--muted);
+}}
+.editor-shell {{
+  border:1px solid var(--border);
+  border-radius:12px;
+  overflow:hidden;
+  background:#0f1318;
+}}
+.yaml-editor {{
+  position:relative;
+  min-height:320px;
+}}
+.yaml-editor-highlight {{
+  position:absolute;
+  inset:0;
+  margin:0;
+  border:0;
+  border-radius:0;
+  background:#101317;
+  color:#e7e9ee;
+  padding:10px;
+  overflow:auto;
+  min-height:320px;
+  max-height:760px;
+  white-space:pre;
+  word-break:normal;
+  pointer-events:none;
+  z-index:1;
+}}
+.yaml-editor-input {{
+  position:relative;
+  z-index:2;
+  background:transparent;
+  color:transparent;
+  caret-color:#f4f5f8;
+  min-height:320px;
+  max-height:760px;
+  white-space:pre;
+  word-break:normal;
+}}
+.editor-host {{
+  min-height:260px;
+  height:45vh;
+}}
+.editor-host.generated {{
+  min-height:420px;
+  height:65vh;
+}}
+.fallback-fold {{
+  padding:10px;
+  max-height:72vh;
+  overflow:auto;
+  font-family:ui-monospace, Menlo, monospace;
+  font-size:14px;
+  line-height:1.45;
+  background:#101317;
+  color:#e7e9ee;
+}}
+.fallback-fold details {{
+  border:0;
+  border-radius:0;
+  background:transparent;
+  margin:0;
+  padding:0;
+}}
+.fallback-fold summary {{
+  cursor:pointer;
+  padding:0;
+  margin:0;
+  color:#d7deea;
+  font-size:14px;
+  user-select:none;
+  white-space:pre;
+  font-family:ui-monospace, Menlo, monospace;
+  line-height:1.45;
+}}
+.fallback-fold summary:hover {{
+  color:#ecf1fb;
+}}
+.fallback-fold summary::marker {{
+  color:#7f9de2;
+}}
+.fallback-fold pre {{
+  margin:0;
+  border:0;
+  border-radius:0;
+  padding:0;
+  background:transparent;
+  min-height:0;
+  max-height:none;
+  overflow:visible;
+  white-space:pre;
+  word-break:normal;
+}}
+.yaml-fold-view {{
+  min-height:520px;
+  max-height:72vh;
+  overflow:auto;
+  white-space:pre;
+}}
+.yamlline {{
+  display:block;
+  padding:0 4px;
+  border-radius:4px;
+}}
+.yamlline.hidden {{
+  display:none;
+}}
+.foldmark {{
+  display:inline-block;
+  width:14px;
+  color:#94a3b8;
+  cursor:pointer;
+  user-select:none;
+}}
+.foldmark.sp {{
+  cursor:default;
+}}
+.fs-modal-backdrop {{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 40;
+}}
+.fs-modal {{
+  width: min(1180px, 95vw);
+  max-height: 82vh;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: 0 16px 40px rgba(0,0,0,0.45);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}}
+.fs-head {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
+.fs-head input[type='text'] {{ flex:1; min-width:260px; }}
+.fs-list {{
+  border:1px solid var(--border);
+  border-radius:10px;
+  overflow:auto;
+  background:var(--surface-3);
+  max-height:56vh;
+}}
+.fs-subpath {{
+  font-size:11px;
+  color:var(--muted);
+  margin-top:2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:58vw;
+}}
+.fs-badge {{
+  display:inline-block;
+  padding:2px 8px;
+  border:1px solid var(--border);
+  border-radius:999px;
+  font-size:11px;
+  color:var(--muted);
+}}
+.fs-table {{
+  width:100%;
+  border-collapse:separate;
+  border-spacing:0;
+  font-size:13px;
+}}
+.fs-table th {{
+  position:sticky;
+  top:0;
+  z-index:1;
+  text-align:left;
+  background:#1d2128;
+  color:#c9d2e0;
+  border-bottom:1px solid var(--border);
+  padding:8px 10px;
+}}
+.fs-table td {{
+  border-bottom:1px solid #252c36;
+  padding:8px 10px;
+  vertical-align:top;
+}}
+.fs-row:hover {{
+  background:#202630;
+}}
+.fs-row.clickable {{
+  cursor:pointer;
+}}
+.fs-row.hidden-file td:first-child::after {{
+  content:' hidden';
+  color:#8f98a7;
+  font-size:11px;
+  margin-left:6px;
+}}
+.fs-actions {{
+  display:flex;
+  gap:6px;
+  justify-content:flex-end;
+}}
+.fs-toolbar {{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+}}
+.fs-toolbar input[type='text'] {{
+  min-width:220px;
+}}
+.result-meta {{ margin-top:8px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }}
+.panel-label {{ margin-bottom:6px; font-size:13px; color:#c0c7d3; font-weight:600; }}
 .jq-query-editor {{ position:relative; }}
 .jq-query-highlight {{
   position:absolute; inset:0;
   margin:0;
-  border:1px solid #cbd5e1;
+  border:1px solid var(--border);
   border-radius:12px;
-  background:#f8fafc;
-  color:#1e293b;
+  background:#101317;
+  color:#dce0e8;
   padding:10px;
   overflow:auto;
   min-height:72px;
@@ -582,20 +1513,20 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   z-index:2;
   background:transparent;
   color:transparent;
-  caret-color:#0f172a;
+  caret-color:#f4f5f8;
   min-height:72px;
 }}
-.jq-token-keyword {{ color:#7c3aed; font-weight:700; }}
-.jq-token-func {{ color:#0c4a6e; font-weight:700; }}
-.jq-token-string {{ color:#0f766e; }}
-.jq-token-number {{ color:#b45309; }}
-.jq-token-op {{ color:#be123c; font-weight:700; }}
-.jq-token-field {{ color:#1d4ed8; }}
+.jq-token-keyword {{ color:#b69cff; font-weight:700; }}
+.jq-token-func {{ color:#9ab6ff; font-weight:700; }}
+.jq-token-string {{ color:#87d4c3; }}
+.jq-token-number {{ color:#e7c47a; }}
+.jq-token-op {{ color:#ef9db0; font-weight:700; }}
+.jq-token-field {{ color:#9db2e6; }}
 .jq-suggest {{
   margin-top:6px;
-  border:1px solid #cbd5e1;
+  border:1px solid var(--border);
   border-radius:10px;
-  background:#ffffff;
+  background:#1d2127;
   overflow:hidden;
 }}
 .jq-suggest-row {{
@@ -607,71 +1538,48 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   cursor:pointer;
 }}
 .jq-suggest-row:hover,
-.jq-suggest-row.active {{ background:#eff6ff; }}
-.jq-suggest-label {{ font-weight:700; color:#0f172a; }}
-.jq-suggest-desc {{ color:#475569; font-size:12px; margin-top:2px; }}
+.jq-suggest-row.active {{ background:#2a3039; }}
+.jq-suggest-label {{ font-weight:700; color:#eef0f4; }}
+.jq-suggest-desc {{ color:#a7adb9; font-size:12px; margin-top:2px; }}
 .jq-suggest-hint {{
   margin-top:6px;
-  border:1px dashed #cbd5e1;
+  border:1px dashed var(--border);
   border-radius:10px;
   padding:8px 10px;
-  background:#f8fafc;
+  background:#1d2128;
   font-size:12px;
-  color:#334155;
+  color:#b9c0cc;
 }}
 .chip-row {{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px 0; }}
 .chip {{
-  border:1px solid #cbd5e1;
-  background:#eef2ff;
-  color:#1e293b;
+  border:1px solid #3b4350;
+  background:#242a33;
+  color:#d9dde6;
   border-radius:999px;
   padding:4px 10px;
   font-size:12px;
   cursor:pointer;
 }}
-.chip:hover {{ background:#e0e7ff; }}
-.err {{ color:#991b1b; font-weight:600; }}
-@media (prefers-color-scheme: dark) {{
- body {{ background:linear-gradient(180deg,#0b1220 0%,#0a0f1c 100%); color:#dbe7ff; }}
- .card {{ border-color:#243247; background:#0f172ab3; }}
- input[type='text'] {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
- select {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
- textarea {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
- .code-output {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
- .jq-query-highlight {{ border-color:#334155; background:#0b1220; color:#dbe7ff; }}
- .jq-query-input {{ caret-color:#dbe7ff; }}
- .jq-token-keyword {{ color:#c4b5fd; }}
- .jq-token-func {{ color:#93c5fd; }}
- .jq-token-string {{ color:#5eead4; }}
- .jq-token-number {{ color:#fcd34d; }}
- .jq-token-op {{ color:#fda4af; }}
- .jq-token-field {{ color:#93c5fd; }}
- .tok-key {{ color:#93c5fd; }}
- .tok-str {{ color:#5eead4; }}
- .tok-num {{ color:#fcd34d; }}
- .tok-bool {{ color:#c4b5fd; }}
- .tok-null {{ color:#fda4af; }}
- .tok-op {{ color:#93a6c7; }}
- .tok-diff-add {{ color:#86efac; }}
- .tok-diff-rem {{ color:#fca5a5; }}
- .tok-diff-chg {{ color:#fde68a; }}
- .jq-suggest {{ border-color:#334155; background:#0f172a; }}
- .jq-suggest-row:hover,
- .jq-suggest-row.active {{ background:#1e293b; }}
- .jq-suggest-label {{ color:#dbe7ff; }}
- .jq-suggest-desc {{ color:#9fb0ca; }}
- .jq-suggest-hint {{ border-color:#334155; background:#0b1220; color:#c7d6ef; }}
- .result-meta {{ color:#93a6c7; }}
- .panel-label {{ color:#c7d6ef; }}
- .chip {{ border-color:#334155; background:#1e293b; color:#dbe7ff; }}
- .chip:hover {{ background:#334155; }}
- .muted {{ color:#9fb0ca; }}
- .err {{ color:#fca5a5; }}
-}}
+.chip:hover {{ background:#2d343f; border-color:#556072; }}
+.tok-key {{ color:#9fb4e2; font-weight:700; }}
+.tok-str {{ color:#8cd3c2; }}
+.tok-num {{ color:#e6c786; }}
+.tok-bool {{ color:#c2a9ff; font-weight:700; }}
+.tok-null {{ color:#e6a7b6; font-weight:700; }}
+.tok-op {{ color:#a1acbf; }}
+.tok-diff-add {{ color:var(--ok); font-weight:700; }}
+.tok-diff-rem {{ color:#ff8e8e; font-weight:700; }}
+.tok-diff-chg {{ color:#ffd37b; font-weight:700; }}
+.err {{ color:var(--danger); font-weight:600; }}
 @media (max-width: 960px) {{
+  body {{ padding:12px; }}
   .title {{ font-size:34px; }}
-  .toolbar {{ width:100%; justify-content:flex-start; }}
+  .top {{ align-items:flex-start; flex-direction:column; }}
+  .tabs-row {{ align-items:flex-start; }}
+  .view-controls {{ width:100%; justify-content:flex-start; }}
   .conv-grid {{ grid-template-columns:1fr; }}
+  .import-layout {{ grid-template-columns:1fr; }}
+  .import-output {{ position:static; top:auto; }}
 }}
 </style>
 <script src='/assets/vue.global.prod.js'></script>
@@ -681,30 +1589,37 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 <div id='app'>
   <div class='workspace'>
   <div class='top'>
-    <h2 class='title'>{{{{ model.title }}}}</h2>
-    <div class='toolbar'>
-      <input v-if='activeHasPanes' type='text' v-model='query' placeholder='Search'/>
+    <div class='brand'>
+      <h2 class='title'>{{{{ model.title }}}}</h2>
+      <div class='subtitle'>Fast local toolset for YAML/JSON, jq/yq and dyff.</div>
+    </div>
+    <div class='top-actions'>
+      <button @click='exitUi'>Exit</button>
+    </div>
+  </div>
+  <div class='tabs-row'>
+    <div class='tabs'>
+      <button class='tab'
+              :class='{{ active: activeUtilityKey === u.id }}'
+              v-for='u in utilities'
+              :key='u.id'
+              @click='selectUtility(u.id)'>{{{{ u.title }}}}</button>
+    </div>
+    <div class='view-controls'>
+      <input v-if='activeHasPanes' type='text' v-model='query' placeholder='Search pane content'/>
       <label class='chk'><input type='checkbox' v-model='wrapLines'/> Wrap lines</label>
       <label class='chk'>Font
         <input type='range' min='11' max='18' step='1' v-model.number='fontSize'/>
       </label>
       <button v-if='activeHasPanes' class='secondary' @click='expandAll'>Expand all</button>
       <button v-if='activeHasPanes' class='secondary' @click='collapseAll'>Collapse all</button>
-      <button @click='exitUi'>Exit</button>
     </div>
-  </div>
-  <div class='tabs'>
-    <button class='tab'
-            :class='{{ active: activeUtilityKey === u.id }}'
-            v-for='u in utilities'
-            :key='u.id'
-            @click='selectUtility(u.id)'>{{{{ u.title }}}}</button>
   </div>
   <div class='util-head'>
     <div><strong>{{{{ currentUtility.title }}}}</strong></div>
     <div class='muted'>{{{{ currentUtility.description || "" }}}}</div>
   </div>
-  <div class='muted' style='margin:0 0 10px 0;'>Settings are persisted in localStorage.</div>
+  <div class='muted' style='margin:0 0 8px 0;'>Settings are persisted in localStorage.</div>
 
   <div v-if='activeHasPanes' class='grid'>
     <div class='card' v-for='(pane, idx) in filteredPanes' :key='pane.title'>
@@ -717,6 +1632,228 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
         </div>
       </div>
       <pre v-if='!isCollapsed(idx)' :class='{{ wrap: wrapLines }}' :style='{{ fontSize: fontSize + "px" }}'>{{{{ pane.content }}}}</pre>
+    </div>
+  </div>
+
+  <div v-else-if='activeUtilityKey === "main-import"' class='card'>
+    <div class='cardhead'>
+      <h3>Main Import</h3>
+    </div>
+    <div class='import-toolbar'>
+      <div class='left'>
+        <button class='primary' @click='runMainImport'>Run import</button>
+        <button class='secondary' @click='openMainImportConfig'>Import configuration</button>
+        <button class='secondary' @click='clearMainImport'>Clear output</button>
+      </div>
+      <div class='right'>
+        <span class='import-status'>source: {{{{ mainImportSourceType }}}}</span>
+        <span class='import-status'>path: {{{{ mainImportPath || "-" }}}}</span>
+        <span class='import-status'>{{{{ mainImportMessage || "Ready" }}}}</span>
+        <span class='import-status'>docs/services: {{{{ mainImportSourceCount }}}}</span>
+      </div>
+    </div>
+    <div class='import-layout'>
+      <div class='import-section'>
+        <h4>Source chart values.yaml</h4>
+        <div v-if='mainImportSourceType !== "chart"' class='muted'>Source type is {{{{ mainImportSourceType }}}}. Source values editor is available only for chart mode.</div>
+        <div v-else>
+          <div class='import-toolbar' style='margin-bottom:6px;'>
+            <div class='left'>
+              <button class='secondary' @click='loadChartValuesFromPath'>Load values.yaml</button>
+              <button class='secondary' @click='resetChartValuesEditor'>Reset</button>
+            </div>
+            <div class='right'>
+              <label class='chk'><input type='checkbox' v-model='mainImportUseChartValuesEditor'/> use edited chart values</label>
+            </div>
+          </div>
+          <div class='editor-shell'>
+            <div class='yaml-editor'>
+              <pre class='yaml-editor-highlight' aria-hidden='true' v-html='mainImportSourceHighlighted'></pre>
+              <textarea
+                class='yaml-editor-input'
+                v-model='mainImportChartValuesEditor'
+                ref='mainImportSourceInput'
+                spellcheck='false'
+                @scroll='syncMainImportSourceScroll'
+                @input='syncMainImportSourceScroll'
+                style='min-height:320px;'
+              ></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class='import-output'>
+        <div class='import-toolbar' style='margin-bottom:6px;'>
+          <div class='left'>
+            <div class='panel-label' style='margin:0;'>Generated values.yaml</div>
+          </div>
+          <div class='right'>
+            <button class='secondary' @click='runMainImport'>Render + Analyze</button>
+            <button class='secondary' @click='copyMainImportOutput' :disabled='!mainImportOutput'>Copy values</button>
+            <button class='secondary' @click='openMainImportSaveChart' :disabled='!mainImportOutput'>Save as chart</button>
+            <button class='secondary' @click='foldMainImportLevel(1)'>Fold L1</button>
+            <button class='secondary' @click='foldMainImportLevel(2)'>Fold L2</button>
+            <button class='secondary' @click='foldMainImportLevel(3)'>Fold L3</button>
+            <button class='secondary' @click='collapseAllMainImportSections'>Collapse all</button>
+            <button class='secondary' @click='expandAllMainImportSections'>Expand all</button>
+          </div>
+        </div>
+        <div class='editor-shell'>
+          <div class='fallback-fold' @click='onMainImportFoldClick'>
+            <pre class='code-output yaml-fold-view' v-html='mainImportPreviewHtml'></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class='err' v-if='mainImportError' style='margin-top:8px;'>{{{{ mainImportError }}}}</div>
+    <div class='muted' v-if='mainImportSaveChartMessage' style='margin-top:8px;'>{{{{ mainImportSaveChartMessage }}}}</div>
+  </div>
+
+  <div v-if='mainImportConfigOpen' class='fs-modal-backdrop'>
+    <div class='fs-modal' style='width:min(1280px, 96vw);'>
+      <div class='fs-head'>
+        <strong>Import configuration</strong>
+        <button class='secondary' @click='loadSampleMainImport'>Sample config</button>
+        <button class='secondary' @click='closeMainImportConfig'>Close</button>
+      </div>
+      <div class='import-config'>
+        <div class='import-section'>
+          <h4>Source</h4>
+          <div class='import-fields'>
+            <div class='form-field'>
+              <label>Source type</label>
+              <select v-model='mainImportSourceType'>
+                <option value='chart'>chart</option>
+                <option value='manifests'>manifests</option>
+                <option value='compose'>compose</option>
+              </select>
+            </div>
+            <div class='form-field path-field'>
+              <label>Path on server</label>
+              <div class='path-row'>
+                <input type='text' v-model='mainImportPath' placeholder='Path to chart dir / manifests dir / compose file'/>
+                <button class='secondary' @click='openMainImportPicker'>Choose…</button>
+                <button class='secondary' @click='clearMainImportSelection'>Clear</button>
+              </div>
+              <div class='path-meta'>{{{{ mainImportPickedFilesLabel || "No selected server path" }}}}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class='import-section'>
+          <h4>Render Options</h4>
+          <div class='import-fields'>
+            <div class='form-field'>
+              <label>Environment</label>
+              <input type='text' v-model='mainImportEnv' placeholder='dev'/>
+            </div>
+            <div class='form-field'>
+              <label>Release name</label>
+              <input type='text' v-model='mainImportReleaseName' placeholder='imported'/>
+            </div>
+            <div class='form-field'>
+              <label>Namespace (optional)</label>
+              <input type='text' v-model='mainImportNamespace' placeholder='default'/>
+            </div>
+            <div class='form-field'>
+              <label>Kubernetes version (optional)</label>
+              <input type='text' v-model='mainImportKubeVersion' placeholder='1.29.0'/>
+            </div>
+            <div class='form-field'>
+              <label>Include status</label>
+              <label class='chk'><input type='checkbox' v-model='mainImportIncludeStatus'/> enabled</label>
+            </div>
+            <div class='form-field'>
+              <label>Include CRDs</label>
+              <label class='chk'><input type='checkbox' v-model='mainImportIncludeCrds'/> enabled</label>
+            </div>
+          </div>
+        </div>
+
+        <div class='import-section'>
+          <h4>Mapping</h4>
+          <div class='import-fields'>
+            <div class='form-field'>
+              <label>Group name</label>
+              <input type='text' v-model='mainImportGroupName' placeholder='apps-k8s-manifests'/>
+            </div>
+            <div class='form-field'>
+              <label>Group type</label>
+              <input type='text' v-model='mainImportGroupType' placeholder='apps-k8s-manifests'/>
+            </div>
+            <div class='form-field'>
+              <label>Import strategy</label>
+              <select v-model='mainImportImportStrategy'>
+                <option value='helpers'>helpers (default)</option>
+                <option value='raw'>raw</option>
+              </select>
+            </div>
+            <div class='form-field'>
+              <label>Min include bytes</label>
+              <input type='number' min='0' step='1' v-model.number='mainImportMinIncludeBytes'/>
+            </div>
+          </div>
+        </div>
+
+        <div class='import-section'>
+          <h4>Helm Flags</h4>
+          <div class='conv-grid'>
+            <div>
+              <div class='panel-label'>values files (--values), one per line</div>
+              <textarea v-model='mainImportValuesFilesText' spellcheck='false' style='min-height:120px;'></textarea>
+            </div>
+            <div>
+              <div class='panel-label'>set flags (--set), one per line</div>
+              <textarea v-model='mainImportSetText' spellcheck='false' style='min-height:120px;'></textarea>
+            </div>
+            <div>
+              <div class='panel-label'>set-string / set-file / set-json, one per line</div>
+              <textarea v-model='mainImportExtraSetText' spellcheck='false' style='min-height:120px;'></textarea>
+            </div>
+            <div>
+              <div class='panel-label'>api versions (--api-version), one per line</div>
+              <textarea v-model='mainImportApiVersionsText' spellcheck='false' style='min-height:120px;'></textarea>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div v-if='mainImportSaveChartOpen' class='fs-modal-backdrop'>
+    <div class='fs-modal' style='width:min(860px, 96vw);'>
+      <div class='fs-head'>
+        <strong>Save chart (helm-apps library)</strong>
+        <button class='secondary' @click='closeMainImportSaveChart'>Close</button>
+      </div>
+      <div class='import-fields'>
+        <div class='form-field path-field'>
+          <label>Output chart directory (server path)</label>
+          <div class='path-row'>
+            <input type='text' v-model='mainImportOutChartDir' placeholder='/path/to/new-chart'/>
+            <button class='secondary' @click='openMainImportOutChartPicker'>Choose…</button>
+          </div>
+        </div>
+        <div class='form-field'>
+          <label>Chart name (optional)</label>
+          <input type='text' v-model='mainImportOutChartName' placeholder='my-app'/>
+        </div>
+        <div class='form-field'>
+          <label>Library chart path (optional)</label>
+          <input type='text' v-model='mainImportLibraryChartPath' placeholder='charts/helm-apps'/>
+        </div>
+      </div>
+      <div class='import-toolbar' style='margin-top:10px;'>
+        <div class='left'>
+          <button class='primary' @click='saveMainImportAsChart' :disabled='mainImportSaveChartRunning || !mainImportOutput'>
+            {{{{ mainImportSaveChartRunning ? 'Saving…' : 'Save chart' }}}}
+          </button>
+        </div>
+        <div class='right'>
+          <span class='import-status'>{{{{ mainImportSaveChartMessage || 'Ready' }}}}</span>
+        </div>
+      </div>
+      <div class='err' v-if='mainImportSaveChartError' style='margin-top:8px;'>{{{{ mainImportSaveChartError }}}}</div>
     </div>
   </div>
 
@@ -932,6 +2069,65 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='err' v-if='dyffError' style='margin-top:8px;'>{{{{ dyffError }}}}</div>
   </div>
+
+  <div v-if='fsPickerOpen' class='fs-modal-backdrop'>
+    <div class='fs-modal'>
+      <div class='fs-head'>
+        <strong>{{{{ fsPickerTarget === "chart-output" ? "Choose output chart directory on server" : "Choose source on server" }}}}</strong>
+        <span class='fs-badge'>{{{{ fsPickerTarget === "chart-output" ? "chart-output" : mainImportSourceType }}}}</span>
+        <button class='secondary' @click='closeFsPicker'>Close</button>
+      </div>
+      <div class='fs-head'>
+        <input type='text' v-model='fsPickerPath' placeholder='Server directory path'/>
+        <button class='secondary' @click='loadFsEntries(fsPickerPath)'>Open</button>
+        <button class='secondary' @click='goFsParent' :disabled='!fsPickerParent'>Up</button>
+      </div>
+      <div class='fs-toolbar'>
+        <input type='text' v-model='fsPickerQuery' placeholder='Filter by name/path'/>
+        <label class='chk'><input type='checkbox' v-model='fsPickerShowHidden'/> show hidden</label>
+        <label class='chk'><input type='checkbox' v-model='fsPickerOnlySelectable'/> only selectable</label>
+      </div>
+      <div class='muted'>Current directory: {{{{ fsPickerCurrent || '-' }}}}</div>
+      <div class='fs-list'>
+        <table class='fs-table'>
+          <thead>
+            <tr>
+              <th style='width:70px;'>Type</th>
+              <th style='width:320px;'>Name</th>
+              <th>Path</th>
+              <th style='width:160px; text-align:right;'>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for='e in fsPickerFilteredEntries'
+              :key='e.path'
+              class='fs-row clickable'
+              :class='{{ "hidden-file": isHiddenFile(e) }}'
+              @dblclick='onFsRowActivate(e)'
+            >
+              <td>{{{{ e.isDir ? "DIR" : "FILE" }}}}</td>
+              <td>
+                <div>{{{{ e.name }}}}</div>
+                <div class='fs-subpath'>{{{{ e.path }}}}</div>
+              </td>
+              <td><div class='fs-subpath'>{{{{ e.path }}}}</div></td>
+              <td>
+                <div class='fs-actions'>
+                  <button v-if='e.isDir' class='secondary' @click='loadFsEntries(e.path)'>Open</button>
+                  <button v-if='isFsEntrySelectable(e)' class='secondary' @click='selectFsPath(e.path)'>Select</button>
+                </div>
+              </td>
+            </tr>
+            <tr v-if='!fsPickerFilteredEntries.length'>
+              <td colspan='4' class='muted' style='padding:10px;'>No entries matched current filters</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class='err' v-if='fsPickerError'>{{{{ fsPickerError }}}}</div>
+    </div>
+  </div>
 </div>
   </div>
 <script>
@@ -943,7 +2139,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     window.__HAPP_MODEL__ = {{}};
   }}
 }})();
-const APP_STORE_KEY = 'happ.inspect.ui.v6';
+const APP_STORE_KEY = 'happ.inspect.ui.v7';
 const app = Vue.createApp({{
   data() {{
     const model = window.__HAPP_MODEL__ || {{ title: 'happ', utilities: [] }};
@@ -992,6 +2188,51 @@ const app = Vue.createApp({{
       dyffIgnoreWhitespace: false,
       dyffRequestSeq: 0,
       dyffTimer: null,
+      mainImportSourceType: 'chart',
+      mainImportPath: '',
+      mainImportEnv: 'dev',
+      mainImportGroupName: 'apps-k8s-manifests',
+      mainImportGroupType: 'apps-k8s-manifests',
+      mainImportImportStrategy: 'helpers',
+      mainImportReleaseName: 'imported',
+      mainImportNamespace: '',
+      mainImportMinIncludeBytes: 24,
+      mainImportIncludeStatus: false,
+      mainImportIncludeCrds: false,
+      mainImportKubeVersion: '',
+      mainImportValuesFilesText: '',
+      mainImportSetText: '',
+      mainImportExtraSetText: '',
+      mainImportApiVersionsText: '',
+      mainImportOutput: '',
+      mainImportError: '',
+      mainImportMessage: '',
+      mainImportSourceCount: 0,
+      mainImportRunning: false,
+      mainImportConfigOpen: false,
+      mainImportChartValuesEditor: '',
+      mainImportLoadedChartValues: '',
+      mainImportUseChartValuesEditor: false,
+      mainImportSectionCollapsed: {{}},
+      mainImportPickedFilesLabel: '',
+      mainImportUploadedFiles: [],
+      mainImportOutChartDir: '',
+      mainImportOutChartName: '',
+      mainImportLibraryChartPath: '',
+      mainImportSaveChartOpen: false,
+      mainImportSaveChartMessage: '',
+      mainImportSaveChartError: '',
+      mainImportSaveChartRunning: false,
+      fsPickerOpen: false,
+      fsPickerTarget: 'source-path',
+      fsPickerPath: '',
+      fsPickerCurrent: '',
+      fsPickerParent: '',
+      fsPickerEntries: [],
+      fsPickerQuery: '',
+      fsPickerShowHidden: true,
+      fsPickerOnlySelectable: false,
+      fsPickerError: '',
       yqPresets: [
         {{ label: 'identity', query: '.' }},
         {{ label: 'keys', query: 'keys' }},
@@ -1058,6 +2299,23 @@ const app = Vue.createApp({{
         (p.title || '').toLowerCase().includes(q) || (p.content || '').toLowerCase().includes(q)
       );
     }},
+    fsPickerFilteredEntries() {{
+      const q = String(this.fsPickerQuery || '').toLowerCase().trim();
+      const showHidden = !!this.fsPickerShowHidden;
+      const onlySelectable = !!this.fsPickerOnlySelectable;
+      return (this.fsPickerEntries || []).filter((e) => {{
+        const name = String(e.name || '');
+        if (!showHidden && name.startsWith('.')) {{
+          return false;
+        }}
+        if (onlySelectable && !this.isFsEntrySelectable(e)) {{
+          return false;
+        }}
+        if (!q) return true;
+        const p = String(e.path || '').toLowerCase();
+        return name.toLowerCase().includes(q) || p.includes(q);
+      }});
+    }},
     converterModeLabel() {{
       return this.converterMode === 'yaml-to-json' ? 'YAML → JSON' : 'JSON → YAML';
     }},
@@ -1075,6 +2333,19 @@ const app = Vue.createApp({{
     }},
     dyffOutputHighlighted() {{
       return this.highlightDyff(this.dyffOutput || '');
+    }},
+    mainImportSourceHighlighted() {{
+      return this.highlightStructured(this.mainImportChartValuesEditor || '');
+    }},
+    mainImportPreview() {{
+      const _collapsed = this.mainImportSectionCollapsed;
+      return this.buildMainImportYamlPreview(this.mainImportOutput || '');
+    }},
+    mainImportPreviewHtml() {{
+      return this.mainImportPreview.html || '';
+    }},
+    mainImportPreviewMeta() {{
+      return this.mainImportPreview.meta || [];
     }},
     jqSuggestions() {{
       const meta = this.currentJqTokenMeta();
@@ -1155,6 +2426,35 @@ const app = Vue.createApp({{
         this.dyffTo = s.dyffTo || '';
         this.dyffIgnoreOrder = !!s.dyffIgnoreOrder;
         this.dyffIgnoreWhitespace = !!s.dyffIgnoreWhitespace;
+        this.mainImportSourceType = s.mainImportSourceType || 'chart';
+        this.mainImportPath = s.mainImportPath || '';
+        this.mainImportEnv = s.mainImportEnv || 'dev';
+        this.mainImportGroupName = s.mainImportGroupName || 'apps-k8s-manifests';
+        this.mainImportGroupType = s.mainImportGroupType || 'apps-k8s-manifests';
+        this.mainImportImportStrategy = (s.mainImportImportStrategy || 'helpers');
+        this.mainImportReleaseName = s.mainImportReleaseName || 'imported';
+        this.mainImportNamespace = s.mainImportNamespace || '';
+        this.mainImportMinIncludeBytes = Number.isFinite(s.mainImportMinIncludeBytes) ? Number(s.mainImportMinIncludeBytes) : 24;
+        this.mainImportIncludeStatus = !!s.mainImportIncludeStatus;
+        this.mainImportIncludeCrds = !!s.mainImportIncludeCrds;
+        this.mainImportKubeVersion = s.mainImportKubeVersion || '';
+        this.mainImportValuesFilesText = s.mainImportValuesFilesText || '';
+        this.mainImportSetText = s.mainImportSetText || '';
+        this.mainImportExtraSetText = s.mainImportExtraSetText || '';
+        this.mainImportApiVersionsText = s.mainImportApiVersionsText || '';
+        this.mainImportPickedFilesLabel = s.mainImportPickedFilesLabel || '';
+        this.mainImportConfigOpen = !!s.mainImportConfigOpen;
+        this.mainImportChartValuesEditor = s.mainImportChartValuesEditor || '';
+        this.mainImportLoadedChartValues = s.mainImportLoadedChartValues || '';
+        this.mainImportUseChartValuesEditor = !!s.mainImportUseChartValuesEditor;
+        this.mainImportSectionCollapsed = s.mainImportSectionCollapsed || {{}};
+        this.mainImportOutChartDir = s.mainImportOutChartDir || '';
+        this.mainImportOutChartName = s.mainImportOutChartName || '';
+        this.mainImportLibraryChartPath = s.mainImportLibraryChartPath || '';
+        this.mainImportSaveChartOpen = !!s.mainImportSaveChartOpen;
+        this.fsPickerQuery = s.fsPickerQuery || '';
+        this.fsPickerShowHidden = s.fsPickerShowHidden !== false;
+        this.fsPickerOnlySelectable = !!s.fsPickerOnlySelectable;
       }}
     }} catch(_) {{}}
     if(!(this.utilities || []).some(u => u.id === this.activeUtilityId)) {{
@@ -1164,12 +2464,19 @@ const app = Vue.createApp({{
     this.scheduleJqRun();
     this.scheduleYqRun();
     this.scheduleDyffRun();
+    this.$nextTick(() => this.syncMainImportSourceScroll());
   }},
   watch: {{
-    wrapLines: 'saveSettings',
-    fontSize: 'saveSettings',
+    wrapLines() {{
+      this.saveSettings();
+    }},
+    fontSize() {{
+      this.saveSettings();
+    }},
     collapsedTitles: {{ handler: 'saveSettings', deep: true }},
-    activeUtilityId: 'saveSettings',
+    activeUtilityId() {{
+      this.saveSettings();
+    }},
     converterMode() {{
       this.saveSettings();
       this.scheduleConvert();
@@ -1249,7 +2556,40 @@ const app = Vue.createApp({{
     dyffIgnoreWhitespace() {{
       this.saveSettings();
       this.scheduleDyffRun();
-    }}
+    }},
+    mainImportSourceType() {{
+      this.saveSettings();
+    }},
+    mainImportPath: 'saveSettings',
+    mainImportEnv: 'saveSettings',
+    mainImportGroupName: 'saveSettings',
+    mainImportGroupType: 'saveSettings',
+    mainImportImportStrategy: 'saveSettings',
+    mainImportReleaseName: 'saveSettings',
+    mainImportNamespace: 'saveSettings',
+    mainImportMinIncludeBytes: 'saveSettings',
+    mainImportIncludeStatus: 'saveSettings',
+    mainImportIncludeCrds: 'saveSettings',
+    mainImportKubeVersion: 'saveSettings',
+    mainImportValuesFilesText: 'saveSettings',
+    mainImportSetText: 'saveSettings',
+    mainImportExtraSetText: 'saveSettings',
+    mainImportApiVersionsText: 'saveSettings',
+    mainImportConfigOpen: 'saveSettings',
+    mainImportOutput: 'saveSettings',
+    mainImportChartValuesEditor() {{
+      this.saveSettings();
+      this.$nextTick(() => this.syncMainImportSourceScroll());
+    }},
+    mainImportUseChartValuesEditor: 'saveSettings',
+    mainImportSectionCollapsed: {{ handler: 'saveSettings', deep: true }},
+    mainImportOutChartDir: 'saveSettings',
+    mainImportOutChartName: 'saveSettings',
+    mainImportLibraryChartPath: 'saveSettings',
+    mainImportSaveChartOpen: 'saveSettings',
+    fsPickerQuery: 'saveSettings',
+    fsPickerShowHidden: 'saveSettings',
+    fsPickerOnlySelectable: 'saveSettings',
   }},
   methods: {{
     saveSettings() {{
@@ -1278,7 +2618,36 @@ const app = Vue.createApp({{
           dyffFrom: this.dyffFrom,
           dyffTo: this.dyffTo,
           dyffIgnoreOrder: this.dyffIgnoreOrder,
-          dyffIgnoreWhitespace: this.dyffIgnoreWhitespace
+          dyffIgnoreWhitespace: this.dyffIgnoreWhitespace,
+          mainImportSourceType: this.mainImportSourceType,
+          mainImportPath: this.mainImportPath,
+          mainImportEnv: this.mainImportEnv,
+          mainImportGroupName: this.mainImportGroupName,
+          mainImportGroupType: this.mainImportGroupType,
+          mainImportImportStrategy: this.mainImportImportStrategy,
+          mainImportReleaseName: this.mainImportReleaseName,
+          mainImportNamespace: this.mainImportNamespace,
+          mainImportMinIncludeBytes: this.mainImportMinIncludeBytes,
+          mainImportIncludeStatus: this.mainImportIncludeStatus,
+          mainImportIncludeCrds: this.mainImportIncludeCrds,
+          mainImportKubeVersion: this.mainImportKubeVersion,
+          mainImportValuesFilesText: this.mainImportValuesFilesText,
+          mainImportSetText: this.mainImportSetText,
+          mainImportExtraSetText: this.mainImportExtraSetText,
+          mainImportApiVersionsText: this.mainImportApiVersionsText,
+          mainImportConfigOpen: this.mainImportConfigOpen,
+          mainImportPickedFilesLabel: this.mainImportPickedFilesLabel,
+          mainImportChartValuesEditor: this.mainImportChartValuesEditor,
+          mainImportLoadedChartValues: this.mainImportLoadedChartValues,
+          mainImportUseChartValuesEditor: this.mainImportUseChartValuesEditor,
+          mainImportSectionCollapsed: this.mainImportSectionCollapsed,
+          mainImportOutChartDir: this.mainImportOutChartDir,
+          mainImportOutChartName: this.mainImportOutChartName,
+          mainImportLibraryChartPath: this.mainImportLibraryChartPath,
+          mainImportSaveChartOpen: this.mainImportSaveChartOpen,
+          fsPickerQuery: this.fsPickerQuery,
+          fsPickerShowHidden: this.fsPickerShowHidden,
+          fsPickerOnlySelectable: this.fsPickerOnlySelectable
         }}));
       }} catch(_) {{}}
     }},
@@ -1321,6 +2690,422 @@ const app = Vue.createApp({{
       a.download = safe + '.yaml';
       a.click();
       URL.revokeObjectURL(a.href);
+    }},
+    parseLines(v) {{
+      return String(v || '')
+        .split(/\r?\n/)
+        .map(s => s.trim())
+        .filter(Boolean);
+    }},
+    parseSetBlocks() {{
+      const out = {{
+        setStringValues: [],
+        setFileValues: [],
+        setJsonValues: [],
+      }};
+      for (const line of this.parseLines(this.mainImportExtraSetText)) {{
+        if (line.startsWith('set-string:')) {{
+          const v = line.slice('set-string:'.length).trim();
+          if (v) out.setStringValues.push(v);
+          continue;
+        }}
+        if (line.startsWith('set-file:')) {{
+          const v = line.slice('set-file:'.length).trim();
+          if (v) out.setFileValues.push(v);
+          continue;
+        }}
+        if (line.startsWith('set-json:')) {{
+          const v = line.slice('set-json:'.length).trim();
+          if (v) out.setJsonValues.push(v);
+          continue;
+        }}
+      }}
+      return out;
+    }},
+    countIndent(line) {{
+      const m = /^(\s*)/.exec(String(line || ''));
+      return m ? m[1].length : 0;
+    }},
+    buildMainImportYamlPreview(src) {{
+      const lines = String(src || '').split('\n');
+      const meta = lines.map((line, idx) => ({{
+        lineNo: idx + 1,
+        indent: this.countIndent(line),
+        raw: line,
+        collapsible: false,
+      }}));
+      for (let i = 0; i < lines.length; i++) {{
+        if (!lines[i].trim() || /^\s*#/.test(lines[i])) continue;
+        const curIndent = meta[i].indent;
+        for (let j = i + 1; j < lines.length; j++) {{
+          if (!lines[j].trim()) continue;
+          if (meta[j].indent > curIndent) meta[i].collapsible = true;
+          break;
+        }}
+      }}
+
+      const collapsed = new Set(
+        Object.keys(this.mainImportSectionCollapsed || {{}})
+          .filter((k) => !!this.mainImportSectionCollapsed[k])
+          .map((k) => Number(k))
+          .filter((n) => Number.isFinite(n) && n > 0)
+      );
+      const hidden = new Set();
+      for (let i = 0; i < meta.length; i++) {{
+        const m = meta[i];
+        if (!collapsed.has(m.lineNo)) continue;
+        for (let j = i + 1; j < meta.length; j++) {{
+          if (meta[j].indent <= m.indent && meta[j].raw.trim() !== '') break;
+          hidden.add(meta[j].lineNo);
+        }}
+      }}
+      const html = lines.map((line, idx) => {{
+        const m = meta[idx];
+        const cls = ['yamlline'];
+        if (hidden.has(m.lineNo)) cls.push('hidden');
+        const mark = m.collapsible
+          ? '<span class="foldmark" data-fold-line="' + String(m.lineNo) + '" title="Toggle fold">' + (collapsed.has(m.lineNo) ? '▸' : '▾') + '</span>'
+          : '<span class="foldmark sp"> </span>';
+        return '<span id="main-yaml-line-' + String(m.lineNo) + '" data-line="' + String(m.lineNo) + '" data-indent="' + String(m.indent) + '" class="' + cls.join(' ') + '" title="' + this.escapeAttr(line) + '">' + mark + this.highlightStructured(line) + '</span>';
+      }}).join('');
+      return {{ meta, html }};
+    }},
+    onMainImportFoldClick(event) {{
+      const marker = event && event.target && event.target.closest
+        ? event.target.closest('.foldmark[data-fold-line]')
+        : null;
+      if (!marker) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const lineNo = Number(marker.getAttribute('data-fold-line') || 0);
+      if (!lineNo) return;
+      const key = String(lineNo);
+      const out = {{ ...this.mainImportSectionCollapsed }};
+      if (out[key]) delete out[key];
+      else out[key] = true;
+      this.mainImportSectionCollapsed = out;
+    }},
+    setMainImportFoldLevel(level) {{
+      const threshold = Math.max(0, Number(level || 1) - 1);
+      const out = {{}};
+      for (const m of (this.mainImportPreviewMeta || [])) {{
+        if (!m.collapsible) continue;
+        if (Math.floor((Number(m.indent) || 0) / 2) >= threshold) {{
+          out[String(m.lineNo)] = true;
+        }}
+      }}
+      this.mainImportSectionCollapsed = out;
+    }},
+    openMainImportConfig() {{
+      this.mainImportConfigOpen = true;
+    }},
+    closeMainImportConfig() {{
+      this.mainImportConfigOpen = false;
+    }},
+    foldMainImportLevel(level) {{
+      this.setMainImportFoldLevel(level);
+    }},
+    expandAllMainImportSections() {{
+      this.mainImportSectionCollapsed = {{}};
+    }},
+    collapseAllMainImportSections() {{
+      const out = {{}};
+      for (const m of (this.mainImportPreviewMeta || [])) {{
+        if (m.collapsible) out[String(m.lineNo)] = true;
+      }}
+      this.mainImportSectionCollapsed = out;
+    }},
+    async loadChartValuesFromPath() {{
+      this.mainImportError = '';
+      if (this.mainImportSourceType !== 'chart') {{
+        this.mainImportError = 'values.yaml loader is available only for sourceType=chart';
+        return;
+      }}
+      if (!this.mainImportPath || !this.mainImportPath.trim()) {{
+        this.mainImportError = 'Select chart path first';
+        return;
+      }}
+      try {{
+        const res = await fetch('/api/chart-values', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{ path: this.mainImportPath }})
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('chart-values API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if (!res.ok) {{
+          throw new Error(data.message || ('chart-values API HTTP ' + res.status));
+        }}
+        if (!data.ok) {{
+          throw new Error(data.message || 'Failed to load chart values');
+        }}
+        this.mainImportLoadedChartValues = data.valuesYaml || '';
+        this.mainImportChartValuesEditor = this.mainImportLoadedChartValues;
+        this.mainImportUseChartValuesEditor = true;
+      }} catch(e) {{
+        this.mainImportError = String(e);
+      }}
+    }},
+    resetChartValuesEditor() {{
+      if (this.mainImportLoadedChartValues) {{
+        this.mainImportChartValuesEditor = this.mainImportLoadedChartValues;
+      }}
+    }},
+    async copyMainImportOutput() {{
+      if (!this.mainImportOutput) return;
+      try {{
+        await navigator.clipboard.writeText(this.mainImportOutput);
+        this.mainImportSaveChartMessage = 'Generated values copied to clipboard';
+      }} catch(e) {{
+        this.mainImportError = String(e);
+      }}
+    }},
+    openMainImportSaveChart() {{
+      this.mainImportSaveChartError = '';
+      this.mainImportSaveChartMessage = '';
+      if (!this.mainImportOutChartDir && this.mainImportPath) {{
+        this.mainImportOutChartDir = String(this.mainImportPath).replace(/\/+$/, '') + '-imported';
+      }}
+      this.mainImportSaveChartOpen = true;
+    }},
+    closeMainImportSaveChart() {{
+      this.mainImportSaveChartOpen = false;
+    }},
+    async openMainImportPicker() {{
+      this.mainImportError = '';
+      this.fsPickerError = '';
+      this.fsPickerTarget = 'source-path';
+      this.fsPickerOpen = true;
+      const initial = this.mainImportPath && this.mainImportPath.trim()
+        ? this.mainImportPath.trim()
+        : '';
+      await this.loadFsEntries(initial);
+    }},
+    async openMainImportOutChartPicker() {{
+      this.mainImportSaveChartError = '';
+      this.fsPickerError = '';
+      this.fsPickerTarget = 'chart-output';
+      this.fsPickerOpen = true;
+      const initial = this.mainImportOutChartDir && this.mainImportOutChartDir.trim()
+        ? this.mainImportOutChartDir.trim()
+        : '';
+      await this.loadFsEntries(initial);
+    }},
+    closeFsPicker() {{
+      this.fsPickerOpen = false;
+    }},
+    isHiddenFile(e) {{
+      return String((e && e.name) || '').startsWith('.');
+    }},
+    isFsEntrySelectable(e) {{
+      if (!e) return false;
+      if (this.fsPickerTarget === 'chart-output') {{
+        return !!e.isDir;
+      }}
+      if (this.mainImportSourceType === 'compose') {{
+        return !e.isDir && this.isComposeFile(e.name);
+      }}
+      return !!e.isDir;
+    }},
+    onFsRowActivate(e) {{
+      if (!e) return;
+      if (e.isDir) {{
+        this.loadFsEntries(e.path);
+        return;
+      }}
+      if (this.isFsEntrySelectable(e)) {{
+        this.selectFsPath(e.path);
+      }}
+    }},
+    async loadFsEntries(path) {{
+      this.fsPickerError = '';
+      try {{
+        const res = await fetch('/api/fs-list', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{ path: path || '' }})
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('fs-list API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.message || ('fs-list API HTTP ' + res.status));
+        }}
+        if(!data.ok) {{
+          throw new Error(data.message || 'Failed to list server directory');
+        }}
+        this.fsPickerCurrent = data.path || '';
+        this.fsPickerPath = data.path || '';
+        this.fsPickerParent = data.parent || '';
+        this.fsPickerEntries = Array.isArray(data.entries) ? data.entries : [];
+      }} catch(e) {{
+        this.fsPickerError = String(e);
+      }}
+    }},
+    goFsParent() {{
+      if(!this.fsPickerParent) return;
+      this.loadFsEntries(this.fsPickerParent);
+    }},
+    isComposeFile(name) {{
+      const s = String(name || '').toLowerCase();
+      return s.endsWith('.yml') || s.endsWith('.yaml');
+    }},
+    selectFsPath(path) {{
+      if (this.fsPickerTarget === 'chart-output') {{
+        this.mainImportOutChartDir = path || '';
+      }} else {{
+        this.mainImportPath = path || '';
+        this.mainImportUploadedFiles = [];
+        this.mainImportPickedFilesLabel = this.mainImportPath ? ('Selected: ' + this.mainImportPath) : '';
+      }}
+      this.closeFsPicker();
+      if (this.fsPickerTarget !== 'chart-output' && this.mainImportSourceType === 'chart') {{
+        this.$nextTick(() => this.loadChartValuesFromPath());
+      }}
+    }},
+    clearMainImportSelection() {{
+      this.mainImportPath = '';
+      this.mainImportPickedFilesLabel = '';
+      this.mainImportUploadedFiles = [];
+    }},
+    async runMainImport() {{
+      this.mainImportError = '';
+      this.mainImportMessage = '';
+      this.mainImportRunning = true;
+      try {{
+        const extra = this.parseSetBlocks();
+        const res = await fetch('/api/import', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            sourceType: this.mainImportSourceType,
+            path: this.mainImportPath,
+            env: this.mainImportEnv,
+            groupName: this.mainImportGroupName,
+            groupType: this.mainImportGroupType,
+            importStrategy: this.mainImportImportStrategy,
+            releaseName: this.mainImportReleaseName,
+            namespace: this.mainImportNamespace,
+            minIncludeBytes: Number(this.mainImportMinIncludeBytes || 24),
+            includeStatus: !!this.mainImportIncludeStatus,
+            includeCrds: !!this.mainImportIncludeCrds,
+            kubeVersion: this.mainImportKubeVersion,
+            valuesFiles: this.parseLines(this.mainImportValuesFilesText),
+            setValues: this.parseLines(this.mainImportSetText),
+            setStringValues: extra.setStringValues,
+            setFileValues: extra.setFileValues,
+            setJsonValues: extra.setJsonValues,
+            apiVersions: this.parseLines(this.mainImportApiVersionsText),
+            chartValuesYaml: this.mainImportUseChartValuesEditor ? (this.mainImportChartValuesEditor || '') : undefined,
+          }})
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('import API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.message || ('import API HTTP ' + res.status));
+        }}
+        if(!data.ok) {{
+          this.mainImportOutput = '';
+          this.mainImportSourceCount = Number(data.sourceCount || 0);
+          this.mainImportError = data.message || 'Import failed';
+          return;
+        }}
+        this.mainImportOutput = data.valuesYaml || '';
+        this.mainImportSourceCount = Number(data.sourceCount || 0);
+        this.mainImportMessage = data.message || 'Import completed';
+        this.mainImportConfigOpen = false;
+      }} catch(e) {{
+        this.mainImportOutput = '';
+        this.mainImportSourceCount = 0;
+        this.mainImportError = String(e);
+      }} finally {{
+        this.mainImportRunning = false;
+      }}
+    }},
+    clearMainImport() {{
+      this.mainImportOutput = '';
+      this.mainImportError = '';
+      this.mainImportMessage = '';
+      this.mainImportSourceCount = 0;
+    }},
+    async saveMainImportAsChart() {{
+      this.mainImportSaveChartError = '';
+      this.mainImportSaveChartMessage = '';
+      if (!this.mainImportOutput || !String(this.mainImportOutput).trim()) {{
+        this.mainImportSaveChartError = 'Generated values are empty, run import first';
+        return;
+      }}
+      if (!this.mainImportOutChartDir || !String(this.mainImportOutChartDir).trim()) {{
+        this.mainImportSaveChartError = 'Output chart directory is required';
+        return;
+      }}
+      this.mainImportSaveChartRunning = true;
+      try {{
+        const res = await fetch('/api/save-chart', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            sourceType: this.mainImportSourceType,
+            sourcePath: this.mainImportPath,
+            outChartDir: this.mainImportOutChartDir,
+            chartName: this.mainImportOutChartName || undefined,
+            libraryChartPath: this.mainImportLibraryChartPath || undefined,
+            valuesYaml: this.mainImportOutput,
+          }}),
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('save-chart API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.message || ('save-chart API HTTP ' + res.status));
+        }}
+        if(!data.ok) {{
+          this.mainImportSaveChartError = data.message || 'Save chart failed';
+          return;
+        }}
+        this.mainImportSaveChartMessage = data.message || 'Chart saved';
+        this.mainImportSaveChartOpen = false;
+      }} catch(e) {{
+        this.mainImportSaveChartError = String(e);
+      }} finally {{
+        this.mainImportSaveChartRunning = false;
+      }}
+    }},
+    loadSampleMainImport() {{
+      this.mainImportSourceType = 'chart';
+      this.mainImportPath = './tmp/chart-samples/nginx';
+      this.mainImportEnv = 'dev';
+      this.mainImportGroupName = 'apps-k8s-manifests';
+      this.mainImportGroupType = 'apps-k8s-manifests';
+      this.mainImportImportStrategy = 'helpers';
+      this.mainImportReleaseName = 'inspect';
+      this.mainImportNamespace = 'default';
+      this.mainImportMinIncludeBytes = 24;
+      this.mainImportIncludeStatus = false;
+      this.mainImportIncludeCrds = false;
+      this.mainImportKubeVersion = '';
+      this.mainImportValuesFilesText = '';
+      this.mainImportSetText = '';
+      this.mainImportExtraSetText = '';
+      this.mainImportApiVersionsText = '';
     }},
     async runConvert(mode) {{
       this.converterMode = mode || this.converterMode;
@@ -1521,6 +3306,13 @@ const app = Vue.createApp({{
         this.jqSuggestOpen = false;
       }}
     }},
+    syncMainImportSourceScroll() {{
+      const ta = this.$refs.mainImportSourceInput;
+      const pre = this.$el && this.$el.querySelector('.yaml-editor-highlight');
+      if(!ta || !pre) return;
+      pre.scrollTop = ta.scrollTop;
+      pre.scrollLeft = ta.scrollLeft;
+    }},
     syncJqScroll() {{
       const ta = this.$refs.jqQueryInput;
       const pre = this.$el && this.$el.querySelector('.jq-query-highlight');
@@ -1533,6 +3325,11 @@ const app = Vue.createApp({{
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
+    }},
+    escapeAttr(s) {{
+      return this.escapeHtml(s)
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
     }},
     highlightStructured(src) {{
       let out = this.escapeHtml(src);
@@ -1811,6 +3608,7 @@ fn open_in_browser(url: &str) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn page_contains_exit_button() {
@@ -1836,6 +3634,9 @@ mod tests {
         assert!(html.contains("select enabled"));
         assert!(html.contains("YAML → JSON"));
         assert!(html.contains("localStorage"));
+        assert!(html.contains("Copy values"));
+        assert!(html.contains("Save as chart"));
+        assert!(html.contains("/api/save-chart"));
     }
 
     #[test]
@@ -2008,5 +3809,118 @@ text: |-
     fn dyff_payload_no_differences() {
         let out = dyff_payload("a: 1\n", "a: 1\n", false, false).expect("dyff");
         assert_eq!(out, "No differences");
+    }
+
+    #[test]
+    fn import_payload_rejects_empty_path() {
+        let err = import_payload(
+            "chart",
+            "",
+            "dev",
+            "apps-k8s-manifests",
+            "apps-k8s-manifests",
+            "raw",
+            "imported",
+            None,
+            24,
+            false,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            Vec::new(),
+            false,
+            None,
+        )
+        .expect_err("expected error");
+        assert!(err.contains("path is required"));
+    }
+
+    #[test]
+    fn import_payload_rejects_unknown_source_type() {
+        let err = import_payload(
+            "unknown",
+            "/tmp/something",
+            "dev",
+            "apps-k8s-manifests",
+            "apps-k8s-manifests",
+            "raw",
+            "imported",
+            None,
+            24,
+            false,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            Vec::new(),
+            false,
+            None,
+        )
+        .expect_err("expected error");
+        assert!(err.contains("unsupported sourceType"));
+    }
+
+    #[test]
+    fn payload_string_list_skips_empty_values() {
+        let payload = serde_json::json!({
+            "valuesFiles": ["a.yaml", " ", "", "b.yaml"]
+        });
+        let got = payload_string_list(&payload, "valuesFiles");
+        assert_eq!(got, vec!["a.yaml".to_string(), "b.yaml".to_string()]);
+    }
+
+    #[test]
+    fn save_chart_payload_rejects_empty_output_dir() {
+        let err = save_chart_payload("chart", "/tmp/chart", "", None, None, "global:\n  env: dev\n").expect_err("error");
+        assert!(err.contains("outChartDir is required"));
+    }
+
+    #[test]
+    fn save_chart_payload_writes_consumer_chart() {
+        let td = TempDir::new().expect("tmp");
+        let out = td.path().join("generated-chart");
+        let msg = save_chart_payload(
+            "chart",
+            td.path().to_str().expect("source"),
+            out.to_str().expect("path"),
+            Some("demo"),
+            None,
+            "global:\n  env: dev\napps-stateless:\n  app:\n    enabled: true\n    containers:\n      app:\n        image:\n          name: nginx\n",
+        )
+        .expect("saved");
+        assert!(msg.contains("Chart saved"));
+        assert!(out.join("Chart.yaml").exists());
+        assert!(out.join("values.yaml").exists());
+        assert!(out.join("templates/init-helm-apps-library.yaml").exists());
+    }
+
+    #[test]
+    fn save_chart_payload_copies_crds_from_source_chart() {
+        let td = TempDir::new().expect("tmp");
+        let src = td.path().join("source-chart");
+        let out = td.path().join("generated-chart");
+        std::fs::create_dir_all(src.join("crds")).expect("mkdir");
+        std::fs::write(
+            src.join("crds/widgets.example.com.yaml"),
+            "kind: CustomResourceDefinition\n",
+        )
+        .expect("write");
+
+        let msg = save_chart_payload(
+            "chart",
+            src.to_str().expect("src"),
+            out.to_str().expect("out"),
+            Some("demo"),
+            None,
+            "global:\n  env: dev\napps-stateless:\n  app:\n    enabled: true\n    containers:\n      app:\n        image:\n          name: nginx\n",
+        )
+        .expect("save");
+        assert!(msg.contains("CRDs copied"));
+        assert!(out.join("crds/widgets.example.com.yaml").exists());
     }
 }

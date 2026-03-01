@@ -40,6 +40,7 @@ pub fn run_with(cli: Cli) -> Result<(), Error> {
             let values = crate::convert::build_values(&args, &docs).map_err(Error::Convert)?;
             if let Some(out) = args.out_chart_dir.as_deref() {
                 crate::output::generate_consumer_chart(out, args.chart_name.as_deref(), &values, args.library_chart_path.as_deref())?;
+                let _ = crate::output::copy_chart_crds_if_any(&args.path, out)?;
             }
             if args.out_chart_dir.is_none() || args.output.is_some() {
                 crate::output::write_values(args.output.as_deref(), &values)?;
@@ -183,7 +184,7 @@ pub fn run_with(cli: Cli) -> Result<(), Error> {
                 out_chart_dir: None,
                 chart_name: None,
                 library_chart_path: None,
-                import_strategy: "raw".into(),
+                import_strategy: "helpers".into(),
                 release_name: args.release_name.clone(),
                 namespace: args.namespace.clone(),
                 values_files: args.values_files.clone(),
