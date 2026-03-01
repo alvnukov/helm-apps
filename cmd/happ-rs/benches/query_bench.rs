@@ -5,7 +5,9 @@ use std::process::Command;
 fn bench_query_engines(c: &mut Criterion) {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let bench_file = root.join("target").join("bench-query.json");
+    let bench_yaml = root.join("target").join("bench-query.yaml");
     ensure_bench_input(&bench_file);
+    ensure_bench_yaml_input(&bench_yaml);
 
     let happ_bin = root.join("target").join("release").join("happ");
     if !happ_bin.exists() {
@@ -54,6 +56,33 @@ fn bench_query_engines(c: &mut Criterion) {
         });
     }
     g.finish();
+
+    let mut gy = c.benchmark_group("yaml-stream");
+    let yq_scenarios = [
+        ("doc-first", "first", ".base.k"),
+        ("doc-all", "all", ".base.k"),
+        ("merge-read", "all", ".svc.v"),
+    ];
+    for (scenario, doc_mode, query) in yq_scenarios {
+        gy.bench_with_input(BenchmarkId::new("happ-yq", scenario), &bench_yaml, |b, file| {
+            b.iter(|| {
+                let status = Command::new(&happ_bin)
+                    .arg("yq")
+                    .arg("--query")
+                    .arg(query)
+                    .arg("--input")
+                    .arg(file)
+                    .arg("--doc-mode")
+                    .arg(doc_mode)
+                    .arg("--compact")
+                    .stdout(std::process::Stdio::null())
+                    .status()
+                    .expect("run happ yq");
+                assert!(status.success(), "happ yq failed");
+            })
+        });
+    }
+    gy.finish();
 }
 
 fn ensure_bench_input(path: &Path) {
@@ -69,6 +98,31 @@ fn ensure_bench_input(path: &Path) {
     }
     let body = serde_json::to_vec(&arr).expect("encode");
     std::fs::write(path, body).expect("write bench input");
+}
+
+fn ensure_bench_yaml_input(path: &Path) {
+    if path.exists() {
+        return;
+    }
+    if let Some(parent) = path.parent() {
+        std::fs::create_dir_all(parent).expect("create parent");
+    }
+    let mut docs = String::new();
+    for i in 0..20_000u64 {
+        docs.push_str(&format!(
+            r#"---
+base: &base
+  k: {i}
+  m: {m}
+svc:
+  <<: *base
+  v: {v}
+"#,
+            m = i % 10,
+            v = i + 1
+        ));
+    }
+    std::fs::write(path, docs).expect("write bench yaml");
 }
 
 criterion_group!(benches, bench_query_engines);

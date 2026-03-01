@@ -43,6 +43,17 @@ pub struct QueryArgs {
         help = "Input file path or '-' for stdin. Supports both JSON and YAML."
     )]
     pub input: String,
+    #[arg(
+        long = "doc-mode",
+        default_value = "first",
+        help = "Document selection for YAML streams: first|all|index"
+    )]
+    pub doc_mode: String,
+    #[arg(
+        long = "doc-index",
+        help = "Zero-based document index when --doc-mode=index"
+    )]
+    pub doc_index: Option<usize>,
     #[arg(long, default_value_t = false, action = ArgAction::SetTrue)]
     pub compact: bool,
     #[arg(long, default_value_t = false, action = ArgAction::SetTrue)]
@@ -165,6 +176,8 @@ mod tests {
             Command::Jq(args) => {
                 assert_eq!(args.query, ".a");
                 assert_eq!(args.input, "in.json");
+                assert_eq!(args.doc_mode, "first");
+                assert_eq!(args.doc_index, None);
                 assert!(args.compact);
                 assert!(args.raw_output);
             }
@@ -180,6 +193,32 @@ mod tests {
             Command::Yq(args) => {
                 assert_eq!(args.query, ".a");
                 assert_eq!(args.input, "in.yaml");
+                assert_eq!(args.doc_mode, "first");
+                assert_eq!(args.doc_index, None);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_query_doc_mode_and_index() {
+        let cli = Cli::try_parse_from([
+            "happ",
+            "yq",
+            "--query",
+            ".a",
+            "--input",
+            "multi.yaml",
+            "--doc-mode",
+            "index",
+            "--doc-index",
+            "2",
+        ])
+        .expect("parse yq");
+        match cli.command.expect("command") {
+            Command::Yq(args) => {
+                assert_eq!(args.doc_mode, "index");
+                assert_eq!(args.doc_index, Some(2));
             }
             other => panic!("unexpected command: {other:?}"),
         }

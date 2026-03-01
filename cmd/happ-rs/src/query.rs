@@ -10,6 +10,7 @@ pub enum Error {
     Yaml(#[from] serde_yaml::Error),
 }
 
+#[allow(dead_code)]
 pub fn run_json_query(_query: &str, _input: &str) -> Result<Vec<JsonValue>, Error> {
     let input_value: JsonValue = match serde_json::from_str(_input) {
         Ok(v) => v,
@@ -22,6 +23,7 @@ pub fn run_json_query(_query: &str, _input: &str) -> Result<Vec<JsonValue>, Erro
     eval_query(_query, vec![input_value])
 }
 
+#[allow(dead_code)]
 pub fn run_yaml_query(query: &str, input: &str) -> Result<Vec<JsonValue>, Error> {
     let as_json: JsonValue = match parse_yaml_json_with_merge(input) {
         Ok(v) => v,
@@ -34,16 +36,53 @@ pub fn run_yaml_query(query: &str, input: &str) -> Result<Vec<JsonValue>, Error>
     eval_query(query, vec![as_json])
 }
 
+pub fn run_query_stream(query: &str, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue>, Error> {
+    eval_query(query, input_stream)
+}
+
+pub fn parse_input_docs_prefer_json(input: &str) -> Result<Vec<JsonValue>, Error> {
+    match serde_json::from_str::<JsonValue>(input) {
+        Ok(v) => Ok(vec![v]),
+        Err(json_err) => match parse_yaml_json_docs_with_merge(input) {
+            Ok(v) => Ok(v),
+            Err(Error::Yaml(_)) => Err(Error::Json(json_err)),
+            Err(e) => Err(e),
+        },
+    }
+}
+
+pub fn parse_input_docs_prefer_yaml(input: &str) -> Result<Vec<JsonValue>, Error> {
+    match parse_yaml_json_docs_with_merge(input) {
+        Ok(v) => Ok(v),
+        Err(Error::Yaml(yaml_err)) => match serde_json::from_str::<JsonValue>(input) {
+            Ok(v) => Ok(vec![v]),
+            Err(_) => Err(Error::Yaml(yaml_err)),
+        },
+        Err(e) => Err(e),
+    }
+}
+
 fn eval_query(query: &str, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue>, Error> {
     let compiled = compile_query(query)?;
     eval_compiled_query(&compiled, input_stream)
 }
 
+#[allow(dead_code)]
 fn parse_yaml_json_with_merge(input: &str) -> Result<JsonValue, Error> {
     let raw: serde_yaml::Value = serde_yaml::from_str(input).map_err(Error::Yaml)?;
-    let normalized = crate::yamlmerge::normalize_value(raw);
+    let normalized = crate::yamlmerge::normalize_value_from_source(input, raw);
     serde_json::to_value(normalized)
         .map_err(|e| Error::Unsupported(format!("yaml to json conversion failed: {e}")))
+}
+
+fn parse_yaml_json_docs_with_merge(input: &str) -> Result<Vec<JsonValue>, Error> {
+    let docs = crate::yamlmerge::normalize_documents(input).map_err(Error::Yaml)?;
+    docs.into_iter()
+        .map(|v| {
+            serde_json::to_value(v)
+                .map_err(|e| Error::Unsupported(format!("yaml to json conversion failed: {e}")))
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone)]

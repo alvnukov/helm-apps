@@ -75,13 +75,23 @@ pub fn run_with(cli: Cli) -> Result<(), Error> {
         }
         Command::Jq(args) => {
             let input = crate::source::read_input(&args.input)?;
-            let out = crate::query::run_json_query(&args.query, &input).map_err(|e| Error::Convert(format!("jq: {e}")))?;
+            let mode = parse_doc_selection(&args)?;
+            let docs = crate::query::parse_input_docs_prefer_json(&input)
+                .map_err(|e| Error::Convert(format_query_error("jq", &input, &e)))?;
+            let stream = select_docs(docs, mode, "jq")?;
+            let out = crate::query::run_query_stream(&args.query, stream)
+                .map_err(|e| Error::Convert(format_query_error("jq", &input, &e)))?;
             print_query_output(&out, args.compact, args.raw_output)?;
             Ok(())
         }
         Command::Yq(args) => {
             let input = crate::source::read_input(&args.input)?;
-            let out = crate::query::run_yaml_query(&args.query, &input).map_err(|e| Error::Convert(format!("yq: {e}")))?;
+            let mode = parse_doc_selection(&args)?;
+            let docs = crate::query::parse_input_docs_prefer_yaml(&input)
+                .map_err(|e| Error::Convert(format_query_error("yq", &input, &e)))?;
+            let stream = select_docs(docs, mode, "yq")?;
+            let out = crate::query::run_query_stream(&args.query, stream)
+                .map_err(|e| Error::Convert(format_query_error("yq", &input, &e)))?;
             print_query_output(&out, args.compact, args.raw_output)?;
             Ok(())
         }
@@ -220,6 +230,92 @@ fn print_query_output(values: &[serde_json::Value], compact: bool, raw_output: b
         }
     }
     Ok(())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DocSelection {
+    First,
+    All,
+    Index(usize),
+}
+
+fn parse_doc_selection(args: &crate::cli::QueryArgs) -> Result<DocSelection, Error> {
+    match args.doc_mode.trim().to_ascii_lowercase().as_str() {
+        "" | "first" => Ok(DocSelection::First),
+        "all" => Ok(DocSelection::All),
+        "index" => {
+            let Some(idx) = args.doc_index else {
+                return Err(Error::Convert(
+                    "query: --doc-index is required when --doc-mode=index".to_string(),
+                ));
+            };
+            Ok(DocSelection::Index(idx))
+        }
+        other => Err(Error::Convert(format!(
+            "query: invalid --doc-mode '{}' (expected first|all|index)",
+            other
+        ))),
+    }
+}
+
+fn select_docs(mut docs: Vec<serde_json::Value>, mode: DocSelection, tool: &str) -> Result<Vec<serde_json::Value>, Error> {
+    match mode {
+        DocSelection::All => Ok(docs),
+        DocSelection::First => Ok(docs.into_iter().next().into_iter().collect()),
+        DocSelection::Index(i) => {
+            if i >= docs.len() {
+                return Err(Error::Convert(format!(
+                    "{}: --doc-index={} is out of range for {} document(s)",
+                    tool,
+                    i,
+                    docs.len()
+                )));
+            }
+            Ok(vec![docs.swap_remove(i)])
+        }
+    }
+}
+
+fn format_query_error(tool: &str, input: &str, err: &crate::query::Error) -> String {
+    let base = format!("{tool}: {err}");
+    let Some((line, col)) = extract_line_col(&base) else {
+        return base;
+    };
+    let ctx = render_input_context(input, line, col);
+    if ctx.is_empty() {
+        base
+    } else {
+        format!("{base}\n{ctx}")
+    }
+}
+
+fn extract_line_col(msg: &str) -> Option<(usize, usize)> {
+    let re = regex::Regex::new(r"(?:at\s+)?line\s+(\d+)\s+column\s+(\d+)").ok()?;
+    let caps = re.captures(msg)?;
+    let line = caps.get(1)?.as_str().parse::<usize>().ok()?;
+    let col = caps.get(2)?.as_str().parse::<usize>().ok()?;
+    Some((line, col))
+}
+
+fn render_input_context(input: &str, line: usize, col: usize) -> String {
+    let lines: Vec<&str> = input.lines().collect();
+    if lines.is_empty() || line == 0 {
+        return String::new();
+    }
+    let from = line.saturating_sub(2).max(1);
+    let to = (line + 2).min(lines.len());
+    let mut out = String::new();
+    out.push_str("input context:\n");
+    for i in from..=to {
+        let marker = if i == line { '>' } else { ' ' };
+        let text = lines.get(i - 1).copied().unwrap_or_default();
+        out.push_str(&format!("{marker} {:>5} | {text}\n", i));
+        if i == line {
+            let caret_pad = col.saturating_sub(1);
+            out.push_str(&format!("  {:>5} | {}^\n", "", " ".repeat(caret_pad)));
+        }
+    }
+    out.trim_end().to_string()
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -397,7 +493,7 @@ fn format_dyff_github(args: &crate::cli::DyffArgs, entries: &[DiffEntry]) -> Res
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::cli::{Command, DyffArgs, InspectArgs, ValidateArgs};
+    use crate::cli::{Command, DyffArgs, InspectArgs, QueryArgs, ValidateArgs};
     use std::fs;
     use tempfile::TempDir;
 
@@ -641,5 +737,74 @@ mod tests {
             matches!(result, Err(Error::Source(crate::source::Error::Yaml(_)))),
             "expected yaml parse error, got: {result:?}"
         );
+    }
+
+    #[test]
+    fn parse_doc_selection_modes() {
+        let first = QueryArgs {
+            query: ".".to_string(),
+            input: "-".to_string(),
+            doc_mode: "first".to_string(),
+            doc_index: None,
+            compact: false,
+            raw_output: false,
+        };
+        assert!(matches!(parse_doc_selection(&first).expect("mode"), DocSelection::First));
+
+        let all = QueryArgs {
+            doc_mode: "all".to_string(),
+            ..first.clone()
+        };
+        assert!(matches!(parse_doc_selection(&all).expect("mode"), DocSelection::All));
+
+        let idx = QueryArgs {
+            doc_mode: "index".to_string(),
+            doc_index: Some(2),
+            ..first.clone()
+        };
+        assert!(matches!(
+            parse_doc_selection(&idx).expect("mode"),
+            DocSelection::Index(2)
+        ));
+    }
+
+    #[test]
+    fn parse_doc_selection_index_requires_value() {
+        let args = QueryArgs {
+            query: ".".to_string(),
+            input: "-".to_string(),
+            doc_mode: "index".to_string(),
+            doc_index: None,
+            compact: false,
+            raw_output: false,
+        };
+        let err = parse_doc_selection(&args).expect_err("must fail");
+        assert!(err.to_string().contains("--doc-index is required"));
+    }
+
+    #[test]
+    fn select_docs_modes() {
+        let docs = vec![
+            serde_json::json!({"a":1}),
+            serde_json::json!({"a":2}),
+            serde_json::json!({"a":3}),
+        ];
+        let first = select_docs(docs.clone(), DocSelection::First, "yq").expect("first");
+        assert_eq!(first, vec![serde_json::json!({"a":1})]);
+        let all = select_docs(docs.clone(), DocSelection::All, "yq").expect("all");
+        assert_eq!(all.len(), 3);
+        let one = select_docs(docs, DocSelection::Index(1), "yq").expect("idx");
+        assert_eq!(one, vec![serde_json::json!({"a":2})]);
+    }
+
+    #[test]
+    fn format_query_error_adds_input_context_when_line_col_present() {
+        let input = "a: 1\nb: [\n";
+        let err = crate::query::Error::Yaml(
+            serde_yaml::from_str::<serde_yaml::Value>(input).expect_err("must fail"),
+        );
+        let msg = format_query_error("yq", input, &err);
+        assert!(msg.contains("input context:"));
+        assert!(msg.contains("| b: ["));
     }
 }

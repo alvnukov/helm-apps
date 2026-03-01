@@ -53,6 +53,15 @@ cases:
     output_json_lines:
       - '{"foo":123,"bar":456,"baz":999}'
 
+  - id: spec_quoted_merge_key_is_regular_key
+    query: ".obj"
+    input_yaml: |
+      obj:
+        "<<": { foo: 1 }
+        baz: 2
+    output_json_lines:
+      - '{"<<":{"foo":1},"baz":2}'
+
   - id: issue_2593_keys_iteration_keeps_all_items
     query: ". as $o | keys[] | $o[.]"
     input_yaml: |

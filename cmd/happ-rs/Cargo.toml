@@ -12,6 +12,7 @@ serde_json = { version = "1", features = ["preserve_order"] }
 thiserror = "1"
 indexmap = { version = "2", features = ["serde"] }
 regex = "1"
+unsafe-libyaml = "0.2"
 
 [dev-dependencies]
 pretty_assertions = "1"
