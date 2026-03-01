@@ -285,3 +285,34 @@ cases:
       b: false
     output_json_lines:
       - '"y"'
+
+  - id: yq_values
+    query: ".[] | values"
+    input_yaml: |
+      - 1
+      - null
+      - 2
+    output_json_lines:
+      - "1"
+      - "2"
+
+  - id: yq_tonumber
+    query: '"42" | tonumber'
+    input_yaml: "null"
+    output_json_lines:
+      - "42"
+
+  - id: yq_split
+    query: 'split(",")'
+    input_yaml: '"a,b,c"'
+    output_json_lines:
+      - '["a","b","c"]'
+
+  - id: yq_join
+    query: 'join("-")'
+    input_yaml: |
+      - a
+      - b
+      - c
+    output_json_lines:
+      - '"a-b-c"'

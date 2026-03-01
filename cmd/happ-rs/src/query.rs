@@ -68,6 +68,10 @@ enum CompiledStage {
     Sort,
     Not,
     Empty,
+    Values,
+    ToNumber,
+    Split(Box<CompiledQuery>),
+    Join(Box<CompiledQuery>),
     Contains(Box<CompiledQuery>),
     StartsWith(Box<CompiledQuery>),
     EndsWith(Box<CompiledQuery>),
@@ -169,6 +173,12 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
     if let Some(inner) = parse_func_inner(s, "contains") {
         return Ok(CompiledStage::Contains(Box::new(compile_query(inner.trim())?)));
     }
+    if let Some(inner) = parse_func_inner(s, "split") {
+        return Ok(CompiledStage::Split(Box::new(compile_query(inner.trim())?)));
+    }
+    if let Some(inner) = parse_func_inner(s, "join") {
+        return Ok(CompiledStage::Join(Box::new(compile_query(inner.trim())?)));
+    }
     if let Some(inner) = parse_func_inner(s, "startswith") {
         return Ok(CompiledStage::StartsWith(Box::new(compile_query(inner.trim())?)));
     }
@@ -185,6 +195,8 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
         "sort" => return Ok(CompiledStage::Sort),
         "not" => return Ok(CompiledStage::Not),
         "empty" => return Ok(CompiledStage::Empty),
+        "values" => return Ok(CompiledStage::Values),
+        "tonumber" => return Ok(CompiledStage::ToNumber),
         _ => {}
     }
     if let Some(inner) = parse_func_inner(s, "has") {
@@ -595,6 +607,35 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
             .map(|v| JsonValue::Bool(!truthy(v)))
             .collect()),
         CompiledStage::Empty => Ok(Vec::new()),
+        CompiledStage::Values => Ok(input_stream
+            .into_iter()
+            .filter(|v| !matches!(v, JsonValue::Null))
+            .collect()),
+        CompiledStage::ToNumber => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                out.push(to_number_value(v)?);
+            }
+            Ok(out)
+        }
+        CompiledStage::Split(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let sep = eval_predicate_side(inner, &v)?;
+                let parts = split_value(&v, &sep)?;
+                out.push(parts);
+            }
+            Ok(out)
+        }
+        CompiledStage::Join(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let sep = eval_predicate_side(inner, &v)?;
+                let joined = join_value(&v, &sep)?;
+                out.push(joined);
+            }
+            Ok(out)
+        }
         CompiledStage::Contains(inner) => {
             let mut out = Vec::with_capacity(input_stream.len());
             for v in input_stream {
@@ -1424,6 +1465,53 @@ fn contains_value(haystack: &JsonValue, needle: &JsonValue) -> bool {
     }
 }
 
+fn to_number_value(v: JsonValue) -> Result<JsonValue, Error> {
+    match v {
+        JsonValue::Number(_) => Ok(v),
+        JsonValue::String(s) => {
+            if let Ok(i) = s.parse::<i64>() {
+                return Ok(JsonValue::from(i));
+            }
+            if let Ok(f) = s.parse::<f64>() {
+                return Ok(JsonValue::from(f));
+            }
+            Err(Error::Unsupported("tonumber requires numeric string".to_string()))
+        }
+        _ => Err(Error::Unsupported("tonumber supports number or string".to_string())),
+    }
+}
+
+fn split_value(v: &JsonValue, sep: &JsonValue) -> Result<JsonValue, Error> {
+    let s = v
+        .as_str()
+        .ok_or_else(|| Error::Unsupported("split requires string input".to_string()))?;
+    let sep = sep
+        .as_str()
+        .ok_or_else(|| Error::Unsupported("split requires string separator".to_string()))?;
+    Ok(JsonValue::Array(
+        s.split(sep)
+            .map(|x| JsonValue::String(x.to_string()))
+            .collect(),
+    ))
+}
+
+fn join_value(v: &JsonValue, sep: &JsonValue) -> Result<JsonValue, Error> {
+    let arr = v
+        .as_array()
+        .ok_or_else(|| Error::Unsupported("join requires array input".to_string()))?;
+    let sep = sep
+        .as_str()
+        .ok_or_else(|| Error::Unsupported("join requires string separator".to_string()))?;
+    let mut parts = Vec::with_capacity(arr.len());
+    for item in arr {
+        parts.push(match item {
+            JsonValue::String(s) => s.clone(),
+            _ => to_string_value(item),
+        });
+    }
+    Ok(JsonValue::String(parts.join(sep)))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1663,6 +1751,26 @@ a:
         assert_eq!(out_sw, vec![serde_json::json!(true)]);
         let out_ew = run_json_query(r#"endswith("cd")"#, r#""abcd""#).expect("query");
         assert_eq!(out_ew, vec![serde_json::json!(true)]);
+    }
+
+    #[test]
+    fn run_query_supports_values() {
+        let out = run_json_query(".[] | values", r#"[1,null,2]"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(1), serde_json::json!(2)]);
+    }
+
+    #[test]
+    fn run_query_supports_tonumber() {
+        let out = run_json_query(r#""42" | tonumber"#, "null").expect("query");
+        assert_eq!(out, vec![serde_json::json!(42)]);
+    }
+
+    #[test]
+    fn run_query_supports_split_and_join() {
+        let out = run_json_query(r#"split(",")"#, r#""a,b,c""#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(["a", "b", "c"])]);
+        let out_join = run_json_query(r#"join("-")"#, r#"["a","b","c"]"#).expect("query");
+        assert_eq!(out_join, vec![serde_json::json!("a-b-c")]);
     }
 
     #[test]

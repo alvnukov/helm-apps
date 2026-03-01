@@ -247,3 +247,28 @@ cases:
     input_json: '{"a":true,"b":false}'
     output_json_lines:
       - '"y"'
+
+  - id: jq_values
+    query: ".[] | values"
+    input_json: "[1,null,2]"
+    output_json_lines:
+      - "1"
+      - "2"
+
+  - id: jq_tonumber
+    query: '"42" | tonumber'
+    input_json: "null"
+    output_json_lines:
+      - "42"
+
+  - id: jq_split
+    query: 'split(",")'
+    input_json: '"a,b,c"'
+    output_json_lines:
+      - '["a","b","c"]'
+
+  - id: jq_join
+    query: 'join("-")'
+    input_json: '["a","b","c"]'
+    output_json_lines:
+      - '"a-b-c"'
