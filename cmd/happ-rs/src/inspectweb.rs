@@ -68,14 +68,12 @@ fn handle_connection(
     html_renderer: &dyn Fn() -> String,
     json_renderer: Option<&dyn Fn() -> String>,
 ) -> Result<(), String> {
-    let mut buf = [0u8; 4096];
-    let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
-    let req = String::from_utf8_lossy(&buf[..n]);
+    let req = read_http_request(stream)?;
     let first = req.lines().next().unwrap_or_default().to_string();
-    let path = first
-        .split_whitespace()
-        .nth(1)
-        .unwrap_or("/");
+    let mut parts = first.split_whitespace();
+    let method = parts.next().unwrap_or("GET");
+    let path = parts.next().unwrap_or("/");
+    let body = http_body(&req);
 
     if path == "/exit" {
         running.store(false, Ordering::SeqCst);
@@ -93,9 +91,85 @@ fn handle_connection(
         return write_response(stream, 200, "application/javascript; charset=utf-8", VUE_GLOBAL_PROD_JS.as_bytes())
             .map_err(|e| e.to_string());
     }
+    if path == "/api/convert" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let mode = payload.get("mode").and_then(|v| v.as_str()).unwrap_or_default();
+        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
+        let (ok, output) = match convert_payload(mode, input) {
+            Ok(v) => (true, v),
+            Err(e) => (false, e),
+        };
+        let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
 
     let html = html_renderer();
     write_response(stream, 200, "text/html; charset=utf-8", html.as_bytes()).map_err(|e| e.to_string())
+}
+
+fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
+    let mut data = Vec::new();
+    let mut buf = [0u8; 4096];
+    let mut header_end = None;
+    let mut content_length = 0usize;
+
+    loop {
+        let n = stream.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        data.extend_from_slice(&buf[..n]);
+        if header_end.is_none() {
+            header_end = find_header_end(&data);
+            if let Some(h_end) = header_end {
+                let header = String::from_utf8_lossy(&data[..h_end]);
+                content_length = parse_content_length(&header);
+            }
+        }
+        if let Some(h_end) = header_end {
+            let body_len = data.len().saturating_sub(h_end + 4);
+            if body_len >= content_length {
+                break;
+            }
+        }
+        if data.len() > 5 * 1024 * 1024 {
+            return Err("request too large".to_string());
+        }
+    }
+    String::from_utf8(data).map_err(|e| e.to_string())
+}
+
+fn find_header_end(data: &[u8]) -> Option<usize> {
+    data.windows(4).position(|w| w == b"\r\n\r\n")
+}
+
+fn parse_content_length(header: &str) -> usize {
+    for line in header.lines() {
+        if let Some(v) = line.strip_prefix("Content-Length:").or_else(|| line.strip_prefix("content-length:")) {
+            return v.trim().parse::<usize>().unwrap_or(0);
+        }
+    }
+    0
+}
+
+fn http_body(req: &str) -> &str {
+    req.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or("")
+}
+
+fn convert_payload(mode: &str, input: &str) -> Result<String, String> {
+    match mode {
+        "yaml-to-json" => {
+            let y: serde_yaml::Value = serde_yaml::from_str(input).map_err(|e| format!("YAML parse error: {e}"))?;
+            let j = serde_json::to_value(y).map_err(|e| format!("YAML->JSON conversion error: {e}"))?;
+            serde_json::to_string_pretty(&j).map_err(|e| format!("JSON format error: {e}"))
+        }
+        "json-to-yaml" => {
+            let j: serde_json::Value = serde_json::from_str(input).map_err(|e| format!("JSON parse error: {e}"))?;
+            serde_yaml::to_string(&j).map_err(|e| format!("JSON->YAML conversion error: {e}"))
+        }
+        _ => Err("unsupported mode".to_string()),
+    }
 }
 
 fn write_response(stream: &mut TcpStream, code: u16, content_type: &str, body: &[u8]) -> std::io::Result<()> {
@@ -113,10 +187,22 @@ fn write_response(stream: &mut TcpStream, code: u16, content_type: &str, body: &
 pub fn render_page_html(source_yaml: &str, generated_values_yaml: &str) -> String {
     let model = serde_json::json!({
         "title": "happ inspect",
-        "panes": [
-            {"title": "Source render", "content": source_yaml},
-            {"title": "Generated values.yaml", "content": generated_values_yaml},
-        ],
+        "utilities": [
+            {
+                "id": "inspect",
+                "title": "Inspect",
+                "description": "Rendered manifests and generated values.",
+                "panes": [
+                    {"title": "Source render", "content": source_yaml},
+                    {"title": "Generated values.yaml", "content": generated_values_yaml}
+                ]
+            },
+            {
+                "id": "converter",
+                "title": "YAML/JSON Converter",
+                "description": "Convert data between YAML and JSON formats."
+            }
+        ]
     });
     render_vue_page_html("happ inspect", &model.to_string())
 }
@@ -124,11 +210,23 @@ pub fn render_page_html(source_yaml: &str, generated_values_yaml: &str) -> Strin
 pub fn render_compose_page_html(source_compose_yaml: &str, compose_report_yaml: &str, generated_values_yaml: &str) -> String {
     let model = serde_json::json!({
         "title": "happ compose-inspect",
-        "panes": [
-            {"title": "Source docker-compose", "content": source_compose_yaml},
-            {"title": "Compose report", "content": compose_report_yaml},
-            {"title": "Generated values.yaml", "content": generated_values_yaml},
-        ],
+        "utilities": [
+            {
+                "id": "compose-inspect",
+                "title": "Compose Inspect",
+                "description": "Compose source, analyzed report and generated values.",
+                "panes": [
+                    {"title": "Source docker-compose", "content": source_compose_yaml},
+                    {"title": "Compose report", "content": compose_report_yaml},
+                    {"title": "Generated values.yaml", "content": generated_values_yaml}
+                ]
+            },
+            {
+                "id": "converter",
+                "title": "YAML/JSON Converter",
+                "description": "Convert data between YAML and JSON formats."
+            }
+        ]
     });
     render_vue_page_html("happ compose-inspect", &model.to_string())
 }
@@ -153,8 +251,13 @@ body {{ font-family: ui-monospace, Menlo, monospace; margin:0; padding:16px; bac
 .toolbar {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
 button {{ border:0; background:#0f172a; color:#fff; padding:8px 12px; border-radius:8px; cursor:pointer; }}
 button.secondary {{ background:#374151; }}
+button.tab {{ background:#334155; }}
+button.tab.active {{ background:#0f172a; }}
 input[type='text'] {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; }}
+textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:13px; line-height:1.45; box-sizing:border-box; }}
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
+.tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px 0; }}
+.util-head {{ margin:0 0 12px 0; }}
 .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:12px; }}
 .card {{ border:1px solid #d0dae8; border-radius:12px; padding:12px; background:#ffffffa8; }}
 .cardhead {{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }}
@@ -163,11 +266,15 @@ label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
 pre {{ background:#081126; color:#d8e6ff; padding:12px; border-radius:12px; overflow:auto; min-height:280px; margin:0; white-space:pre; font-size:13px; line-height:1.45; }}
 pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .muted {{ color:#475569; font-size:12px; }}
+.conv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; }}
+.err {{ color:#991b1b; font-weight:600; }}
 @media (prefers-color-scheme: dark) {{
  body {{ background:#0b1220; color:#dbe7ff; }}
  .card {{ border-color:#243247; background:#0f172ab3; }}
  input[type='text'] {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
+ textarea {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  .muted {{ color:#9fb0ca; }}
+ .err {{ color:#fca5a5; }}
 }}
 </style>
 <script src='/assets/vue.global.prod.js'></script>
@@ -178,18 +285,30 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   <div class='top'>
     <h2 class='title'>{{{{ model.title }}}}</h2>
     <div class='toolbar'>
-      <input type='text' v-model='query' placeholder='Search'/>
+      <input v-if='activeHasPanes' type='text' v-model='query' placeholder='Search'/>
       <label class='chk'><input type='checkbox' v-model='wrapLines'/> Wrap lines</label>
       <label class='chk'>Font
         <input type='range' min='11' max='18' step='1' v-model.number='fontSize'/>
       </label>
-      <button class='secondary' @click='expandAll'>Expand all</button>
-      <button class='secondary' @click='collapseAll'>Collapse all</button>
+      <button v-if='activeHasPanes' class='secondary' @click='expandAll'>Expand all</button>
+      <button v-if='activeHasPanes' class='secondary' @click='collapseAll'>Collapse all</button>
       <button @click='exitUi'>Exit</button>
     </div>
   </div>
+  <div class='tabs'>
+    <button class='tab'
+            :class='{{ active: activeUtilityId === u.id }}'
+            v-for='u in utilities'
+            :key='u.id'
+            @click='selectUtility(u.id)'>{{{{ u.title }}}}</button>
+  </div>
+  <div class='util-head'>
+    <div><strong>{{{{ currentUtility.title }}}}</strong></div>
+    <div class='muted'>{{{{ currentUtility.description || "" }}}}</div>
+  </div>
   <div class='muted' style='margin:0 0 10px 0;'>Settings are persisted in localStorage.</div>
-  <div class='grid'>
+
+  <div v-if='activeHasPanes' class='grid'>
     <div class='card' v-for='(pane, idx) in filteredPanes' :key='pane.title'>
       <div class='cardhead'>
         <h3>{{{{ pane.title }}}}</h3>
@@ -202,27 +321,72 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <pre v-if='!isCollapsed(idx)' :class='{{ wrap: wrapLines }}' :style='{{ fontSize: fontSize + "px" }}'>{{{{ pane.content }}}}</pre>
     </div>
   </div>
+
+  <div v-else class='card'>
+    <div class='cardhead'>
+      <h3>YAML ↔ JSON Converter</h3>
+      <div class='cardbtns'>
+        <button class='secondary' @click='swapConvertMode'>Mode: {{{{ converterModeLabel }}}}</button>
+        <button class='secondary' @click='clearConverter'>Clear</button>
+      </div>
+    </div>
+    <div class='toolbar' style='margin-bottom:10px;'>
+      <button class='secondary' @click='runConvert("yaml-to-json")'>YAML → JSON</button>
+      <button class='secondary' @click='runConvert("json-to-yaml")'>JSON → YAML</button>
+      <button class='secondary' @click='copyConverterOutput'>Copy output</button>
+    </div>
+    <div class='conv-grid'>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>Input</div>
+        <textarea v-model='converterInput' spellcheck='false'></textarea>
+      </div>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>Output</div>
+        <textarea :value='converterOutput' readonly spellcheck='false'></textarea>
+      </div>
+    </div>
+    <div class='err' v-if='converterError' style='margin-top:8px;'>{{{{ converterError }}}}</div>
+  </div>
 </div>
 <script>
 window.__HAPP_MODEL__ = {};
-const APP_STORE_KEY = 'happ.inspect.ui.v1';
+const APP_STORE_KEY = 'happ.inspect.ui.v2';
 const app = Vue.createApp({{
   data() {{
+    const model = window.__HAPP_MODEL__ || {{ title: 'happ', utilities: [] }};
+    const utilities = (model.utilities || []).length ? model.utilities : [{{ id: 'main', title: 'Main', panes: model.panes || [] }}];
     return {{
-      model: window.__HAPP_MODEL__ || {{ title: 'happ', panes: [] }},
+      model,
+      utilities,
+      activeUtilityId: utilities[0] ? utilities[0].id : 'main',
       query: '',
       wrapLines: false,
       fontSize: 13,
       collapsedTitles: {{}},
+      converterMode: 'yaml-to-json',
+      converterInput: '',
+      converterOutput: '',
+      converterError: '',
     }};
   }},
   computed: {{
+    currentUtility() {{
+      const u = (this.utilities || []).find(x => x.id === this.activeUtilityId);
+      return u || (this.utilities[0] || {{ id: 'main', title: 'Main', panes: [] }});
+    }},
+    activeHasPanes() {{
+      return Array.isArray(this.currentUtility.panes);
+    }},
     filteredPanes() {{
+      const panes = this.currentUtility.panes || [];
       const q = (this.query || '').toLowerCase().trim();
-      if(!q) return this.model.panes || [];
-      return (this.model.panes || []).filter(p =>
+      if(!q) return panes;
+      return panes.filter(p =>
         (p.title || '').toLowerCase().includes(q) || (p.content || '').toLowerCase().includes(q)
       );
+    }},
+    converterModeLabel() {{
+      return this.converterMode === 'yaml-to-json' ? 'YAML → JSON' : 'JSON → YAML';
     }}
   }},
   mounted() {{
@@ -233,13 +397,19 @@ const app = Vue.createApp({{
         this.wrapLines = !!s.wrapLines;
         this.fontSize = Number(s.fontSize || 13);
         this.collapsedTitles = s.collapsedTitles || {{}};
+        if(s.activeUtilityId) this.activeUtilityId = s.activeUtilityId;
+        if(s.converterMode) this.converterMode = s.converterMode;
+        this.converterInput = s.converterInput || '';
       }}
     }} catch(_) {{}}
   }},
   watch: {{
     wrapLines: 'saveSettings',
     fontSize: 'saveSettings',
-    collapsedTitles: {{ handler: 'saveSettings', deep: true }}
+    collapsedTitles: {{ handler: 'saveSettings', deep: true }},
+    activeUtilityId: 'saveSettings',
+    converterMode: 'saveSettings',
+    converterInput: 'saveSettings'
   }},
   methods: {{
     saveSettings() {{
@@ -247,26 +417,35 @@ const app = Vue.createApp({{
         localStorage.setItem(APP_STORE_KEY, JSON.stringify({{
           wrapLines: this.wrapLines,
           fontSize: this.fontSize,
-          collapsedTitles: this.collapsedTitles
+          collapsedTitles: this.collapsedTitles,
+          activeUtilityId: this.activeUtilityId,
+          converterMode: this.converterMode,
+          converterInput: this.converterInput
         }}));
       }} catch(_) {{}}
     }},
+    selectUtility(id) {{
+      this.activeUtilityId = id;
+    }},
     paneKey(pane) {{ return pane.title || ''; }},
+    paneKeyWithUtility(pane) {{ return this.activeUtilityId + '::' + this.paneKey(pane); }},
     isCollapsed(idx) {{
       const pane = this.filteredPanes[idx];
-      return !!this.collapsedTitles[this.paneKey(pane)];
+      return !!this.collapsedTitles[this.paneKeyWithUtility(pane)];
     }},
     togglePane(idx) {{
       const pane = this.filteredPanes[idx];
-      const k = this.paneKey(pane);
+      const k = this.paneKeyWithUtility(pane);
       this.collapsedTitles[k] = !this.collapsedTitles[k];
     }},
     expandAll() {{
-      this.collapsedTitles = {{}};
+      const out = {{ ...this.collapsedTitles }};
+      (this.filteredPanes || []).forEach(p => delete out[this.paneKeyWithUtility(p)]);
+      this.collapsedTitles = out;
     }},
     collapseAll() {{
-      const out = {{}};
-      (this.filteredPanes || []).forEach(p => out[this.paneKey(p)] = true);
+      const out = {{ ...this.collapsedTitles }};
+      (this.filteredPanes || []).forEach(p => out[this.paneKeyWithUtility(p)] = true);
       this.collapsedTitles = out;
     }},
     async copyPane(pane) {{
@@ -283,6 +462,41 @@ const app = Vue.createApp({{
       a.download = safe + '.yaml';
       a.click();
       URL.revokeObjectURL(a.href);
+    }},
+    async runConvert(mode) {{
+      this.converterError = '';
+      this.converterOutput = '';
+      this.converterMode = mode || this.converterMode;
+      try {{
+        const res = await fetch('/api/convert', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            mode: this.converterMode,
+            input: this.converterInput || ''
+          }})
+        }});
+        const data = await res.json();
+        if(!data.ok) {{
+          this.converterError = data.output || 'Conversion failed';
+          return;
+        }}
+        this.converterOutput = data.output || '';
+      }} catch(e) {{
+        this.converterError = String(e);
+      }}
+    }},
+    swapConvertMode() {{
+      this.converterMode = this.converterMode === 'yaml-to-json' ? 'json-to-yaml' : 'yaml-to-json';
+    }},
+    clearConverter() {{
+      this.converterInput = '';
+      this.converterOutput = '';
+      this.converterError = '';
+    }},
+    async copyConverterOutput() {{
+      if(!this.converterOutput) return;
+      try {{ await navigator.clipboard.writeText(this.converterOutput); }} catch(_) {{}}
     }},
     async exitUi() {{
       try {{ await fetch('/exit'); }} finally {{ window.close(); }}
@@ -339,6 +553,8 @@ mod tests {
         assert!(html.contains("Wrap lines"));
         assert!(html.contains("Copy"));
         assert!(html.contains("Download"));
+        assert!(html.contains("YAML/JSON Converter"));
+        assert!(html.contains("YAML → JSON"));
         assert!(html.contains("localStorage"));
     }
 
@@ -350,5 +566,21 @@ mod tests {
         assert!(html.contains("window.__HAPP_MODEL__"));
         assert!(html.contains("Search"));
         assert!(html.contains("Wrap lines"));
+        assert!(html.contains("Compose Inspect"));
+    }
+
+    #[test]
+    fn convert_payload_yaml_to_json_and_back() {
+        let j = convert_payload("yaml-to-json", "a: 1\nb:\n  - x\n").expect("yaml->json");
+        assert!(j.contains("\"a\": 1"));
+        let y = convert_payload("json-to-yaml", r#"{"a":1,"b":["x"]}"#).expect("json->yaml");
+        assert!(y.contains("a: 1"));
+        assert!(y.contains("- x"));
+    }
+
+    #[test]
+    fn convert_payload_rejects_bad_mode() {
+        let err = convert_payload("bad", "a: 1").expect_err("error");
+        assert!(err.contains("unsupported mode"));
     }
 }
