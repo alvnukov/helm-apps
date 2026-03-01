@@ -183,6 +183,63 @@ jobs:
           build_one windows amd64
           build_one windows arm64
 
+      - name: Update Homebrew formula
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+
+          SHA_DARWIN_ARM64="$(sha256sum cmd/happ/dist/happ_darwin_arm64 | awk '{print $1}')"
+          SHA_DARWIN_AMD64="$(sha256sum cmd/happ/dist/happ_darwin_amd64 | awk '{print $1}')"
+          SHA_LINUX_ARM64="$(sha256sum cmd/happ/dist/happ_linux_arm64 | awk '{print $1}')"
+          SHA_LINUX_AMD64="$(sha256sum cmd/happ/dist/happ_linux_amd64 | awk '{print $1}')"
+
+          cat > Formula/happ.rb <<EOF
+          class Happ < Formula
+            desc "Helm chart and manifest importer/converter for helm-apps"
+            homepage "https://github.com/alvnukov/helm-apps"
+            version "${LIB_VERSION}"
+            license "Apache-2.0"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_darwin_arm64"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_darwin_amd64"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_arm64"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_amd64"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install Dir["happ_*"].first => "happ"
+            end
+
+            test do
+              assert_match "happ", shell_output("#{bin}/happ --help 2>&1")
+            end
+          end
+          EOF
+
+          git add Formula/happ.rb
+          if git diff --cached --quiet; then
+            echo "Formula unchanged, skipping commit."
+            exit 0
+          fi
+
+          git commit -m "chore(formula): update happ ${LIB_VERSION} [skip ci]"
+          git pull --rebase origin main
+          git push origin HEAD:main
+
       - name: Build happ linux DEB/RPM packages
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
