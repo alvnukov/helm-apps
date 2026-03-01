@@ -332,3 +332,27 @@ cases:
     input_json: '{"a":{"x":1},"b":{"y":2}}'
     output_json_lines:
       - '{"x":1,"y":2}'
+
+  - id: jq_index_string
+    query: 'index("bc")'
+    input_json: '"abcabc"'
+    output_json_lines:
+      - "1"
+
+  - id: jq_rindex_string
+    query: 'rindex("bc")'
+    input_json: '"abcabc"'
+    output_json_lines:
+      - "4"
+
+  - id: jq_index_array
+    query: "index(2)"
+    input_json: "[1,2,3,2]"
+    output_json_lines:
+      - "1"
+
+  - id: jq_rindex_array
+    query: "rindex(2)"
+    input_json: "[1,2,3,2]"
+    output_json_lines:
+      - "3"

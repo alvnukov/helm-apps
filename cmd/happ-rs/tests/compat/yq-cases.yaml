@@ -404,3 +404,35 @@ cases:
         y: 2
     output_json_lines:
       - '{"x":1,"y":2}'
+
+  - id: yq_index_string
+    query: 'index("bc")'
+    input_yaml: '"abcabc"'
+    output_json_lines:
+      - "1"
+
+  - id: yq_rindex_string
+    query: 'rindex("bc")'
+    input_yaml: '"abcabc"'
+    output_json_lines:
+      - "4"
+
+  - id: yq_index_array
+    query: "index(2)"
+    input_yaml: |
+      - 1
+      - 2
+      - 3
+      - 2
+    output_json_lines:
+      - "1"
+
+  - id: yq_rindex_array
+    query: "rindex(2)"
+    input_yaml: |
+      - 1
+      - 2
+      - 3
+      - 2
+    output_json_lines:
+      - "3"

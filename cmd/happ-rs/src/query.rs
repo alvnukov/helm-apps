@@ -79,6 +79,8 @@ enum CompiledStage {
     ToNumber,
     Split(Box<CompiledQuery>),
     Join(Box<CompiledQuery>),
+    Index(Box<CompiledQuery>),
+    RIndex(Box<CompiledQuery>),
     Contains(Box<CompiledQuery>),
     StartsWith(Box<CompiledQuery>),
     EndsWith(Box<CompiledQuery>),
@@ -217,6 +219,12 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
     }
     if let Some(inner) = parse_func_inner(s, "join") {
         return Ok(CompiledStage::Join(Box::new(compile_query(inner.trim())?)));
+    }
+    if let Some(inner) = parse_func_inner(s, "index") {
+        return Ok(CompiledStage::Index(Box::new(compile_query(inner.trim())?)));
+    }
+    if let Some(inner) = parse_func_inner(s, "rindex") {
+        return Ok(CompiledStage::RIndex(Box::new(compile_query(inner.trim())?)));
     }
     if let Some(inner) = parse_func_inner(s, "startswith") {
         return Ok(CompiledStage::StartsWith(Box::new(compile_query(inner.trim())?)));
@@ -700,6 +708,22 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
                 let sep = eval_predicate_side(inner, &v)?;
                 let joined = join_value(&v, &sep)?;
                 out.push(joined);
+            }
+            Ok(out)
+        }
+        CompiledStage::Index(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let needle = eval_predicate_side(inner, &v)?;
+                out.push(index_value(&v, &needle, false));
+            }
+            Ok(out)
+        }
+        CompiledStage::RIndex(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let needle = eval_predicate_side(inner, &v)?;
+                out.push(index_value(&v, &needle, true));
             }
             Ok(out)
         }
@@ -1702,6 +1726,24 @@ fn join_value(v: &JsonValue, sep: &JsonValue) -> Result<JsonValue, Error> {
     Ok(JsonValue::String(parts.join(sep)))
 }
 
+fn index_value(v: &JsonValue, needle: &JsonValue, reverse: bool) -> JsonValue {
+    match (v, needle) {
+        (JsonValue::String(s), JsonValue::String(n)) => {
+            let pos = if reverse { s.rfind(n) } else { s.find(n) };
+            pos.map(|p| JsonValue::from(p as i64)).unwrap_or(JsonValue::Null)
+        }
+        (JsonValue::Array(arr), _) => {
+            let idx = if reverse {
+                arr.iter().rposition(|x| x == needle)
+            } else {
+                arr.iter().position(|x| x == needle)
+            };
+            idx.map(|p| JsonValue::from(p as i64)).unwrap_or(JsonValue::Null)
+        }
+        _ => JsonValue::Null,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1997,6 +2039,19 @@ a:
         assert_eq!(out_a, vec![serde_json::json!([1, 2, 3])]);
         let out_o = run_json_query(r#".a + .b"#, r#"{"a":{"x":1},"b":{"y":2}}"#).expect("query");
         assert_eq!(out_o, vec![serde_json::json!({"x":1,"y":2})]);
+    }
+
+    #[test]
+    fn run_query_supports_index_and_rindex() {
+        let out = run_json_query(r#"index("bc")"#, r#""abcabc""#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(1)]);
+        let out_r = run_json_query(r#"rindex("bc")"#, r#""abcabc""#).expect("query");
+        assert_eq!(out_r, vec![serde_json::json!(4)]);
+
+        let out_arr = run_json_query("index(2)", "[1,2,3,2]").expect("query");
+        assert_eq!(out_arr, vec![serde_json::json!(1)]);
+        let out_arr_r = run_json_query("rindex(2)", "[1,2,3,2]").expect("query");
+        assert_eq!(out_arr_r, vec![serde_json::json!(3)]);
     }
 
     #[test]
