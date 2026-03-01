@@ -371,12 +371,14 @@ pub fn render_tools_page_html() -> String {
     render_vue_page_html("happ web tools", &model.to_string())
 }
 
-fn json_script_escape(s: &str) -> String {
-    s.replace("</script>", "<\\/script>")
+fn json_html_escape(s: &str) -> String {
+    s.replace('&', "\\u0026")
+        .replace('<', "\\u003c")
+        .replace('>', "\\u003e")
 }
 
 fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
-    let model_json = json_script_escape(model_json);
+    let model_json = json_html_escape(model_json);
     format!(
         r#"<!doctype html>
 <html>
@@ -496,7 +498,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 }}
 </style>
 <script src='/assets/vue.global.prod.js'></script>
-<script>window.__HAPP_MODEL__={{}};</script>
+<script id='happ-model' type='application/json'>{}</script>
 </head>
 <body>
 <div id='app'>
@@ -653,7 +655,14 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   </div>
 </div>
 <script>
-window.__HAPP_MODEL__ = {};
+(() => {{
+  const raw = document.getElementById('happ-model')?.textContent || '{{}}';
+  try {{
+    window.__HAPP_MODEL__ = JSON.parse(raw);
+  }} catch(_) {{
+    window.__HAPP_MODEL__ = {{}};
+  }}
+}})();
 const APP_STORE_KEY = 'happ.inspect.ui.v6';
 const app = Vue.createApp({{
   data() {{
