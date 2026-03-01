@@ -26,8 +26,8 @@ Coverage can be:
 | Complex/special map keys | [#2403](https://github.com/mikefarah/yq/issues/2403), [#1323](https://github.com/mikefarah/yq/issues/1323) | covered | `complex_key_lookup_bracket_form_issue_2403_shape`, `key_with_asterisk_lookup_issue_1323_shape` |
 | Multi-document stream behavior | [#1900](https://github.com/mikefarah/yq/issues/1900) | covered in CLI/web with `--doc-mode` / converter doc mode | `multi_document_stream_currently_rejected` (legacy parser contract), CLI doc-mode tests |
 | Comment-preserving roundtrip | [#2600](https://github.com/mikefarah/yq/issues/2600), [#2578](https://github.com/mikefarah/yq/issues/2578), [#2516](https://github.com/mikefarah/yq/issues/2516) | gap | N/A (happ parser model does not preserve comments) |
-| Line-number diagnostics accuracy | [#1956](https://github.com/mikefarah/yq/issues/1956) | gap | N/A |
-| Very large YAML / perf | [#1215](https://github.com/mikefarah/yq/issues/1215) | gap | N/A (no stress benchmark gate yet) |
+| Line-number diagnostics accuracy | [#1956](https://github.com/mikefarah/yq/issues/1956) | partial | `format_query_error_adds_input_context_when_line_col_present`, `extract_line_col_supports_comma_variant`, `format_query_error_with_comma_variant_adds_context` |
+| Very large YAML / perf | [#1215](https://github.com/mikefarah/yq/issues/1215) | partial | `parse_input_docs_prefer_yaml_handles_large_multidoc_stream`, `benches/query_bench.rs` (`yaml-stream`) |
 
 ## Known technical limitation
 

@@ -290,11 +290,24 @@ fn format_query_error(tool: &str, input: &str, err: &crate::query::Error) -> Str
 }
 
 fn extract_line_col(msg: &str) -> Option<(usize, usize)> {
-    let re = regex::Regex::new(r"(?:at\s+)?line\s+(\d+)\s+column\s+(\d+)").ok()?;
-    let caps = re.captures(msg)?;
-    let line = caps.get(1)?.as_str().parse::<usize>().ok()?;
-    let col = caps.get(2)?.as_str().parse::<usize>().ok()?;
-    Some((line, col))
+    use std::sync::OnceLock;
+
+    static PATTERNS: OnceLock<Vec<regex::Regex>> = OnceLock::new();
+    let patterns = PATTERNS.get_or_init(|| {
+        vec![
+            regex::Regex::new(r"(?:at\s+)?line\s+(\d+)\s+column\s+(\d+)").expect("regex"),
+            regex::Regex::new(r"(?:at\s+)?line\s+(\d+)\s*,\s*column\s+(\d+)").expect("regex"),
+            regex::Regex::new(r"line\s*:\s*(\d+)\s*,\s*column\s*:\s*(\d+)").expect("regex"),
+        ]
+    });
+    for re in patterns {
+        if let Some(caps) = re.captures(msg) {
+            let line = caps.get(1)?.as_str().parse::<usize>().ok()?;
+            let col = caps.get(2)?.as_str().parse::<usize>().ok()?;
+            return Some((line, col));
+        }
+    }
+    None
 }
 
 fn render_input_context(input: &str, line: usize, col: usize) -> String {
@@ -806,5 +819,21 @@ mod tests {
         let msg = format_query_error("yq", input, &err);
         assert!(msg.contains("input context:"));
         assert!(msg.contains("| b: ["));
+    }
+
+    #[test]
+    fn extract_line_col_supports_comma_variant() {
+        let msg = "yaml: something bad at line 12, column 34";
+        let got = extract_line_col(msg).expect("line/col");
+        assert_eq!(got, (12, 34));
+    }
+
+    #[test]
+    fn format_query_error_with_comma_variant_adds_context() {
+        let input = "a: 1\nb: [\n";
+        let msg = "yaml: parse failed at line 2, column 4";
+        let wrapped = format_query_error("yq", input, &crate::query::Error::Unsupported(msg.to_string()));
+        assert!(wrapped.contains("input context:"));
+        assert!(wrapped.contains(">     2 | b: ["));
     }
 }

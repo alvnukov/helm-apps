@@ -1904,6 +1904,21 @@ a:
     }
 
     #[test]
+    fn parse_input_docs_prefer_yaml_handles_large_multidoc_stream() {
+        let mut input = String::new();
+        for i in 0..1000usize {
+            if i > 0 {
+                input.push_str("---\n");
+            }
+            input.push_str(&format!("id: {i}\nname: app-{i}\n"));
+        }
+        let docs = parse_input_docs_prefer_yaml(&input).expect("parse");
+        assert_eq!(docs.len(), 1000);
+        assert_eq!(docs[0], serde_json::json!({"id":0,"name":"app-0"}));
+        assert_eq!(docs[999], serde_json::json!({"id":999,"name":"app-999"}));
+    }
+
+    #[test]
     fn yq_resolves_yaml_merge_key_single_source() {
         let input = r#"
 base: &base
