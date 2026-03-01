@@ -45,6 +45,29 @@ suite("helm-apps extension host smoke", () => {
     assert.ok(locations.some((l) => l.uri.fsPath.endsWith("include-profiles.yaml")));
   });
 
+  test("definition provider resolves scalar _include usage", async () => {
+    const editor = await openFixture("e2e/values.yaml");
+    try {
+      await editor.edit((eb) => {
+        eb.replace(
+          new vscode.Range(new vscode.Position(9, 0), new vscode.Position(11, 999)),
+          "    _include: file-profile",
+        );
+      });
+      const pos = new vscode.Position(9, 18);
+      const result = await vscode.commands.executeCommand<vscode.Location[] | vscode.Location>(
+        "vscode.executeDefinitionProvider",
+        editor.document.uri,
+        pos,
+      );
+      const locations = Array.isArray(result) ? result : result ? [result] : [];
+      assert.ok(locations.length > 0);
+      assert.ok(locations.some((l) => l.uri.fsPath.endsWith("include-profiles.yaml")));
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.files.revert");
+    }
+  });
+
   test("rename provider returns workspace edit across files", async () => {
     const editor = await openFixture("e2e/values.yaml");
     const pos = new vscode.Position(8, 5);
@@ -82,5 +105,28 @@ suite("helm-apps extension host smoke", () => {
     );
     const listTitles = (listActions ?? []).map((a) => a.title);
     assert.ok(listTitles.some((t) => t.includes("Convert native list to YAML block string")));
+  });
+
+  test("code actions suggest include quick fix for scalar _include", async () => {
+    const editor = await openFixture("e2e/values.yaml");
+    try {
+      await editor.edit((eb) => {
+        eb.replace(
+          new vscode.Range(new vscode.Position(9, 0), new vscode.Position(11, 999)),
+          "    _include: missing-profile-scalar",
+        );
+      });
+      await waitFor(500);
+      const includeRange = new vscode.Range(new vscode.Position(9, 0), new vscode.Position(9, 40));
+      const includeActions = await vscode.commands.executeCommand<vscode.CodeAction[]>(
+        "vscode.executeCodeActionProvider",
+        editor.document.uri,
+        includeRange,
+      );
+      const includeTitles = (includeActions ?? []).map((a) => a.title);
+      assert.ok(includeTitles.some((t) => t.includes("Create include profile 'missing-profile-scalar'")));
+    } finally {
+      await vscode.commands.executeCommand("workbench.action.files.revert");
+    }
   });
 });

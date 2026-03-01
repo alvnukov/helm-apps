@@ -35,6 +35,7 @@ export async function expandValuesWithFileIncludes(
   const processed = await processNode(
     root,
     dirname(sourceFilePath),
+    [],
     includeDefinitions,
     injectedIncludes,
     missingFiles,
@@ -57,6 +58,7 @@ export async function expandValuesWithFileIncludes(
 async function processNode(
   node: unknown,
   baseDir: string,
+  pathSegments: string[],
   includeDefinitions: IncludeDefinition[],
   injectedIncludes: Record<string, unknown>,
   missingFiles: MissingIncludeFile[],
@@ -66,7 +68,7 @@ async function processNode(
   if (Array.isArray(node)) {
     const out: unknown[] = [];
     for (const item of node) {
-      out.push(await processNode(item, baseDir, includeDefinitions, injectedIncludes, missingFiles, readFile, fileStack));
+      out.push(await processNode(item, baseDir, pathSegments, includeDefinitions, injectedIncludes, missingFiles, readFile, fileStack));
     }
     return out;
   }
@@ -86,12 +88,18 @@ async function processNode(
       const loadedProcessed = (await processNode(
         loaded,
         dirname(includePath),
+        pathSegments,
         includeDefinitions,
         injectedIncludes,
         missingFiles,
         readFile,
         fileStack,
       )) as Record<string, unknown>;
+      if (isGlobalIncludesPath(pathSegments)) {
+        for (const includeName of Object.keys(loadedProcessed)) {
+          includeDefinitions.push({ name: includeName, filePath: includePath, line: 0 });
+        }
+      }
 
       current = mergeMaps(loadedProcessed, current);
     }
@@ -113,12 +121,13 @@ async function processNode(
         const loadedProcessed = (await processNode(
           loaded,
           dirname(includePath),
-        includeDefinitions,
-        injectedIncludes,
-        missingFiles,
-        readFile,
-        fileStack,
-      )) as Record<string, unknown>;
+          pathSegments,
+          includeDefinitions,
+          injectedIncludes,
+          missingFiles,
+          readFile,
+          fileStack,
+        )) as Record<string, unknown>;
 
         injectedIncludes[includeName] = loadedProcessed;
         includeDefinitions.push({ name: includeName, filePath: includePath, line: 0 });
@@ -132,7 +141,7 @@ async function processNode(
   }
 
   for (const [k, v] of Object.entries(current)) {
-    current[k] = await processNode(v, baseDir, includeDefinitions, injectedIncludes, missingFiles, readFile, fileStack);
+    current[k] = await processNode(v, baseDir, [...pathSegments, k], includeDefinitions, injectedIncludes, missingFiles, readFile, fileStack);
   }
 
   return current;
@@ -225,6 +234,10 @@ function includeNameFromPath(pathValue: string): string {
 
 function isTemplatedPath(pathValue: string): boolean {
   return pathValue.includes("{{") || pathValue.includes("}}");
+}
+
+function isGlobalIncludesPath(pathSegments: string[]): boolean {
+  return pathSegments.length === 2 && pathSegments[0] === "global" && pathSegments[1] === "_includes";
 }
 
 function ensureGlobalIncludes(root: Record<string, unknown>): void {

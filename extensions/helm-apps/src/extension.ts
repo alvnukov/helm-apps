@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { access, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import * as path from "node:path";
 import { promisify } from "node:util";
@@ -17,7 +17,9 @@ import { discoverEnvironments, findAppScopeAtLine, resolveEntityWithIncludes, re
 import { expandValuesWithFileIncludes, type IncludeDefinition } from "./loader/fileIncludes";
 import { extractAppChildToGlobalInclude, safeRenameAppKey } from "./refactor/appRefactor";
 import { ValuesStructureProvider } from "./structure/valuesTreeProvider";
+import { HelmAppsWorkbenchActionsProvider } from "./structure/workbenchActionsProvider";
 import { validateUnexpectedNativeLists } from "./validator/listPolicy";
+import { buildStarterChartFiles, isValidChartVersion, sanitizeChartName } from "./scaffold/chartScaffold";
 
 const execFileAsync = promisify(execFile);
 let previewPanel: vscode.WebviewPanel | undefined;
@@ -31,6 +33,7 @@ const diagnosticsRunVersion = new Map<string, number>();
 const largeDocWarnings = new Set<string>();
 const DIAGNOSTICS_DEBOUNCE_MS = 220;
 const MAX_DIAGNOSTIC_DOC_SIZE_BYTES = 512 * 1024;
+const HELM_APPS_DEP_NAME = "helm-apps";
 
 type JsonSchema = {
   $ref?: string;
@@ -144,9 +147,13 @@ const LIBRARY_SETTINGS: LibrarySettingDef[] = [
 
 export function activate(context: vscode.ExtensionContext): void {
   const valuesStructure = new ValuesStructureProvider();
+  const workbenchActions = new HelmAppsWorkbenchActionsProvider(vscode.env.language);
 
   context.subscriptions.push(
     vscode.window.registerTreeDataProvider("helmAppsValuesStructure", valuesStructure),
+  );
+  context.subscriptions.push(
+    vscode.window.registerTreeDataProvider("helmAppsWorkbenchActions", workbenchActions),
   );
 
   context.subscriptions.push(
@@ -418,6 +425,36 @@ export function activate(context: vscode.ExtensionContext): void {
         current.set(setting.key, readBooleanByPath(values, setting.path));
       }
       await openLibrarySettingsHelp(current, ru, editor.document.uri.fsPath);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("helm-apps.createStarterChart", async (uri?: vscode.Uri) => {
+      await createStarterChart(uri);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("helm-apps.manageLibrarySource", async () => {
+      await manageLibrarySource(context);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("helm-apps.checkLibraryUpdate", async () => {
+      await checkLibraryUpdate(context);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("helm-apps.cacheLibraryFromGithub", async () => {
+      await cacheLibraryFromGithub(context, true);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("helm-apps.updateLibraryDependency", async () => {
+      await updateLibraryDependencyInChart(context);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.commands.registerCommand("helm-apps.updateLibraryLockfile", async () => {
+      await updateChartLockfile();
     }),
   );
 
@@ -743,31 +780,29 @@ async function validateCurrentFile(): Promise<void> {
   }
 
   const document = editor.document;
-  if (document.isUntitled) {
-    void vscode.window.showWarningMessage("Save file before validation");
+  if (document.languageId !== "yaml") {
+    void vscode.window.showWarningMessage("Validation is available for YAML files only");
     return;
   }
-
-  const happPath = vscode.workspace.getConfiguration("helm-apps").get<string>("happPath", "happ");
-  if (!(await ensureHappReady(happPath))) {
+  if (!(await isHelmAppsValuesDocument(document))) {
+    void vscode.window.showWarningMessage("Current file is not detected as helm-apps values");
     return;
   }
-  const filePath = document.uri.fsPath;
 
   try {
-    const { stdout, stderr } = await execFileAsync(happPath, ["validate", "--values", filePath], {
-      cwd: workspaceRoot(document.uri) ?? path.dirname(filePath),
-      timeout: 60000,
-      maxBuffer: 8 * 1024 * 1024,
-    });
-
-    const output = [stdout, stderr].filter(Boolean).join("\n").trim();
-    if (output.length > 0) {
-      void vscode.window.showInformationMessage(`helm-apps validation passed: ${output}`);
+    await refreshDiagnostics(document);
+    const include = includeDiagnostics.get(document.uri) ?? [];
+    const semantic = semanticDiagnostics.get(document.uri) ?? [];
+    const all = [...include, ...semantic];
+    const errors = all.filter((d) => d.severity === vscode.DiagnosticSeverity.Error).length;
+    const warnings = all.filter((d) => d.severity === vscode.DiagnosticSeverity.Warning).length;
+    const infos = all.filter((d) => d.severity === vscode.DiagnosticSeverity.Information).length;
+    if (errors === 0 && warnings === 0) {
+      const infoText = infos > 0 ? `, info: ${infos}` : "";
+      void vscode.window.showInformationMessage(`helm-apps validation passed (warnings: 0${infoText})`);
       return;
     }
-
-    void vscode.window.showInformationMessage("helm-apps validation passed");
+    void vscode.window.showWarningMessage(`helm-apps validation: errors ${errors}, warnings ${warnings}, info ${infos}`);
   } catch (err) {
     const message = extractErrorMessage(err);
     void vscode.window.showErrorMessage(`helm-apps validation failed: ${message}`);
@@ -829,6 +864,632 @@ async function pasteClipboardAsHelmApps(editor: vscode.TextEditor): Promise<void
         // ignore temp cleanup errors
       }
     }
+  }
+}
+
+async function createStarterChart(uri?: vscode.Uri): Promise<void> {
+  const targetBaseDir = await resolveStarterChartBaseDir(uri);
+  if (!targetBaseDir) {
+    return;
+  }
+
+  const defaultChartName = sanitizeChartName(path.basename(targetBaseDir));
+  const chartName = await vscode.window.showInputBox({
+    prompt: "Helm chart name",
+    value: defaultChartName,
+    validateInput: (v) => (sanitizeChartName(v).length > 0 ? null : "Enter non-empty chart name"),
+  });
+  if (!chartName) {
+    return;
+  }
+
+  const chartVersion = await vscode.window.showInputBox({
+    prompt: "Chart version",
+    value: "0.1.0",
+    validateInput: (v) => (isValidChartVersion(v) ? null : "Use semver-like version, e.g. 0.1.0"),
+  });
+  if (!chartVersion) {
+    return;
+  }
+
+  const chartRelDir = await vscode.window.showInputBox({
+    prompt: "Chart directory (relative to selected folder)",
+    value: ".helm",
+    validateInput: (v) => (v.trim().length > 0 ? null : "Directory cannot be empty"),
+  });
+  if (!chartRelDir) {
+    return;
+  }
+
+  const chartDir = path.resolve(targetBaseDir, chartRelDir.trim());
+  const libraryVersion = await detectBundledHelmAppsVersion();
+  const files = buildStarterChartFiles({
+    chartName,
+    chartVersion,
+    libraryVersion,
+  });
+
+  const existing = await findExistingScaffoldFiles(chartDir, Object.keys(files));
+  if (existing.length > 0) {
+    const overwrite = await vscode.window.showWarningMessage(
+      `Some files already exist in '${chartRelDir}': ${existing.join(", ")}`,
+      "Overwrite",
+      "Cancel",
+    );
+    if (overwrite !== "Overwrite") {
+      return;
+    }
+  }
+
+  await mkdir(path.join(chartDir, "templates"), { recursive: true });
+  for (const [relPath, content] of Object.entries(files)) {
+    const abs = path.join(chartDir, relPath);
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, content, "utf8");
+  }
+
+  const bundledResult = await copyBundledHelmAppsLibrary(chartDir);
+
+  const chartYamlPath = path.join(chartDir, "Chart.yaml");
+  const doc = await vscode.workspace.openTextDocument(chartYamlPath);
+  await vscode.window.showTextDocument(doc, { preview: false });
+  if (bundledResult === "ok") {
+    void vscode.window.showInformationMessage(
+      `Starter chart created in '${chartDir}', bundled helm-apps library copied to charts/helm-apps.`,
+    );
+  } else {
+    void vscode.window.showWarningMessage(
+      `Starter chart created in '${chartDir}', but bundled library asset was not found in extension package.`,
+    );
+  }
+}
+
+type LibrarySourceMode = "local" | "github";
+
+interface ResolvedLibraryChart {
+  chartPath: string;
+  version: string;
+  source: LibrarySourceMode;
+}
+
+function isRuLocale(): boolean {
+  return vscode.env.language.toLowerCase().startsWith("ru");
+}
+
+function getExtensionConfig() {
+  return vscode.workspace.getConfiguration("helm-apps");
+}
+
+async function manageLibrarySource(context: vscode.ExtensionContext): Promise<void> {
+  const ru = isRuLocale();
+  const cfg = getExtensionConfig();
+  const source = cfg.get<LibrarySourceMode>("librarySource", "local");
+  const localPath = cfg.get<string>("libraryLocalChartPath", "");
+  const githubRepo = cfg.get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git");
+  const cachedVersion = cfg.get<string>("libraryGithubCachedVersion", "");
+
+  const picked = await vscode.window.showQuickPick(
+    [
+      {
+        label: ru ? "Режим: local" : "Mode: local",
+        description: source === "local" ? (ru ? "Текущий" : "Current") : undefined,
+        action: "switch-local" as const,
+      },
+      {
+        label: ru ? "Режим: github" : "Mode: github",
+        description: source === "github" ? (ru ? "Текущий" : "Current") : undefined,
+        action: "switch-github" as const,
+      },
+      {
+        label: ru ? "Указать локальный путь к чарту" : "Set local chart path",
+        description: localPath || (ru ? "Не задан" : "Not set"),
+        action: "set-local-path" as const,
+      },
+      {
+        label: ru ? "Указать репозиторий библиотеки" : "Set library repository",
+        description: githubRepo,
+        action: "set-github-repo" as const,
+      },
+      {
+        label: ru ? "Проверить новую версию в GitHub" : "Check latest GitHub version",
+        description: cachedVersion ? `${ru ? "Кэш" : "Cached"}: ${cachedVersion}` : undefined,
+        action: "check-update" as const,
+      },
+      {
+        label: ru ? "Скачать библиотеку из GitHub в кэш расширения" : "Download library from GitHub into extension cache",
+        description: cachedVersion ? `${ru ? "Текущий кэш" : "Current cache"}: ${cachedVersion}` : undefined,
+        action: "cache-github" as const,
+      },
+    ],
+    {
+      placeHolder: ru ? "Управление источником библиотеки helm-apps" : "Manage helm-apps library source",
+    },
+  );
+
+  if (!picked) {
+    return;
+  }
+  switch (picked.action) {
+    case "switch-local":
+      await cfg.update("librarySource", "local", vscode.ConfigurationTarget.Global);
+      void vscode.window.showInformationMessage(ru ? "Источник библиотеки: local" : "Library source: local");
+      break;
+    case "switch-github":
+      await cfg.update("librarySource", "github", vscode.ConfigurationTarget.Global);
+      void vscode.window.showInformationMessage(ru ? "Источник библиотеки: github" : "Library source: github");
+      break;
+    case "set-local-path": {
+      const pickedPath = await vscode.window.showOpenDialog({
+        canSelectFiles: false,
+        canSelectFolders: true,
+        canSelectMany: false,
+        openLabel: ru ? "Выбрать каталог чарта" : "Select chart directory",
+      });
+      if (!pickedPath || pickedPath.length === 0) {
+        return;
+      }
+      const candidate = pickedPath[0].fsPath;
+      const chartYaml = path.join(candidate, "Chart.yaml");
+      try {
+        await access(chartYaml);
+      } catch {
+        void vscode.window.showErrorMessage(ru ? "В выбранном каталоге нет Chart.yaml" : "Selected directory does not contain Chart.yaml");
+        return;
+      }
+      await cfg.update("libraryLocalChartPath", candidate, vscode.ConfigurationTarget.Global);
+      void vscode.window.showInformationMessage(`${ru ? "Локальный путь сохранен" : "Local chart path saved"}: ${candidate}`);
+      break;
+    }
+    case "set-github-repo": {
+      const next = await vscode.window.showInputBox({
+        prompt: ru ? "URL репозитория (Helm repo или GitHub repo)" : "Repository URL (Helm repo or GitHub repo)",
+        value: githubRepo,
+      });
+      if (!next || next.trim().length === 0) {
+        return;
+      }
+      await cfg.update("libraryGithubRepo", next.trim(), vscode.ConfigurationTarget.Global);
+      void vscode.window.showInformationMessage(ru ? "GitHub репозиторий сохранен" : "GitHub repository saved");
+      break;
+    }
+    case "check-update":
+      await checkLibraryUpdate(context);
+      break;
+    case "cache-github":
+      await cacheLibraryFromGithub(context, true);
+      break;
+    default:
+      break;
+  }
+}
+
+async function checkLibraryUpdate(context: vscode.ExtensionContext): Promise<void> {
+  const ru = isRuLocale();
+  try {
+    const latest = await fetchLatestGithubVersion();
+    const cfg = getExtensionConfig();
+    const source = cfg.get<LibrarySourceMode>("librarySource", "local");
+    const current = await resolveCurrentLibraryVersionForComparison(context, source);
+    if (!current) {
+      void vscode.window.showInformationMessage(`${ru ? "Последняя версия" : "Latest version"}: ${latest}`);
+      return;
+    }
+    if (compareSemver(current, latest) >= 0) {
+      void vscode.window.showInformationMessage(ru ? `Обновлений нет: ${current}` : `Up to date: ${current}`);
+      return;
+    }
+    void vscode.window.showInformationMessage(
+      ru ? `Доступна новая версия: ${latest} (текущая ${current})` : `New version available: ${latest} (current ${current})`,
+      ru ? "Скачать" : "Download",
+    ).then(async (choice) => {
+      if (choice === (ru ? "Скачать" : "Download")) {
+        await cacheLibraryFromGithub(context, true);
+      }
+    });
+  } catch (err) {
+    void vscode.window.showErrorMessage(`${ru ? "Не удалось проверить обновления" : "Failed to check updates"}: ${extractErrorMessage(err)}`);
+  }
+}
+
+async function resolveCurrentLibraryVersionForComparison(
+  context: vscode.ExtensionContext,
+  source: LibrarySourceMode,
+): Promise<string | undefined> {
+  const cfg = getExtensionConfig();
+  if (source === "github") {
+    const cached = cfg.get<string>("libraryGithubCachedVersion", "").trim();
+    if (cached) {
+      return cached;
+    }
+  }
+
+  if (source === "local") {
+    const localPath = cfg.get<string>("libraryLocalChartPath", "").trim();
+    if (localPath) {
+      return await detectChartVersionFromDir(localPath);
+    }
+  }
+  return await detectBundledHelmAppsVersion();
+}
+
+async function cacheLibraryFromGithub(context: vscode.ExtensionContext, setAsCurrentSource: boolean): Promise<ResolvedLibraryChart> {
+  const ru = isRuLocale();
+  const cfg = getExtensionConfig();
+  const repoUrl = cfg.get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git");
+  const helmRepoUrl = resolveHelmRepositoryURL(repoUrl);
+  const latest = await fetchLatestGithubVersion(repoUrl);
+  const globalStoragePath = context.globalStorageUri.fsPath;
+  await mkdir(globalStoragePath, { recursive: true });
+
+  const cacheBase = path.join(globalStoragePath, "library-cache");
+  const cacheDir = path.join(cacheBase, `helm-apps-${latest}`);
+  const chartDir = path.join(cacheDir, HELM_APPS_DEP_NAME);
+  const chartYaml = path.join(chartDir, "Chart.yaml");
+  try {
+    await access(chartYaml);
+  } catch {
+    await mkdir(cacheBase, { recursive: true });
+    await mkdir(cacheDir, { recursive: true });
+    await runHelmOrWerf([
+      "pull",
+      HELM_APPS_DEP_NAME,
+      "--repo",
+      helmRepoUrl,
+      "--version",
+      latest,
+      "--untar",
+      "--untardir",
+      cacheDir,
+    ], {
+      timeout: 240000,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    await access(chartYaml);
+  }
+
+  await cfg.update("libraryGithubCachedChartPath", chartDir, vscode.ConfigurationTarget.Global);
+  await cfg.update("libraryGithubCachedVersion", latest, vscode.ConfigurationTarget.Global);
+  if (setAsCurrentSource) {
+    await cfg.update("librarySource", "github", vscode.ConfigurationTarget.Global);
+  }
+  void vscode.window.showInformationMessage(
+    ru
+      ? `Библиотека ${latest} сохранена в кэш расширения`
+      : `Library ${latest} saved in extension cache`,
+  );
+  return { chartPath: chartDir, version: latest, source: "github" };
+}
+
+async function updateLibraryDependencyInChart(context: vscode.ExtensionContext): Promise<void> {
+  const ru = isRuLocale();
+  const chartYamlUri = await pickTargetChartYaml();
+  if (!chartYamlUri) {
+    void vscode.window.showWarningMessage(ru ? "Не найден Chart.yaml для обновления" : "No Chart.yaml found to update");
+    return;
+  }
+
+  try {
+    const resolved = await resolveLibraryChartForDependency(context);
+    await upsertHelmAppsDependency(chartYamlUri.fsPath, resolved.version, resolved.chartPath);
+    void vscode.window.showInformationMessage(
+      ru
+        ? `Dependency helm-apps обновлен в ${chartYamlUri.fsPath}`
+        : `helm-apps dependency updated in ${chartYamlUri.fsPath}`,
+    );
+  } catch (err) {
+    void vscode.window.showErrorMessage(`${ru ? "Не удалось обновить dependency" : "Failed to update dependency"}: ${extractErrorMessage(err)}`);
+  }
+}
+
+async function updateChartLockfile(): Promise<void> {
+  const ru = isRuLocale();
+  const chartYamlUri = await pickTargetChartYaml();
+  if (!chartYamlUri) {
+    void vscode.window.showWarningMessage(ru ? "Не найден Chart.yaml для lockfile" : "No Chart.yaml found for lockfile update");
+    return;
+  }
+
+  const chartDir = path.dirname(chartYamlUri.fsPath);
+  try {
+    const { stdout, stderr } = await runHelmOrWerf(["dependency", "update", chartDir], {
+      timeout: 240000,
+      maxBuffer: 16 * 1024 * 1024,
+    });
+    const tail = `${stdout ?? ""}\n${stderr ?? ""}`.trim();
+    if (tail.length > 0) {
+      void vscode.window.showInformationMessage(ru ? "Chart.lock обновлен" : "Chart.lock updated");
+    } else {
+      void vscode.window.showInformationMessage(ru ? "Chart.lock обновлен" : "Chart.lock updated");
+    }
+  } catch (err) {
+    void vscode.window.showErrorMessage(`${ru ? "Не удалось обновить lockfile" : "Failed to update lockfile"}: ${extractErrorMessage(err)}`);
+  }
+}
+
+async function resolveLibraryChartForDependency(context: vscode.ExtensionContext): Promise<ResolvedLibraryChart> {
+  const cfg = getExtensionConfig();
+  const source = cfg.get<LibrarySourceMode>("librarySource", "local");
+  if (source === "github") {
+    const cachedPath = cfg.get<string>("libraryGithubCachedChartPath", "").trim();
+    const cachedVersion = cfg.get<string>("libraryGithubCachedVersion", "").trim();
+    if (cachedPath && cachedVersion) {
+      try {
+        await access(path.join(cachedPath, "Chart.yaml"));
+        return { chartPath: cachedPath, version: cachedVersion, source: "github" };
+      } catch {
+        // fallthrough to refresh cache
+      }
+    }
+    return await cacheLibraryFromGithub(context, false);
+  }
+
+  const configuredLocal = cfg.get<string>("libraryLocalChartPath", "").trim();
+  if (configuredLocal.length > 0) {
+    const version = await detectChartVersionFromDir(configuredLocal);
+    if (!version) {
+      throw new Error(`unable to read library version from '${configuredLocal}/Chart.yaml'`);
+    }
+    return { chartPath: configuredLocal, version, source: "local" };
+  }
+
+  const bundledPath = path.resolve(__dirname, "..", "..", "assets", HELM_APPS_DEP_NAME);
+  const version = await detectChartVersionFromDir(bundledPath);
+  if (!version) {
+    throw new Error("bundled helm-apps chart not found in extension assets");
+  }
+  return { chartPath: bundledPath, version, source: "local" };
+}
+
+async function upsertHelmAppsDependency(chartYamlPath: string, version: string, chartPath: string): Promise<void> {
+  const raw = await readFile(chartYamlPath, "utf8");
+  const doc = YAML.parse(raw) as unknown;
+  const chartObj = isMap(doc) ? { ...doc } : {};
+  const dependencies = Array.isArray((chartObj as Record<string, unknown>).dependencies)
+    ? [...((chartObj as Record<string, unknown>).dependencies as unknown[])]
+    : [];
+  const normalizedRepo = `file://${normalizePathForChartRepository(chartPath)}`;
+  let found = false;
+  const nextDeps = dependencies.map((dep) => {
+    if (!isMap(dep)) {
+      return dep;
+    }
+    if (dep.name !== HELM_APPS_DEP_NAME) {
+      return dep;
+    }
+    found = true;
+    return {
+      ...dep,
+      version,
+      repository: normalizedRepo,
+    };
+  });
+  if (!found) {
+    nextDeps.push({
+      name: HELM_APPS_DEP_NAME,
+      version,
+      repository: normalizedRepo,
+    });
+  }
+  (chartObj as Record<string, unknown>).dependencies = nextDeps;
+  const output = YAML.stringify(chartObj, { lineWidth: 0 }).replace(/\n+$/g, "\n");
+  await writeFile(chartYamlPath, output, "utf8");
+}
+
+function normalizePathForChartRepository(p: string): string {
+  const abs = path.resolve(p);
+  if (process.platform === "win32") {
+    return `/${abs.replace(/\\/g, "/")}`;
+  }
+  return abs;
+}
+
+async function pickTargetChartYaml(): Promise<vscode.Uri | undefined> {
+  const active = vscode.window.activeTextEditor?.document.uri;
+  if (active?.scheme === "file") {
+    const nearest = await findNearestChartYaml(active.fsPath);
+    if (nearest) {
+      return nearest;
+    }
+  }
+
+  const charts = await vscode.workspace.findFiles("**/Chart.yaml", "**/{.git,node_modules,vendor,tmp,.werf}/**", 100);
+  if (charts.length === 0) {
+    return undefined;
+  }
+  if (charts.length === 1) {
+    return charts[0];
+  }
+  const picked = await vscode.window.showQuickPick(
+    charts.map((uri) => ({
+      label: vscode.workspace.asRelativePath(uri),
+      description: uri.fsPath,
+      uri,
+    })),
+    { placeHolder: isRuLocale() ? "Выберите Chart.yaml" : "Select Chart.yaml" },
+  );
+  return picked?.uri;
+}
+
+async function detectChartVersionFromDir(chartDir: string): Promise<string | undefined> {
+  const chartYamlPath = path.join(chartDir, "Chart.yaml");
+  try {
+    const text = await readFile(chartYamlPath, "utf8");
+    const parsed = YAML.parse(text) as unknown;
+    if (isMap(parsed) && typeof parsed.version === "string" && parsed.version.trim().length > 0) {
+      return parsed.version.trim();
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
+async function fetchLatestGithubVersion(repoUrl?: string): Promise<string> {
+  const configured = repoUrl ?? getExtensionConfig().get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git");
+  const helmRepoUrl = resolveHelmRepositoryURL(configured);
+  const { stdout } = await runHelmOrWerf(["show", "chart", HELM_APPS_DEP_NAME, "--repo", helmRepoUrl], {
+    timeout: 120000,
+    maxBuffer: 4 * 1024 * 1024,
+  });
+  const parsed = YAML.parse(stdout) as unknown;
+  if (!isMap(parsed) || typeof parsed.version !== "string" || parsed.version.trim().length === 0) {
+    throw new Error(`failed to resolve latest helm-apps version from repository: ${helmRepoUrl}`);
+  }
+  return parsed.version.trim().replace(/^v/, "");
+}
+
+function resolveHelmRepositoryURL(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.length === 0) {
+    throw new Error("library repository URL is empty");
+  }
+  const ghMatch = trimmed.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?\/?$/i);
+  if (ghMatch) {
+    return `https://${ghMatch[1]}.github.io/${ghMatch[2]}`;
+  }
+  if (/^https?:\/\//i.test(trimmed)) {
+    return trimmed.replace(/\/+$/g, "");
+  }
+  throw new Error(`unsupported repository URL: ${trimmed}`);
+}
+
+async function runHelmOrWerf(
+  helmArgs: string[],
+  options: { timeout?: number; maxBuffer?: number },
+): Promise<{ stdout: string; stderr: string }> {
+  const configured = getExtensionConfig().get<string>("helmPath", "helm").trim();
+  const candidates: Array<{ cmd: string; args: string[] }> = [];
+  if (configured.length === 0 || configured === "helm") {
+    candidates.push({ cmd: "helm", args: helmArgs });
+  } else if (path.basename(configured) === "werf") {
+    candidates.push({ cmd: configured, args: ["helm", ...helmArgs] });
+  } else {
+    candidates.push({ cmd: configured, args: helmArgs });
+  }
+  candidates.push({ cmd: "werf", args: ["helm", ...helmArgs] });
+
+  const tried = new Set<string>();
+  const errors: string[] = [];
+  for (const candidate of candidates) {
+    const key = `${candidate.cmd} ${candidate.args.join(" ")}`;
+    if (tried.has(key)) {
+      continue;
+    }
+    tried.add(key);
+    try {
+      return await execFileAsync(candidate.cmd, candidate.args, options);
+    } catch (err) {
+      errors.push(`${candidate.cmd}: ${extractErrorMessage(err)}`);
+    }
+  }
+
+  throw new Error(`unable to execute Helm command (tried helm and werf helm): ${errors.join(" | ")}`);
+}
+
+function compareSemver(a: string, b: string): number {
+  const pa = normalizeSemverParts(a);
+  const pb = normalizeSemverParts(b);
+  for (let i = 0; i < 3; i += 1) {
+    if (pa[i] > pb[i]) {
+      return 1;
+    }
+    if (pa[i] < pb[i]) {
+      return -1;
+    }
+  }
+  return 0;
+}
+
+function normalizeSemverParts(input: string): [number, number, number] {
+  const cleaned = input.replace(/^v/, "").split("-")[0];
+  const parts = cleaned.split(".");
+  const major = Number.parseInt(parts[0] ?? "0", 10) || 0;
+  const minor = Number.parseInt(parts[1] ?? "0", 10) || 0;
+  const patch = Number.parseInt(parts[2] ?? "0", 10) || 0;
+  return [major, minor, patch];
+}
+
+async function findExistingScaffoldFiles(chartDir: string, relPaths: string[]): Promise<string[]> {
+  const existing: string[] = [];
+  for (const rel of relPaths) {
+    const abs = path.join(chartDir, rel);
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      await access(abs);
+      existing.push(rel);
+    } catch {
+      // ignore missing file
+    }
+  }
+  return existing;
+}
+
+async function resolveStarterChartBaseDir(uri?: vscode.Uri): Promise<string | undefined> {
+  if (uri && uri.scheme === "file") {
+    return uri.fsPath;
+  }
+  const folders = vscode.workspace.workspaceFolders;
+  if (folders && folders.length > 0) {
+    return folders[0].uri.fsPath;
+  }
+  const picked = await vscode.window.showOpenDialog({
+    canSelectFiles: false,
+    canSelectFolders: true,
+    canSelectMany: false,
+    openLabel: "Select target folder for starter chart",
+  });
+  if (!picked || picked.length === 0) {
+    return undefined;
+  }
+  return picked[0].fsPath;
+}
+
+async function copyBundledHelmAppsLibrary(chartDir: string): Promise<"ok" | "failed"> {
+  const src = path.resolve(__dirname, "..", "..", "assets", "helm-apps");
+  try {
+    await access(path.join(src, "Chart.yaml"));
+  } catch {
+    return "failed";
+  }
+
+  const dst = path.join(chartDir, "charts", "helm-apps");
+  try {
+    await copyDirectoryRecursive(src, dst);
+    return "ok";
+  } catch {
+    return "failed";
+  }
+}
+
+async function detectBundledHelmAppsVersion(): Promise<string> {
+  const chartYamlPath = path.resolve(__dirname, "..", "..", "assets", "helm-apps", "Chart.yaml");
+  try {
+    const text = await readFile(chartYamlPath, "utf8");
+    const parsed = YAML.parse(text) as unknown;
+    if (isMap(parsed) && typeof parsed.version === "string" && parsed.version.trim().length > 0) {
+      return parsed.version.trim();
+    }
+  } catch {
+    // use fallback
+  }
+  return "1.0.0";
+}
+
+async function copyDirectoryRecursive(src: string, dst: string): Promise<void> {
+  await mkdir(dst, { recursive: true });
+  const entries = await readdir(src, { withFileTypes: true });
+  for (const entry of entries) {
+    const from = path.join(src, entry.name);
+    const to = path.join(dst, entry.name);
+    if (entry.isDirectory()) {
+      // eslint-disable-next-line no-await-in-loop
+      await copyDirectoryRecursive(from, to);
+      continue;
+    }
+    // eslint-disable-next-line no-await-in-loop
+    const data = await readFile(from);
+    // eslint-disable-next-line no-await-in-loop
+    await writeFile(to, data);
   }
 }
 
@@ -1795,9 +2456,9 @@ async function provideCodeActions(
   }
 
   const unresolved = (context?.diagnostics ?? []).find((d) =>
-    d.message.startsWith("Unresolved include profile:"));
+    typeof d.code === "string" && d.code.startsWith("E_UNRESOLVED_INCLUDE:"));
   if (unresolved) {
-    const includeName = unresolved.message.replace("Unresolved include profile:", "").trim();
+    const includeName = String(unresolved.code).slice("E_UNRESOLVED_INCLUDE:".length).trim();
     if (/^[A-Za-z0-9_.-]+$/.test(includeName)) {
       const action = new vscode.CodeAction(`Create include profile '${includeName}'`, vscode.CodeActionKind.QuickFix);
       action.edit = new vscode.WorkspaceEdit();
@@ -1822,9 +2483,10 @@ async function provideCodeActions(
     }
   }
 
-  const missingInclude = (context?.diagnostics ?? []).find((d) => d.message.startsWith("Include file not found:"));
+  const missingInclude = (context?.diagnostics ?? []).find((d) =>
+    typeof d.code === "string" && d.code.startsWith("E_INCLUDE_FILE_NOT_FOUND:"));
   if (missingInclude) {
-    const rawPath = missingInclude.message.replace("Include file not found:", "").trim();
+    const rawPath = String(missingInclude.code).slice("E_INCLUDE_FILE_NOT_FOUND:".length).trim();
     if (rawPath.length > 0 && !isTemplatedIncludePath(rawPath)) {
       const candidates = buildIncludeCandidates(rawPath, path.dirname(document.uri.fsPath));
       const target = candidates[0];
@@ -2610,7 +3272,7 @@ async function refreshDiagnostics(document: vscode.TextDocument | undefined): Pr
     const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1));
     const diag = new vscode.Diagnostic(
       range,
-      "Diagnostics paused for large file (>512KB). Run validation command for full checks.",
+      "Diagnostics paused for large file (>512KB). Reduce file size or split values for full checks.",
       vscode.DiagnosticSeverity.Information,
     );
     diag.source = "helm-apps";
@@ -2656,6 +3318,7 @@ async function refreshIncludeDiagnostics(document: vscode.TextDocument | undefin
   const refs = collectIncludeFileRefs(document.getText());
   const diagnostics: vscode.Diagnostic[] = [];
 
+  const ru = vscode.env.language.toLowerCase().startsWith("ru");
   for (const ref of refs) {
     if (isTemplatedIncludePath(ref.path)) {
       continue;
@@ -2677,9 +3340,10 @@ async function refreshIncludeDiagnostics(document: vscode.TextDocument | undefin
     }
 
     const range = new vscode.Range(new vscode.Position(ref.line, 0), new vscode.Position(ref.line, 200));
-    const message = `Include file not found: ${ref.path}`;
+    const message = ru ? `Файл include не найден: ${ref.path}` : `Include file not found: ${ref.path}`;
     const d = new vscode.Diagnostic(range, message, vscode.DiagnosticSeverity.Warning);
     d.source = "helm-apps";
+    d.code = `E_INCLUDE_FILE_NOT_FOUND:${ref.path}`;
     diagnostics.push(d);
   }
 
@@ -2710,6 +3374,7 @@ async function refreshSemanticDiagnostics(document: vscode.TextDocument | undefi
   }
   const analysis = analyzeIncludes(text, loaded.includeDefinitions);
   const diagnostics: vscode.Diagnostic[] = [];
+  const ru = vscode.env.language.toLowerCase().startsWith("ru");
 
   for (const unresolved of analysis.unresolvedUsages) {
     const lineText = document.lineAt(unresolved.line).text;
@@ -2722,10 +3387,11 @@ async function refreshSemanticDiagnostics(document: vscode.TextDocument | undefi
     );
     const d = new vscode.Diagnostic(
       range,
-      `Unresolved include profile: ${unresolved.name}`,
+      ru ? `Неразрешённый include-профиль: ${unresolved.name}` : `Unresolved include profile: ${unresolved.name}`,
       vscode.DiagnosticSeverity.Warning,
     );
     d.source = "helm-apps";
+    d.code = `E_UNRESOLVED_INCLUDE:${unresolved.name}`;
     diagnostics.push(d);
   }
 
@@ -2740,7 +3406,7 @@ async function refreshSemanticDiagnostics(document: vscode.TextDocument | undefi
     );
     const d = new vscode.Diagnostic(
       range,
-      `Unused include profile: ${unused.name}`,
+      ru ? `Неиспользуемый include-профиль: ${unused.name}` : `Unused include profile: ${unused.name}`,
       vscode.DiagnosticSeverity.Information,
     );
     d.source = "helm-apps";

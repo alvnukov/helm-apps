@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://helm-apps.local/tests/.helm/values.schema.json",
-  "title": "helm-apps values",
+  "title": "Helm Apps Values Schema",
   "type": "object",
   "properties": {
     "global": {

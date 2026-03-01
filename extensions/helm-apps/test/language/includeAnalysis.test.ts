@@ -22,3 +22,16 @@ test("treats file include definitions as resolved for usages", () => {
   const result = analyzeIncludes(yaml, [{ name: "file-profile" }]);
   assert.equal(result.unresolvedUsages.length, 0);
 });
+
+test("detects unresolved include usage for scalar _include", () => {
+  const yaml = `apps-stateless:\n  api:\n    _include: missing-profile\n`;
+  const result = analyzeIncludes(yaml, []);
+  assert.equal(result.unresolvedUsages.length, 1);
+  assert.equal(result.unresolvedUsages[0].name, "missing-profile");
+});
+
+test("detects resolved include usage for quoted scalar _include", () => {
+  const yaml = `apps-stateless:\n  api:\n    _include: \"file-profile\"\n`;
+  const result = analyzeIncludes(yaml, [{ name: "file-profile" }]);
+  assert.equal(result.unresolvedUsages.length, 0);
+});

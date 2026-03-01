@@ -1,0 +1,11 @@
+{
+    "yaml.schemas": {
+        "file:///Users/zol/src/helm-apps/extensions/helm-apps/schemas/values.schema.json": [
+            ".helm/values.yaml",
+            "contracts/values.internal-compat.yaml",
+            "contracts/values.yaml"
+        ]
+    },
+    "mirrord.promptUsingBinary": false,
+    "yaml.hover": false
+}

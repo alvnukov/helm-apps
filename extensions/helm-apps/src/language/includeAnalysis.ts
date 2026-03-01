@@ -86,6 +86,11 @@ function collectIncludeUsages(text: string): IncludeUsageRef[] {
             out.push({ name: val, line: i });
           }
         }
+      } else {
+        const val = unquote(inline);
+        if (isToken(val)) {
+          out.push({ name: val, line: i });
+        }
       }
       continue;
     }

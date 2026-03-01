@@ -14,6 +14,7 @@
   "activationEvents": [
     "onLanguage:yaml",
     "onView:helmAppsValuesStructure",
+    "onView:helmAppsWorkbenchActions",
     "onCommand:helm-apps.configureSchema",
     "onCommand:helm-apps.validateCurrentFile",
     "onCommand:helm-apps.revealValuesNode",
@@ -25,10 +26,25 @@
     "onCommand:helm-apps.generateLibraryHelp",
     "onCommand:helm-apps.findUsages",
     "onCommand:helm-apps.openDependencyGraph",
-    "onCommand:helm-apps.pasteAsHelmApps"
+    "onCommand:helm-apps.pasteAsHelmApps",
+    "onCommand:helm-apps.createStarterChart",
+    "onCommand:helm-apps.manageLibrarySource",
+    "onCommand:helm-apps.checkLibraryUpdate",
+    "onCommand:helm-apps.cacheLibraryFromGithub",
+    "onCommand:helm-apps.updateLibraryDependency",
+    "onCommand:helm-apps.updateLibraryLockfile"
   ],
   "main": "./out/src/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "helmAppsWorkbench",
+          "title": "%view.workbench.container.name%",
+          "icon": "media/helm-apps-activity.svg"
+        }
+      ]
+    },
     "commands": [
       {
         "command": "helm-apps.configureSchema",
@@ -77,9 +93,39 @@
       {
         "command": "helm-apps.pasteAsHelmApps",
         "title": "%cmd.pasteAsHelmApps.title%"
+      },
+      {
+        "command": "helm-apps.createStarterChart",
+        "title": "%cmd.createStarterChart.title%"
+      },
+      {
+        "command": "helm-apps.manageLibrarySource",
+        "title": "%cmd.manageLibrarySource.title%"
+      },
+      {
+        "command": "helm-apps.checkLibraryUpdate",
+        "title": "%cmd.checkLibraryUpdate.title%"
+      },
+      {
+        "command": "helm-apps.cacheLibraryFromGithub",
+        "title": "%cmd.cacheLibraryFromGithub.title%"
+      },
+      {
+        "command": "helm-apps.updateLibraryDependency",
+        "title": "%cmd.updateLibraryDependency.title%"
+      },
+      {
+        "command": "helm-apps.updateLibraryLockfile",
+        "title": "%cmd.updateLibraryLockfile.title%"
       }
     ],
     "views": {
+      "helmAppsWorkbench": [
+        {
+          "id": "helmAppsWorkbenchActions",
+          "name": "%view.workbench.actions.name%"
+        }
+      ],
       "explorer": [
         {
           "id": "helmAppsValuesStructure",
@@ -133,6 +179,60 @@
           "command": "helm-apps.pasteAsHelmApps",
           "when": "resourceLangId == yaml",
           "group": "navigation@58"
+        },
+        {
+          "command": "helm-apps.updateLibraryDependency",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@59"
+        },
+        {
+          "command": "helm-apps.updateLibraryLockfile",
+          "when": "resourceLangId == yaml",
+          "group": "navigation@60"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "helm-apps.createStarterChart",
+          "when": "explorerResourceIsFolder",
+          "group": "navigation@58"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "helm-apps.createStarterChart",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@10"
+        },
+        {
+          "command": "helm-apps.previewResolvedEntity",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@11"
+        },
+        {
+          "command": "helm-apps.validateCurrentFile",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@12"
+        },
+        {
+          "command": "helm-apps.openLibrarySettings",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@13"
+        },
+        {
+          "command": "helm-apps.manageLibrarySource",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@14"
+        },
+        {
+          "command": "helm-apps.updateLibraryDependency",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@15"
+        },
+        {
+          "command": "helm-apps.updateLibraryLockfile",
+          "when": "view == helmAppsWorkbenchActions",
+          "group": "navigation@16"
         }
       ]
     },
@@ -153,6 +253,40 @@
           "type": "boolean",
           "default": true,
           "description": "%cfg.disableYamlSchemaHover.description%"
+        },
+        "helm-apps.librarySource": {
+          "type": "string",
+          "enum": [
+            "local",
+            "github"
+          ],
+          "default": "local",
+          "description": "%cfg.librarySource.description%"
+        },
+        "helm-apps.libraryLocalChartPath": {
+          "type": "string",
+          "default": "",
+          "description": "%cfg.libraryLocalChartPath.description%"
+        },
+        "helm-apps.libraryGithubRepo": {
+          "type": "string",
+          "default": "https://github.com/alvnukov/helm-apps.git",
+          "description": "%cfg.libraryGithubRepo.description%"
+        },
+        "helm-apps.libraryGithubCachedChartPath": {
+          "type": "string",
+          "default": "",
+          "description": "%cfg.libraryGithubCachedChartPath.description%"
+        },
+        "helm-apps.libraryGithubCachedVersion": {
+          "type": "string",
+          "default": "",
+          "description": "%cfg.libraryGithubCachedVersion.description%"
+        },
+        "helm-apps.helmPath": {
+          "type": "string",
+          "default": "helm",
+          "description": "%cfg.helmPath.description%"
         }
       }
     }
@@ -161,6 +295,7 @@
     "build": "tsc -p .",
     "watch": "tsc -w -p .",
     "package": "vsce package",
+    "sync:library": "node ./scripts/sync-bundled-library.js",
     "generate:hover-docs": "node ./scripts/generate-hover-doc-links.js",
     "check:hover-docs": "node ./scripts/check-hover-doc-links.js",
     "test": "tsc -p . && node --test out/test/**/*.test.js && npm run check:hover-docs",

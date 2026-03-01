@@ -58,6 +58,35 @@ test("expands _include_from_file and lets local override", async () => {
   assert.equal(Object.prototype.hasOwnProperty.call(svc, "_include_from_file"), false);
 });
 
+test("registers include definitions loaded via global._includes._include_from_file", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "helm-apps-ext-"));
+  const includeFile = join(dir, "helm-apps-defaults.yaml");
+  await writeFile(includeFile, "apps-ingresses-defaultIngress:\n  class: nginx\n", "utf8");
+
+  const values = {
+    global: {
+      _includes: {
+        _include_from_file: "helm-apps-defaults.yaml",
+      },
+    },
+    "apps-ingresses": {
+      ingress1: {
+        _include: ["apps-ingresses-defaultIngress"],
+      },
+    },
+  } as Record<string, unknown>;
+
+  const expanded = await expandValuesWithFileIncludes(values, join(dir, "values.yaml"), async (p) =>
+    await readFile(p, "utf8"),
+  );
+
+  const gl = expanded.values.global as Record<string, unknown>;
+  const includes = gl._includes as Record<string, unknown>;
+  assert.ok(includes["apps-ingresses-defaultIngress"]);
+  assert.ok(expanded.includeDefinitions.some((d) =>
+    d.name === "apps-ingresses-defaultIngress" && d.filePath === includeFile));
+});
+
 test("does not resolve include file from parent directories", async () => {
   const dir = await mkdtemp(join(tmpdir(), "helm-apps-ext-"));
   const nested = join(dir, "a", "b");

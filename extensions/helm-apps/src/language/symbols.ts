@@ -136,8 +136,13 @@ function findIncludeAtPosition(lines: string[], line: number, character: number)
 function includeUsagesOnLine(lines: string[], line: number): IncludeToken[] {
   const text = lines[line] ?? "";
   const key = parseKeyLine(text, line);
-  if (key && key.key === "_include" && key.value.trim().startsWith("[")) {
-    return parseInlineIncludeTokens(key.value, key.valueStart);
+  if (key && key.key === "_include") {
+    const inline = key.value.trim();
+    if (inline.startsWith("[") && inline.endsWith("]")) {
+      return parseInlineIncludeTokens(key.value, key.valueStart);
+    }
+    const scalar = parseScalarIncludeToken(key.value, key.valueStart);
+    return scalar ? [scalar] : [];
   }
 
   const item = parseListItemLine(text);
@@ -160,6 +165,20 @@ function parseInlineIncludeTokens(value: string, valueStart: number): IncludeTok
     out.push({ value: token, start, end: start + token.length });
   }
   return out;
+}
+
+function parseScalarIncludeToken(value: string, valueStart: number): IncludeToken | null {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const token = unquote(trimmed);
+  if (!/^[A-Za-z0-9_.-]+$/.test(token)) {
+    return null;
+  }
+  const rel = value.indexOf(token);
+  const start = rel >= 0 ? valueStart + rel : valueStart;
+  return { value: token, start, end: start + token.length };
 }
 
 function isIncludeDefinitionLine(lines: string[], line: number, key: KeyInfo): boolean {
@@ -268,6 +287,14 @@ function parseListItemLine(lineText: string): ListItemInfo | null {
     start,
     end: start + value.length,
   };
+}
+
+function unquote(value: string): string {
+  const v = value.trim();
+  if (v.length > 1 && ((v.startsWith("\"") && v.endsWith("\"")) || (v.startsWith("'") && v.endsWith("'")))) {
+    return v.slice(1, -1);
+  }
+  return v;
 }
 
 function tokenUnderCursor(line: string, char: number): string | null {

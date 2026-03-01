@@ -468,7 +468,7 @@ apps-ingresses:
   # Приложение из примера в документации
   nginx:
     _include: ["apps-ingresses-defaultIngress"]
-    host:  '{{ $.Values.global.ci_url }}'
+    host: "{{ $.Values.global.ci_url }}"
     paths: |
       - path: /
         pathType: Prefix
@@ -834,7 +834,6 @@ apps-stateful:
       - name: cache-volume
         emptyDir: {}
 
-
     ## Список контейнеров приложения. Можно указать несколько.
     containers:
       ## Имя контейнера.
@@ -1099,7 +1098,7 @@ apps-stateless:
     werfWeight: -10
     ## Включить/выключить приложение.
     # В репозитории приложения этой строки быть не должно, вместо этого приложение включается через GitLab CI.
-  # enabled: false
+    # enabled: false
     ## Дополнительные аннотации для Deployment/Pod.
     # Пробрасываются как есть в Deployment.metadata.annotations и Deployment.spec.template.metadata.annotations.
     # https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/
@@ -1320,7 +1319,6 @@ apps-stateless:
               secretline1
               secretline2
 
-
     ## Список инит-контейнеров приложения. Можно указать несколько.
     # Конфигурация доступных параметров идентична конфигурации containers, описанная выше ^^
     initContainers:
@@ -1364,7 +1362,6 @@ apps-stateless:
             mountPath: /etc/secret.conf
             content: |
               secretline1
-
 
     ## Service приложения.
     # Для связи других приложений и клиентов с этим приложением.
@@ -1681,9 +1678,9 @@ apps-kafka-strimzi:
           prod: kafka-sentry-prod-kafka-bootstrap
         hosts:
           _default:
-          - kafka-sentry-test-kafka-brokers
+            - kafka-sentry-test-kafka-brokers
           prod:
-          - kafka-sentry-prod-kafka-brokers
+            - kafka-sentry-prod-kafka-brokers
         port:
           _default: 9092
       version:
@@ -1722,7 +1719,7 @@ apps-kafka-strimzi:
         dex:
           allowedGroups:
             _default:
-            - hypermetrica-external-admins
+              - hypermetrica-external-admins
         resources:
           requests:
             mcpu: 100
@@ -2085,9 +2082,9 @@ test-env-yaml:
             level1:
               testEnvIgnored: test ignored #ошибка, будет проигнорировано - в описании перемнной обязательно должен быть ключ "_default"
               testEnvIgnored_2:
-                test: test ignored  #ошибка, будет проигнорировано - в описании перемнной обязательно должен быть ключ "_default"
+                test: test ignored #ошибка, будет проигнорировано - в описании перемнной обязательно должен быть ключ "_default"
               testEnv3:
-                _default:  default value #ошибки нет, в описании перемнной обязательно должен быть ключ "_default"
+                _default: default value #ошибки нет, в описании перемнной обязательно должен быть ключ "_default"
                 prod: from envYAML
               testEnv4:
                 _default: default value
@@ -2126,8 +2123,8 @@ test-env-yaml:
                     testProd2: 2v
                 testMap2: #эта мапка смержится
                   testNestedMap:
-                      nestedMap:
-                        test: 3v
+                    nestedMap:
+                      test: 3v
                   test: 2v
                   test2:
                     _default: 2v

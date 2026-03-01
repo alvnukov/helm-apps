@@ -45,3 +45,17 @@ test("collects app definition and release usage", () => {
   assert.equal(occurrences.filter((o) => o.role === "definition").length, 1);
   assert.equal(occurrences.filter((o) => o.role === "usage").length, 1);
 });
+
+test("finds include symbol under scalar _include usage", () => {
+  const yaml = `global:\n  _includes:\n    app-defaults:\n      enabled: true\napps-stateless:\n  api:\n    _include: app-defaults\n`;
+  const symbol = findSymbolAtPosition(yaml, 6, 18);
+  assert.deepEqual(symbol, { kind: "include", name: "app-defaults" });
+});
+
+test("collects include usage for scalar _include", () => {
+  const yaml = `global:\n  _includes:\n    app-defaults:\n      enabled: true\napps-stateless:\n  api:\n    _include: \"app-defaults\"\n`;
+  const occurrences = collectSymbolOccurrences(yaml, { kind: "include", name: "app-defaults" });
+  assert.equal(occurrences.length, 2);
+  assert.equal(occurrences.filter((o) => o.role === "definition").length, 1);
+  assert.equal(occurrences.filter((o) => o.role === "usage").length, 1);
+});
