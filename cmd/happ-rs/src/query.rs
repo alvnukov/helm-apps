@@ -41,53 +41,9 @@ fn eval_query(query: &str, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue
 
 fn parse_yaml_json_with_merge(input: &str) -> Result<JsonValue, Error> {
     let raw: serde_yaml::Value = serde_yaml::from_str(input).map_err(Error::Yaml)?;
-    let normalized = normalize_yaml_merge(raw);
+    let normalized = crate::yamlmerge::normalize_value(raw);
     serde_json::to_value(normalized)
         .map_err(|e| Error::Unsupported(format!("yaml to json conversion failed: {e}")))
-}
-
-fn normalize_yaml_merge(v: serde_yaml::Value) -> serde_yaml::Value {
-    match v {
-        serde_yaml::Value::Mapping(map) => normalize_yaml_mapping_merge(map),
-        serde_yaml::Value::Sequence(seq) => {
-            serde_yaml::Value::Sequence(seq.into_iter().map(normalize_yaml_merge).collect())
-        }
-        other => other,
-    }
-}
-
-fn normalize_yaml_mapping_merge(map: serde_yaml::Mapping) -> serde_yaml::Value {
-    let mut out = serde_yaml::Mapping::new();
-    if let Some(merge_source) = map.get(serde_yaml::Value::String("<<".to_string())).cloned() {
-        apply_yaml_merge_source(&mut out, merge_source);
-    }
-    for (k, v) in map {
-        if matches!(&k, serde_yaml::Value::String(s) if s == "<<") {
-            continue;
-        }
-        out.insert(k, normalize_yaml_merge(v));
-    }
-    serde_yaml::Value::Mapping(out)
-}
-
-fn apply_yaml_merge_source(target: &mut serde_yaml::Mapping, source: serde_yaml::Value) {
-    match normalize_yaml_merge(source) {
-        serde_yaml::Value::Mapping(m) => merge_yaml_mapping_into(target, m),
-        serde_yaml::Value::Sequence(seq) => {
-            for item in seq {
-                if let serde_yaml::Value::Mapping(m) = normalize_yaml_merge(item) {
-                    merge_yaml_mapping_into(target, m);
-                }
-            }
-        }
-        _ => {}
-    }
-}
-
-fn merge_yaml_mapping_into(target: &mut serde_yaml::Mapping, source: serde_yaml::Mapping) {
-    for (k, v) in source {
-        target.entry(k).or_insert(v);
-    }
 }
 
 #[derive(Debug, Clone)]
@@ -1813,42 +1769,74 @@ mod tests {
     struct CompatCase {
         id: String,
         query: String,
+        #[serde(default)]
         input_json: Option<String>,
+        #[serde(default)]
         input_yaml: Option<String>,
+        #[serde(default)]
         output_json_lines: Vec<String>,
+        #[serde(default)]
+        error_contains: Option<String>,
     }
 
     #[test]
     fn jq_compat_subset() {
-        let path = compat_file("jq-cases.yaml");
-        let data = fs::read_to_string(&path).expect("read compat");
-        let suite: CompatFile = serde_yaml::from_str(&data).expect("parse compat");
-        for case in suite.cases {
-            let input = case.input_json.as_deref().expect("input_json");
-            let out = run_json_query(&case.query, input)
-                .unwrap_or_else(|e| panic!("case {} failed: {e}", case.id));
-            let got = out
-                .iter()
-                .map(|v| serde_json::to_string(v).expect("json"))
-                .collect::<Vec<_>>();
-            assert_eq!(got, case.output_json_lines, "case {}", case.id);
-        }
+        run_compat_file("jq-cases.yaml", run_json_query, |c| c.input_json.as_deref().expect("input_json"));
     }
 
     #[test]
     fn yq_compat_subset() {
-        let path = compat_file("yq-cases.yaml");
+        run_compat_file("yq-cases.yaml", run_yaml_query, |c| c.input_yaml.as_deref().expect("input_yaml"));
+    }
+
+    #[test]
+    fn yq_yaml_spec_and_issue_regressions() {
+        run_compat_file(
+            "yq-yaml-spec-issues.yaml",
+            run_yaml_query,
+            |c| c.input_yaml.as_deref().expect("input_yaml"),
+        );
+    }
+
+    fn run_compat_file<FRun, FInput>(file_name: &str, run: FRun, input_of: FInput)
+    where
+        FRun: Fn(&str, &str) -> Result<Vec<JsonValue>, Error>,
+        FInput: Fn(&CompatCase) -> &str,
+    {
+        let path = compat_file(file_name);
         let data = fs::read_to_string(&path).expect("read compat");
         let suite: CompatFile = serde_yaml::from_str(&data).expect("parse compat");
         for case in suite.cases {
-            let input = case.input_yaml.as_deref().expect("input_yaml");
-            let out = run_yaml_query(&case.query, input)
-                .unwrap_or_else(|e| panic!("case {} failed: {e}", case.id));
-            let got = out
-                .iter()
-                .map(|v| serde_json::to_string(v).expect("json"))
-                .collect::<Vec<_>>();
-            assert_eq!(got, case.output_json_lines, "case {}", case.id);
+            let input = input_of(&case);
+            match run(&case.query, input) {
+                Ok(out) => {
+                    if let Some(expected_err) = case.error_contains.as_deref() {
+                        panic!(
+                            "case {} expected error containing {:?}, but got success output: {:?}",
+                            case.id, expected_err, out
+                        );
+                    }
+                    let got = out
+                        .iter()
+                        .map(|v| serde_json::to_string(v).expect("json"))
+                        .collect::<Vec<_>>();
+                    assert_eq!(got, case.output_json_lines, "case {}", case.id);
+                }
+                Err(err) => {
+                    if let Some(expected_err) = case.error_contains.as_deref() {
+                        let got = err.to_string().to_lowercase();
+                        assert!(
+                            got.contains(&expected_err.to_lowercase()),
+                            "case {} expected error containing {:?}, got: {}",
+                            case.id,
+                            expected_err,
+                            err
+                        );
+                    } else {
+                        panic!("case {} failed unexpectedly: {err}", case.id);
+                    }
+                }
+            }
         }
     }
 
@@ -1935,6 +1923,30 @@ svc:
 "#;
         let out = run_json_query(".svc.name", input).expect("query");
         assert_eq!(out, vec![serde_json::json!("app")]);
+    }
+
+    #[test]
+    fn yq_inline_merge_flow_map_preserves_key_order_in_output() {
+        let input = r#"
+base: &base
+  dummy: 42
+obj:
+  <<: { foo: 123, bar: 456 }
+  baz: 999
+"#;
+        let out = run_yaml_query(".obj", input).expect("query");
+        let line = serde_json::to_string(&out[0]).expect("json");
+        assert_eq!(line, r#"{"foo":123,"bar":456,"baz":999}"#);
+    }
+
+    #[test]
+    fn yaml_unidentified_alias_returns_yaml_error() {
+        let input = r#"
+obj:
+  <<: *unknown
+"#;
+        let err = run_yaml_query(".obj", input).expect_err("must fail");
+        assert!(matches!(err, Error::Yaml(_)));
     }
 
     #[test]

@@ -8,6 +8,7 @@ mod query;
 mod service;
 mod source;
 mod inspectweb;
+mod yamlmerge;
 
 use std::process;
 

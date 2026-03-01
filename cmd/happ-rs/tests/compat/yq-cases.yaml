@@ -463,3 +463,14 @@ cases:
         c: 3
     output_json_lines:
       - '{"a":1,"b":1,"c":3}'
+
+  - id: yq_anchor_merge_inline_flow_map_order
+    query: ".obj"
+    input_yaml: |
+      base: &base
+        dummy: 42
+      obj:
+        <<: { foo: 123, bar: 456 }
+        baz: 999
+    output_json_lines:
+      - '{"foo":123,"bar":456,"baz":999}'

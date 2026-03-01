@@ -14,6 +14,15 @@ pub fn serve(addr: &str, open_browser: bool, source_yaml: String, generated_valu
     )
 }
 
+pub fn serve_tools(addr: &str, open_browser: bool) -> Result<(), String> {
+    serve_with_renderer(
+        addr,
+        open_browser,
+        Box::new(render_tools_page_html),
+        None,
+    )
+}
+
 pub fn serve_compose(
     addr: &str,
     open_browser: bool,
@@ -161,6 +170,7 @@ fn convert_payload(mode: &str, input: &str) -> Result<String, String> {
     match mode {
         "yaml-to-json" => {
             let y: serde_yaml::Value = serde_yaml::from_str(input).map_err(|e| format!("YAML parse error: {e}"))?;
+            let y = crate::yamlmerge::normalize_value(y);
             let j = serde_json::to_value(y).map_err(|e| format!("YAML->JSON conversion error: {e}"))?;
             serde_json::to_string_pretty(&j).map_err(|e| format!("JSON format error: {e}"))
         }
@@ -231,6 +241,20 @@ pub fn render_compose_page_html(source_compose_yaml: &str, compose_report_yaml: 
     render_vue_page_html("happ compose-inspect", &model.to_string())
 }
 
+pub fn render_tools_page_html() -> String {
+    let model = serde_json::json!({
+        "title": "happ web tools",
+        "utilities": [
+            {
+                "id": "converter",
+                "title": "YAML/JSON Converter",
+                "description": "Convert data between YAML and JSON formats."
+            }
+        ]
+    });
+    render_vue_page_html("happ web tools", &model.to_string())
+}
+
 fn json_script_escape(s: &str) -> String {
     s.replace("</script>", "<\\/script>")
 }
@@ -246,6 +270,7 @@ fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
 <style>
 :root {{ color-scheme: light dark; }}
 body {{ font-family: ui-monospace, Menlo, monospace; margin:0; padding:16px; background:#f6f8fb; color:#0f172a; }}
+#app {{ max-width: 1800px; margin: 0 auto; }}
 .top {{ display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }}
 .title {{ margin:0; flex:1; min-width:280px; }}
 .toolbar {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
@@ -254,6 +279,7 @@ button.secondary {{ background:#374151; }}
 button.tab {{ background:#334155; }}
 button.tab.active {{ background:#0f172a; }}
 input[type='text'] {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; }}
+select {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; background:#fff; color:#0f172a; }}
 textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:13px; line-height:1.45; box-sizing:border-box; }}
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
 .tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px 0; }}
@@ -267,11 +293,14 @@ pre {{ background:#081126; color:#d8e6ff; padding:12px; border-radius:12px; over
 pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .muted {{ color:#475569; font-size:12px; }}
 .conv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; }}
+.converter-controls {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }}
+.converter-controls .muted {{ margin-left:auto; }}
 .err {{ color:#991b1b; font-weight:600; }}
 @media (prefers-color-scheme: dark) {{
  body {{ background:#0b1220; color:#dbe7ff; }}
  .card {{ border-color:#243247; background:#0f172ab3; }}
  input[type='text'] {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
+ select {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  textarea {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  .muted {{ color:#9fb0ca; }}
  .err {{ color:#fca5a5; }}
@@ -326,14 +355,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     <div class='cardhead'>
       <h3>YAML ↔ JSON Converter</h3>
       <div class='cardbtns'>
-        <button class='secondary' @click='swapConvertMode'>Mode: {{{{ converterModeLabel }}}}</button>
+        <button class='secondary' @click='swapConvertMode'>Swap</button>
         <button class='secondary' @click='clearConverter'>Clear</button>
       </div>
     </div>
-    <div class='toolbar' style='margin-bottom:10px;'>
-      <button class='secondary' @click='runConvert("yaml-to-json")'>YAML → JSON</button>
-      <button class='secondary' @click='runConvert("json-to-yaml")'>JSON → YAML</button>
+    <div class='converter-controls'>
+      <select v-model='converterMode'>
+        <option value='yaml-to-json'>YAML → JSON</option>
+        <option value='json-to-yaml'>JSON → YAML</option>
+      </select>
       <button class='secondary' @click='copyConverterOutput'>Copy output</button>
+      <div class='muted'>Live conversion is enabled</div>
     </div>
     <div class='conv-grid'>
       <div>
@@ -350,7 +382,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 </div>
 <script>
 window.__HAPP_MODEL__ = {};
-const APP_STORE_KEY = 'happ.inspect.ui.v2';
+const APP_STORE_KEY = 'happ.inspect.ui.v3';
 const app = Vue.createApp({{
   data() {{
     const model = window.__HAPP_MODEL__ || {{ title: 'happ', utilities: [] }};
@@ -367,6 +399,9 @@ const app = Vue.createApp({{
       converterInput: '',
       converterOutput: '',
       converterError: '',
+      converterRequestSeq: 0,
+      converterTimer: null,
+      converting: false,
     }};
   }},
   computed: {{
@@ -402,14 +437,21 @@ const app = Vue.createApp({{
         this.converterInput = s.converterInput || '';
       }}
     }} catch(_) {{}}
+    this.scheduleConvert();
   }},
   watch: {{
     wrapLines: 'saveSettings',
     fontSize: 'saveSettings',
     collapsedTitles: {{ handler: 'saveSettings', deep: true }},
     activeUtilityId: 'saveSettings',
-    converterMode: 'saveSettings',
-    converterInput: 'saveSettings'
+    converterMode() {{
+      this.saveSettings();
+      this.scheduleConvert();
+    }},
+    converterInput() {{
+      this.saveSettings();
+      this.scheduleConvert();
+    }}
   }},
   methods: {{
     saveSettings() {{
@@ -464,27 +506,49 @@ const app = Vue.createApp({{
       URL.revokeObjectURL(a.href);
     }},
     async runConvert(mode) {{
-      this.converterError = '';
-      this.converterOutput = '';
       this.converterMode = mode || this.converterMode;
+      this.converterError = '';
+      const payload = this.converterInput || '';
+      if(!payload.trim()) {{
+        this.converterOutput = '';
+        return;
+      }}
+      const reqId = ++this.converterRequestSeq;
+      this.converting = true;
       try {{
         const res = await fetch('/api/convert', {{
           method: 'POST',
           headers: {{ 'content-type': 'application/json' }},
           body: JSON.stringify({{
             mode: this.converterMode,
-            input: this.converterInput || ''
+            input: payload
           }})
         }});
         const data = await res.json();
+        if(reqId !== this.converterRequestSeq) return;
         if(!data.ok) {{
           this.converterError = data.output || 'Conversion failed';
+          this.converterOutput = '';
           return;
         }}
         this.converterOutput = data.output || '';
       }} catch(e) {{
+        if(reqId !== this.converterRequestSeq) return;
         this.converterError = String(e);
+        this.converterOutput = '';
+      }} finally {{
+        if(reqId === this.converterRequestSeq) {{
+          this.converting = false;
+        }}
       }}
+    }},
+    scheduleConvert() {{
+      if(this.converterTimer) {{
+        clearTimeout(this.converterTimer);
+      }}
+      this.converterTimer = setTimeout(() => {{
+        this.runConvert();
+      }}, 120);
     }},
     swapConvertMode() {{
       this.converterMode = this.converterMode === 'yaml-to-json' ? 'json-to-yaml' : 'yaml-to-json';
@@ -576,6 +640,77 @@ mod tests {
         let y = convert_payload("json-to-yaml", r#"{"a":1,"b":["x"]}"#).expect("json->yaml");
         assert!(y.contains("a: 1"));
         assert!(y.contains("- x"));
+    }
+
+    #[test]
+    fn convert_payload_yaml_to_json_resolves_inline_merge() {
+        let input = r#"
+base: &base
+  dummy: 42
+obj:
+  <<: { foo: 123, bar: 456 }
+  baz: 999
+"#;
+        let j = convert_payload("yaml-to-json", input).expect("yaml->json");
+        assert!(j.contains("\"foo\": 123"));
+        assert!(j.contains("\"bar\": 456"));
+        assert!(j.contains("\"baz\": 999"));
+        assert!(!j.contains("\"<<\""));
+    }
+
+    #[test]
+    fn convert_payload_yaml_block_and_folded_scalars_keep_semantics() {
+        let src = r#"
+literal: |-
+  line1
+  line2
+folded: >-
+  a
+  b
+"#;
+        let j = convert_payload("yaml-to-json", src).expect("yaml->json");
+        let v: serde_json::Value = serde_json::from_str(&j).expect("json");
+        assert_eq!(v["literal"], "line1\nline2");
+        assert_eq!(v["folded"], "a b");
+    }
+
+    #[test]
+    fn convert_payload_roundtrip_preserves_data_model() {
+        let src = r#"
+a: 1
+b:
+  c: true
+  d:
+    - x
+    - y
+text: |-
+  hello
+  world
+"#;
+        let as_json = convert_payload("yaml-to-json", src).expect("yaml->json");
+        let back_yaml = convert_payload("json-to-yaml", &as_json).expect("json->yaml");
+
+        let left: serde_yaml::Value = serde_yaml::from_str(src).expect("src yaml");
+        let right: serde_yaml::Value = serde_yaml::from_str(&back_yaml).expect("roundtrip yaml");
+        let left_norm = crate::yamlmerge::normalize_value(left);
+        let right_norm = crate::yamlmerge::normalize_value(right);
+        assert_eq!(left_norm, right_norm);
+    }
+
+    #[test]
+    fn convert_payload_rejects_multi_document_yaml() {
+        let src = "a: 1\n---\na: 2\n";
+        let err = convert_payload("yaml-to-json", src).expect_err("error");
+        assert!(err.contains("YAML parse error"));
+        assert!(err.to_lowercase().contains("more than one document"));
+    }
+
+    #[test]
+    fn convert_payload_rejects_duplicate_keys_yaml() {
+        let src = "a: 1\na: 2\n";
+        let err = convert_payload("yaml-to-json", src).expect_err("error");
+        assert!(err.contains("YAML parse error"));
+        assert!(err.to_lowercase().contains("duplicate"));
     }
 
     #[test]

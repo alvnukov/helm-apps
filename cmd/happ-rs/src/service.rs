@@ -28,7 +28,13 @@ pub fn run() -> Result<(), Error> {
 }
 
 pub fn run_with(cli: Cli) -> Result<(), Error> {
-    match cli.command {
+    if cli.web && cli.command.is_none() {
+        return crate::inspectweb::serve_tools(&cli.web_addr, true).map_err(Error::Convert);
+    }
+    let Some(command) = cli.command else {
+        return Err(Error::Convert("no command provided (use --help or --web)".to_string()));
+    };
+    match command {
         Command::Chart(args) => {
             let docs = crate::source::load_documents_for_chart(&args)?;
             let values = crate::convert::build_values(&args, &docs).map_err(Error::Convert)?;
@@ -398,7 +404,9 @@ mod tests {
     #[test]
     fn dyff_fail_on_diff_returns_error() {
         let cli = Cli {
-            command: Command::Dyff(DyffArgs {
+            web: false,
+            web_addr: "127.0.0.1:8088".to_string(),
+            command: Some(Command::Dyff(DyffArgs {
                 from: "-".into(),
                 to: "-".into(),
                 ignore_order: false,
@@ -412,7 +420,7 @@ mod tests {
                 label_from: None,
                 label_to: None,
                 output: None,
-            }),
+            })),
         };
         let _ = cli; // runtime stdin case intentionally not executed here
     }
@@ -575,7 +583,9 @@ mod tests {
     #[test]
     fn inspect_command_is_not_stubbed() {
         let cli = Cli {
-            command: Command::Inspect(InspectArgs {
+            web: false,
+            web_addr: "127.0.0.1:8088".to_string(),
+            command: Some(Command::Inspect(InspectArgs {
                 path: "/definitely/missing/chart".to_string(),
                 release_name: "inspect".to_string(),
                 namespace: None,
@@ -589,7 +599,7 @@ mod tests {
                 include_crds: false,
                 web: false,
                 addr: "127.0.0.1:8088".to_string(),
-            }),
+            })),
         };
         let result = run_with(cli);
         assert!(
@@ -604,9 +614,11 @@ mod tests {
         let p = td.path().join("values.yaml");
         fs::write(&p, "global:\n  env: dev\n").expect("write");
         let cli = Cli {
-            command: Command::Validate(ValidateArgs {
+            web: false,
+            web_addr: "127.0.0.1:8088".to_string(),
+            command: Some(Command::Validate(ValidateArgs {
                 values: p.to_string_lossy().to_string(),
-            }),
+            })),
         };
         let result = run_with(cli);
         assert!(result.is_ok(), "validate should pass for valid yaml: {result:?}");
@@ -618,9 +630,11 @@ mod tests {
         let p = td.path().join("values.yaml");
         fs::write(&p, "global:\n  env: [dev\n").expect("write");
         let cli = Cli {
-            command: Command::Validate(ValidateArgs {
+            web: false,
+            web_addr: "127.0.0.1:8088".to_string(),
+            command: Some(Command::Validate(ValidateArgs {
                 values: p.to_string_lossy().to_string(),
-            }),
+            })),
         };
         let result = run_with(cli);
         assert!(

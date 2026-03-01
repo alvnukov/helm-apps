@@ -3,8 +3,12 @@ use clap::{ArgAction, Parser, Subcommand};
 #[derive(Parser, Debug)]
 #[command(name = "happ", about = "happ imports Helm chart render output or raw manifests into a helm-apps-based consumer chart")]
 pub struct Cli {
+    #[arg(long, global = true, default_value_t = false, action = ArgAction::SetTrue, help = "Start web utilities UI")]
+    pub web: bool,
+    #[arg(long = "web-addr", global = true, default_value = "127.0.0.1:8088", help = "Address for --web mode")]
+    pub web_addr: String,
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Subcommand, Debug)]
@@ -60,7 +64,7 @@ mod tests {
     fn parses_validate_subcommand() {
         let cli = Cli::try_parse_from(["happ", "validate", "--values", "/tmp/values.yaml"])
             .expect("parse validate");
-        match cli.command {
+        match cli.command.expect("command") {
             Command::Validate(args) => assert_eq!(args.values, "/tmp/values.yaml"),
             other => panic!("unexpected command: {other:?}"),
         }
@@ -79,7 +83,7 @@ mod tests {
             "--open-browser=false",
         ])
         .expect("parse compose-inspect");
-        match cli.command {
+        match cli.command.expect("command") {
             Command::ComposeInspect(args) => {
                 assert!(args.web);
                 assert_eq!(args.addr, "127.0.0.1:9900");
@@ -109,7 +113,7 @@ mod tests {
             "generated",
         ])
         .expect("parse dyff");
-        match cli.command {
+        match cli.command.expect("command") {
             Command::Dyff(args) => {
                 assert_eq!(args.format, "json");
                 assert_eq!(args.color, "never");
@@ -135,7 +139,7 @@ mod tests {
             "--summary-only",
         ])
         .expect("parse dyff github");
-        match cli.command {
+        match cli.command.expect("command") {
             Command::Dyff(args) => {
                 assert_eq!(args.format, "github");
                 assert!(args.summary_only);
@@ -157,7 +161,7 @@ mod tests {
             "--raw-output",
         ])
         .expect("parse jq");
-        match cli.command {
+        match cli.command.expect("command") {
             Command::Jq(args) => {
                 assert_eq!(args.query, ".a");
                 assert_eq!(args.input, "in.json");
@@ -172,7 +176,7 @@ mod tests {
     fn parses_yq_subcommand() {
         let cli = Cli::try_parse_from(["happ", "yq", "--query", ".a", "--input", "in.yaml"])
             .expect("parse yq");
-        match cli.command {
+        match cli.command.expect("command") {
             Command::Yq(args) => {
                 assert_eq!(args.query, ".a");
                 assert_eq!(args.input, "in.yaml");
@@ -205,6 +209,15 @@ mod tests {
         let help = String::from_utf8(buf).expect("utf8");
         assert!(help.contains("Input may be YAML or JSON"));
         assert!(help.contains("Supports both JSON and YAML."));
+    }
+
+    #[test]
+    fn parses_top_level_web_mode_without_subcommand() {
+        let cli = Cli::try_parse_from(["happ", "--web", "--web-addr", "127.0.0.1:9999"])
+            .expect("parse web");
+        assert!(cli.web);
+        assert_eq!(cli.web_addr, "127.0.0.1:9999");
+        assert!(cli.command.is_none());
     }
 }
 

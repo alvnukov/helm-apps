@@ -7,18 +7,8 @@ pub struct DiffOptions {
 }
 
 pub fn between_yaml(from: &str, to: &str, opts: DiffOptions) -> Result<String, serde_yaml::Error> {
-    let a: Vec<Value> = serde_yaml::Deserializer::from_str(from)
-        .map(Value::deserialize)
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .filter(|v| !v.is_null())
-        .collect();
-    let b: Vec<Value> = serde_yaml::Deserializer::from_str(to)
-        .map(Value::deserialize)
-        .collect::<Result<Vec<_>, _>>()?
-        .into_iter()
-        .filter(|v| !v.is_null())
-        .collect();
+    let a = crate::yamlmerge::normalize_documents(from)?;
+    let b = crate::yamlmerge::normalize_documents(to)?;
     Ok(between_docs(&a, &b, opts))
 }
 
@@ -96,14 +86,34 @@ fn scalar_eq(a: &Value, b: &Value, trim_ws: bool) -> bool {
 }
 
 fn canonical(v: &Value) -> String {
-    serde_json::to_string(&serde_json::to_value(v).unwrap_or(serde_json::Value::Null)).unwrap_or_default()
+    let json = serde_json::to_value(v).unwrap_or(serde_json::Value::Null);
+    let sorted = canonicalize_json(json);
+    serde_json::to_string(&sorted).unwrap_or_default()
 }
 
 fn key_string(v: &Value) -> String {
     v.as_str().map(ToString::to_string).unwrap_or_else(|| canonical(v))
 }
 
-use serde::Deserialize;
+fn canonicalize_json(v: serde_json::Value) -> serde_json::Value {
+    match v {
+        serde_json::Value::Object(map) => {
+            let mut keys: Vec<String> = map.keys().cloned().collect();
+            keys.sort();
+            let mut out = serde_json::Map::with_capacity(keys.len());
+            for k in keys {
+                if let Some(val) = map.get(&k).cloned() {
+                    out.insert(k, canonicalize_json(val));
+                }
+            }
+            serde_json::Value::Object(out)
+        }
+        serde_json::Value::Array(arr) => {
+            serde_json::Value::Array(arr.into_iter().map(canonicalize_json).collect())
+        }
+        other => other,
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -152,5 +162,42 @@ mod tests {
         )
         .expect("diff");
         assert!(d2.is_empty());
+    }
+
+    #[test]
+    fn merge_key_and_expanded_object_are_equal() {
+        let a = r#"
+base: &base
+  dummy: 42
+obj:
+  <<: { foo: 123, bar: 456 }
+  baz: 999
+"#;
+        let b = r#"
+base:
+  dummy: 42
+obj:
+  foo: 123
+  bar: 456
+  baz: 999
+"#;
+        let diff = between_yaml(a, b, DiffOptions::default()).expect("diff");
+        assert!(diff.is_empty(), "unexpected diff: {diff}");
+    }
+
+    #[test]
+    fn ignore_order_mode_is_stable_for_maps_with_different_key_order() {
+        let a = "list:\n  - {x: 1, y: 2}\n";
+        let b = "list:\n  - {y: 2, x: 1}\n";
+        let diff = between_yaml(
+            a,
+            b,
+            DiffOptions {
+                ignore_order_changes: true,
+                ..DiffOptions::default()
+            },
+        )
+        .expect("diff");
+        assert!(diff.is_empty(), "unexpected diff: {diff}");
     }
 }
