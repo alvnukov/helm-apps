@@ -442,6 +442,34 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .jq-token-number {{ color:#b45309; }}
 .jq-token-op {{ color:#be123c; font-weight:700; }}
 .jq-token-field {{ color:#1d4ed8; }}
+.jq-suggest {{
+  margin-top:6px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#ffffff;
+  overflow:hidden;
+}}
+.jq-suggest-row {{
+  display:flex;
+  gap:8px;
+  justify-content:space-between;
+  align-items:flex-start;
+  padding:7px 10px;
+  cursor:pointer;
+}}
+.jq-suggest-row:hover,
+.jq-suggest-row.active {{ background:#eff6ff; }}
+.jq-suggest-label {{ font-weight:700; color:#0f172a; }}
+.jq-suggest-desc {{ color:#475569; font-size:12px; margin-top:2px; }}
+.jq-suggest-hint {{
+  margin-top:6px;
+  border:1px dashed #cbd5e1;
+  border-radius:10px;
+  padding:8px 10px;
+  background:#f8fafc;
+  font-size:12px;
+  color:#334155;
+}}
 .err {{ color:#991b1b; font-weight:600; }}
 @media (prefers-color-scheme: dark) {{
  body {{ background:#0b1220; color:#dbe7ff; }}
@@ -457,6 +485,12 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
  .jq-token-number {{ color:#fcd34d; }}
  .jq-token-op {{ color:#fda4af; }}
  .jq-token-field {{ color:#93c5fd; }}
+ .jq-suggest {{ border-color:#334155; background:#0f172a; }}
+ .jq-suggest-row:hover,
+ .jq-suggest-row.active {{ background:#1e293b; }}
+ .jq-suggest-label {{ color:#dbe7ff; }}
+ .jq-suggest-desc {{ color:#9fb0ca; }}
+ .jq-suggest-hint {{ border-color:#334155; background:#0b1220; color:#c7d6ef; }}
  .muted {{ color:#9fb0ca; }}
  .err {{ color:#fca5a5; }}
 }}
@@ -580,8 +614,29 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
         <textarea class='jq-query-input'
                   v-model='jqQuery'
                   spellcheck='false'
+                  @input='onJqInput'
+                  @click='updateJqSuggestState'
+                  @keyup='updateJqSuggestState'
+                  @keydown='onJqKeydown'
+                  @blur='closeJqSuggestSoon'
                   @scroll='syncJqScroll'
                   ref='jqQueryInput'></textarea>
+      </div>
+      <div class='jq-suggest' v-if='jqSuggestOpen && jqSuggestions.length'>
+        <div class='jq-suggest-row'
+             v-for='(s, idx) in jqSuggestions'
+             :key='s.label'
+             :class='{{ active: idx === jqSuggestIndex }}'
+             @mousedown.prevent='pickJqSuggestion(idx)'>
+          <div>
+            <div class='jq-suggest-label'>{{{{ s.label }}}}</div>
+            <div class='jq-suggest-desc'>{{{{ s.desc }}}}</div>
+          </div>
+          <div class='muted'>{{{{ s.kind }}}}</div>
+        </div>
+      </div>
+      <div class='jq-suggest-hint' v-if='jqSuggestOpen && jqSuggestions.length'>
+        {{{{ jqActiveSuggestionHint }}}}
       </div>
     </div>
     <div class='conv-grid'>
@@ -630,6 +685,35 @@ const app = Vue.createApp({{
       jqRawOutput: false,
       jqRequestSeq: 0,
       jqTimer: null,
+      jqSuggestOpen: false,
+      jqSuggestIndex: 0,
+      jqCatalog: [
+        {{ label:'select()', snippet:'select()', cursor:-1, kind:'filter', desc:'Filter stream by predicate.' }},
+        {{ label:'map()', snippet:'map()', cursor:-1, kind:'transform', desc:'Apply expression to each array element.' }},
+        {{ label:'contains()', snippet:'contains()', cursor:-1, kind:'predicate', desc:'Check container/string includes argument.' }},
+        {{ label:'startswith()', snippet:'startswith()', cursor:-1, kind:'predicate', desc:'String starts with prefix.' }},
+        {{ label:'endswith()', snippet:'endswith()', cursor:-1, kind:'predicate', desc:'String ends with suffix.' }},
+        {{ label:'has()', snippet:'has()', cursor:-1, kind:'predicate', desc:'Object has key / array has index.' }},
+        {{ label:'keys', snippet:'keys', cursor:0, kind:'function', desc:'Return object keys as array.' }},
+        {{ label:'length', snippet:'length', cursor:0, kind:'function', desc:'Length of string/array/object.' }},
+        {{ label:'type', snippet:'type', cursor:0, kind:'function', desc:'Type name: object/array/string/number/boolean/null.' }},
+        {{ label:'tostring', snippet:'tostring', cursor:0, kind:'function', desc:'Convert value to string.' }},
+        {{ label:'tonumber', snippet:'tonumber', cursor:0, kind:'function', desc:'Convert string/number to number.' }},
+        {{ label:'values', snippet:'values', cursor:0, kind:'function', desc:'Values of object/array items.' }},
+        {{ label:'add', snippet:'add', cursor:0, kind:'aggregate', desc:'Sum/concat array items.' }},
+        {{ label:'sort', snippet:'sort', cursor:0, kind:'aggregate', desc:'Sort array values.' }},
+        {{ label:'reverse', snippet:'reverse', cursor:0, kind:'aggregate', desc:'Reverse array/string.' }},
+        {{ label:'min', snippet:'min', cursor:0, kind:'aggregate', desc:'Minimum array value.' }},
+        {{ label:'max', snippet:'max', cursor:0, kind:'aggregate', desc:'Maximum array value.' }},
+        {{ label:'index()', snippet:'index()', cursor:-1, kind:'search', desc:'Index of substring/element.' }},
+        {{ label:'rindex()', snippet:'rindex()', cursor:-1, kind:'search', desc:'Last index of substring/element.' }},
+        {{ label:'split()', snippet:'split()', cursor:-1, kind:'string', desc:'Split string by separator.' }},
+        {{ label:'join()', snippet:'join()', cursor:-1, kind:'string', desc:'Join array by separator.' }},
+        {{ label:'if then else end', snippet:'if  then  else  end', cursor:-14, kind:'flow', desc:'Conditional expression.' }},
+        {{ label:'and', snippet:'and', cursor:0, kind:'operator', desc:'Logical AND in predicates.' }},
+        {{ label:'or', snippet:'or', cursor:0, kind:'operator', desc:'Logical OR in predicates.' }},
+        {{ label:'not', snippet:'not', cursor:0, kind:'operator', desc:'Logical negation.' }},
+      ],
       converting: false,
     }};
   }},
@@ -654,6 +738,19 @@ const app = Vue.createApp({{
     }},
     jqQueryHighlighted() {{
       return this.highlightJq(this.jqQuery || '');
+    }},
+    jqSuggestions() {{
+      const token = (this.currentJqToken() || '').toLowerCase();
+      if(!token) return this.jqCatalog.slice(0, 10);
+      return this.jqCatalog
+        .filter(x => x.label.toLowerCase().startsWith(token) || x.snippet.toLowerCase().startsWith(token))
+        .slice(0, 10);
+    }},
+    jqActiveSuggestionHint() {{
+      if(!this.jqSuggestions.length) return 'No suggestions';
+      const idx = Math.min(this.jqSuggestIndex, this.jqSuggestions.length - 1);
+      const s = this.jqSuggestions[idx];
+      return s ? (s.label + ' — ' + s.desc) : 'No suggestions';
     }}
   }},
   mounted() {{
@@ -749,6 +846,7 @@ const app = Vue.createApp({{
     }},
     selectUtility(id) {{
       this.activeUtilityId = id;
+      if(id !== 'jq-playground') this.jqSuggestOpen = false;
     }},
     paneKey(pane) {{ return pane.title || ''; }},
     paneKeyWithUtility(pane) {{ return this.activeUtilityId + '::' + this.paneKey(pane); }},
@@ -845,6 +943,82 @@ const app = Vue.createApp({{
       if(!this.converterOutput) return;
       try {{ await navigator.clipboard.writeText(this.converterOutput); }} catch(_) {{}}
     }},
+    onJqInput() {{
+      this.updateJqSuggestState();
+    }},
+    currentJqToken() {{
+      const ta = this.$refs.jqQueryInput;
+      const src = this.jqQuery || '';
+      const pos = ta && Number.isFinite(ta.selectionStart) ? ta.selectionStart : src.length;
+      const left = src.slice(0, pos);
+      const m = left.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
+      return m ? m[1] : '';
+    }},
+    updateJqSuggestState() {{
+      const token = this.currentJqToken();
+      this.jqSuggestOpen = this.activeUtilityId === 'jq-playground' && (!!token || (this.jqQuery || '').trim() === '');
+      this.jqSuggestIndex = 0;
+    }},
+    closeJqSuggestSoon() {{
+      setTimeout(() => {{
+        this.jqSuggestOpen = false;
+      }}, 120);
+    }},
+    replaceCurrentJqToken(text, cursorFromEnd) {{
+      const ta = this.$refs.jqQueryInput;
+      const src = this.jqQuery || '';
+      const pos = ta && Number.isFinite(ta.selectionStart) ? ta.selectionStart : src.length;
+      const left = src.slice(0, pos);
+      const m = left.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
+      const tokenLen = m ? m[1].length : 0;
+      const start = pos - tokenLen;
+      this.jqQuery = src.slice(0, start) + text + src.slice(pos);
+      const base = start + text.length;
+      const nextPos = Math.max(0, base + (cursorFromEnd || 0));
+      this.$nextTick(() => {{
+        const area = this.$refs.jqQueryInput;
+        if(!area) return;
+        area.focus();
+        area.setSelectionRange(nextPos, nextPos);
+        this.syncJqScroll();
+      }});
+    }},
+    pickJqSuggestion(idx) {{
+      if(!this.jqSuggestions.length) return;
+      const i = Math.min(Math.max(0, idx), this.jqSuggestions.length - 1);
+      const s = this.jqSuggestions[i];
+      this.replaceCurrentJqToken(s.snippet, s.cursor || 0);
+      this.jqSuggestOpen = false;
+    }},
+    onJqKeydown(e) {{
+      if(!this.jqSuggestOpen || !this.jqSuggestions.length) {{
+        if((e.ctrlKey || e.metaKey) && e.key === ' ') {{
+          e.preventDefault();
+          this.updateJqSuggestState();
+          this.jqSuggestOpen = true;
+        }}
+        return;
+      }}
+      if(e.key === 'ArrowDown') {{
+        e.preventDefault();
+        this.jqSuggestIndex = (this.jqSuggestIndex + 1) % this.jqSuggestions.length;
+        return;
+      }}
+      if(e.key === 'ArrowUp') {{
+        e.preventDefault();
+        this.jqSuggestIndex = (this.jqSuggestIndex - 1 + this.jqSuggestions.length) % this.jqSuggestions.length;
+        return;
+      }}
+      if(e.key === 'Tab' || e.key === 'Enter') {{
+        e.preventDefault();
+        this.pickJqSuggestion(this.jqSuggestIndex);
+        return;
+      }}
+      if(e.key === 'Escape') {{
+        e.preventDefault();
+        this.jqSuggestOpen = false;
+      }}
+    }},
     syncJqScroll() {{
       const ta = this.$refs.jqQueryInput;
       const pre = this.$el && this.$el.querySelector('.jq-query-highlight');
@@ -913,6 +1087,7 @@ const app = Vue.createApp({{
       this.jqOutput = '';
       this.jqError = '';
       this.jqQuery = '.';
+      this.jqSuggestOpen = false;
     }},
     async copyJqOutput() {{
       if(!this.jqOutput) return;
@@ -976,6 +1151,8 @@ mod tests {
         assert!(html.contains("YAML/JSON Converter"));
         assert!(html.contains("jq Playground"));
         assert!(html.contains("/api/jq"));
+        assert!(html.contains("jq-suggest"));
+        assert!(html.contains("onJqKeydown"));
         assert!(html.contains("YAML → JSON"));
         assert!(html.contains("localStorage"));
     }
