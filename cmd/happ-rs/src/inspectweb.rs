@@ -4,6 +4,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 
 const VUE_GLOBAL_PROD_JS: &str = include_str!("../assets/vue.global.prod.js");
+const MAX_HTTP_REQUEST_BYTES: usize = 64 * 1024 * 1024;
 
 pub fn serve(addr: &str, open_browser: bool, source_yaml: String, generated_values_yaml: String) -> Result<(), String> {
     serve_with_renderer(
@@ -166,7 +167,7 @@ fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
                 break;
             }
         }
-        if data.len() > 5 * 1024 * 1024 {
+        if data.len() > MAX_HTTP_REQUEST_BYTES {
             return Err("request too large".to_string());
         }
     }
@@ -284,9 +285,18 @@ fn select_docs_for_web(
 }
 
 fn write_response(stream: &mut TcpStream, code: u16, content_type: &str, body: &[u8]) -> std::io::Result<()> {
+    let reason = match code {
+        200 => "OK",
+        400 => "Bad Request",
+        404 => "Not Found",
+        413 => "Payload Too Large",
+        500 => "Internal Server Error",
+        _ => "OK",
+    };
     let head = format!(
-        "HTTP/1.1 {} OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+        "HTTP/1.1 {} {}\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
         code,
+        reason,
         content_type,
         body.len()
     );
@@ -920,7 +930,16 @@ const app = Vue.createApp({{
             input: payload
           }})
         }});
-        const data = await res.json();
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('convert API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.output || ('convert API HTTP ' + res.status));
+        }}
         if(reqId !== this.converterRequestSeq) return;
         if(!data.ok) {{
           this.converterError = data.output || 'Conversion failed';
@@ -1075,7 +1094,16 @@ const app = Vue.createApp({{
             rawOutput: this.jqRawOutput
           }})
         }});
-        const data = await res.json();
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('jq API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.output || ('jq API HTTP ' + res.status));
+        }}
         if(reqId !== this.jqRequestSeq) return;
         if(!data.ok) {{
           this.jqError = data.output || 'jq execution failed';
