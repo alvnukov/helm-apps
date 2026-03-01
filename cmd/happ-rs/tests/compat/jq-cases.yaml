@@ -290,3 +290,45 @@ cases:
     input_json: "[3,1,2]"
     output_json_lines:
       - "3"
+
+  - id: jq_add_numbers
+    query: ".a + .b"
+    input_json: '{"a":2,"b":3}'
+    output_json_lines:
+      - "5"
+
+  - id: jq_sub_numbers
+    query: ".a - .b"
+    input_json: '{"a":7,"b":2}'
+    output_json_lines:
+      - "5"
+
+  - id: jq_mul_numbers
+    query: ".a * .b"
+    input_json: '{"a":4,"b":3}'
+    output_json_lines:
+      - "12"
+
+  - id: jq_div_numbers
+    query: ".a / .b"
+    input_json: '{"a":9,"b":2}'
+    output_json_lines:
+      - "4.5"
+
+  - id: jq_add_strings
+    query: ".a + .b"
+    input_json: '{"a":"ab","b":"cd"}'
+    output_json_lines:
+      - '"abcd"'
+
+  - id: jq_add_arrays
+    query: ".a + .b"
+    input_json: '{"a":[1,2],"b":[3]}'
+    output_json_lines:
+      - "[1,2,3]"
+
+  - id: jq_add_objects
+    query: ".a + .b"
+    input_json: '{"a":{"x":1},"b":{"y":2}}'
+    output_json_lines:
+      - '{"x":1,"y":2}'

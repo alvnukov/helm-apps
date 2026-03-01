@@ -343,3 +343,64 @@ cases:
       - 2
     output_json_lines:
       - "3"
+
+  - id: yq_add_numbers
+    query: ".a + .b"
+    input_yaml: |
+      a: 2
+      b: 3
+    output_json_lines:
+      - "5"
+
+  - id: yq_sub_numbers
+    query: ".a - .b"
+    input_yaml: |
+      a: 7
+      b: 2
+    output_json_lines:
+      - "5"
+
+  - id: yq_mul_numbers
+    query: ".a * .b"
+    input_yaml: |
+      a: 4
+      b: 3
+    output_json_lines:
+      - "12"
+
+  - id: yq_div_numbers
+    query: ".a / .b"
+    input_yaml: |
+      a: 9
+      b: 2
+    output_json_lines:
+      - "4.5"
+
+  - id: yq_add_strings
+    query: ".a + .b"
+    input_yaml: |
+      a: ab
+      b: cd
+    output_json_lines:
+      - '"abcd"'
+
+  - id: yq_add_arrays
+    query: ".a + .b"
+    input_yaml: |
+      a:
+        - 1
+        - 2
+      b:
+        - 3
+    output_json_lines:
+      - "[1,2,3]"
+
+  - id: yq_add_objects
+    query: ".a + .b"
+    input_yaml: |
+      a:
+        x: 1
+      b:
+        y: 2
+    output_json_lines:
+      - '{"x":1,"y":2}'

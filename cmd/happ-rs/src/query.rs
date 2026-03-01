@@ -43,6 +43,10 @@ enum CompiledQuery {
     Collect(Box<CompiledQuery>),
     Comma(Vec<CompiledQuery>),
     Alt(Box<CompiledQuery>, Box<CompiledQuery>),
+    AddExpr(Box<CompiledQuery>, Box<CompiledQuery>),
+    SubExpr(Box<CompiledQuery>, Box<CompiledQuery>),
+    MulExpr(Box<CompiledQuery>, Box<CompiledQuery>),
+    DivExpr(Box<CompiledQuery>, Box<CompiledQuery>),
     IfElse {
         cond: Box<CompiledQuery>,
         then_q: Box<CompiledQuery>,
@@ -150,6 +154,38 @@ fn compile_query(query: &str) -> Result<CompiledQuery, Error> {
             Box::new(compile_query(l.trim())?),
             Box::new(compile_query(r.trim())?),
         ));
+    }
+    if let Some((l, r)) = split_once_top_level(q, "+") {
+        if !l.trim().is_empty() && !r.trim().is_empty() {
+            return Ok(CompiledQuery::AddExpr(
+                Box::new(compile_query(l.trim())?),
+                Box::new(compile_query(r.trim())?),
+            ));
+        }
+    }
+    if let Some((l, r)) = split_once_top_level(q, "-") {
+        if !l.trim().is_empty() && !r.trim().is_empty() {
+            return Ok(CompiledQuery::SubExpr(
+                Box::new(compile_query(l.trim())?),
+                Box::new(compile_query(r.trim())?),
+            ));
+        }
+    }
+    if let Some((l, r)) = split_once_top_level(q, "*") {
+        if !l.trim().is_empty() && !r.trim().is_empty() {
+            return Ok(CompiledQuery::MulExpr(
+                Box::new(compile_query(l.trim())?),
+                Box::new(compile_query(r.trim())?),
+            ));
+        }
+    }
+    if let Some((l, r)) = split_once_top_level(q, "/") {
+        if !l.trim().is_empty() && !r.trim().is_empty() {
+            return Ok(CompiledQuery::DivExpr(
+                Box::new(compile_query(l.trim())?),
+                Box::new(compile_query(r.trim())?),
+            ));
+        }
     }
     let stages = split_top_level(q, '|');
     let mut compiled = Vec::with_capacity(stages.len());
@@ -480,6 +516,10 @@ fn eval_compiled_query(query: &CompiledQuery, input_stream: Vec<JsonValue>) -> R
                 Ok(preferred)
             }
         }
+        CompiledQuery::AddExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Add),
+        CompiledQuery::SubExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Sub),
+        CompiledQuery::MulExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Mul),
+        CompiledQuery::DivExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Div),
         CompiledQuery::IfElse { cond, then_q, else_q } => {
             let mut out = Vec::new();
             for v in input_stream {
@@ -776,6 +816,85 @@ fn compare_json_values(a: &JsonValue, b: &JsonValue) -> Option<std::cmp::Orderin
         (JsonValue::String(la), JsonValue::String(lb)) => Some(la.cmp(lb)),
         (JsonValue::Bool(la), JsonValue::Bool(lb)) => Some(la.cmp(lb)),
         _ => None,
+    }
+}
+
+#[derive(Clone, Copy)]
+enum BinaryOp {
+    Add,
+    Sub,
+    Mul,
+    Div,
+}
+
+fn eval_binary_expr(
+    input_stream: Vec<JsonValue>,
+    l: &CompiledQuery,
+    r: &CompiledQuery,
+    op: BinaryOp,
+) -> Result<Vec<JsonValue>, Error> {
+    let mut out = Vec::with_capacity(input_stream.len());
+    for input in input_stream {
+        let lv = first_or_null(&eval_compiled_query(l, vec![input.clone()])?);
+        let rv = first_or_null(&eval_compiled_query(r, vec![input])?);
+        out.push(apply_binary_op(&lv, &rv, op)?);
+    }
+    Ok(out)
+}
+
+fn apply_binary_op(l: &JsonValue, r: &JsonValue, op: BinaryOp) -> Result<JsonValue, Error> {
+    match op {
+        BinaryOp::Add => match (l, r) {
+            (JsonValue::Number(ln), JsonValue::Number(rn)) => add_numbers(ln, rn),
+            (JsonValue::String(ls), JsonValue::String(rs)) => Ok(JsonValue::String(format!("{ls}{rs}"))),
+            (JsonValue::Array(la), JsonValue::Array(ra)) => {
+                let mut out = la.clone();
+                out.extend(ra.clone());
+                Ok(JsonValue::Array(out))
+            }
+            (JsonValue::Object(lo), JsonValue::Object(ro)) => {
+                let mut out = lo.clone();
+                for (k, v) in ro {
+                    out.insert(k.clone(), v.clone());
+                }
+                Ok(JsonValue::Object(out))
+            }
+            _ => Err(Error::Unsupported("operator + is not supported for given operands".to_string())),
+        },
+        BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
+            let ln = l
+                .as_f64()
+                .ok_or_else(|| Error::Unsupported("arithmetic operator requires number operands".to_string()))?;
+            let rn = r
+                .as_f64()
+                .ok_or_else(|| Error::Unsupported("arithmetic operator requires number operands".to_string()))?;
+            let val = match op {
+                BinaryOp::Sub => ln - rn,
+                BinaryOp::Mul => ln * rn,
+                BinaryOp::Div => ln / rn,
+                BinaryOp::Add => unreachable!(),
+            };
+            if val.fract() == 0.0 {
+                Ok(JsonValue::from(val as i64))
+            } else {
+                Ok(JsonValue::from(val))
+            }
+        }
+    }
+}
+
+fn add_numbers(ln: &serde_json::Number, rn: &serde_json::Number) -> Result<JsonValue, Error> {
+    let lf = ln
+        .as_f64()
+        .ok_or_else(|| Error::Unsupported("number conversion failed".to_string()))?;
+    let rf = rn
+        .as_f64()
+        .ok_or_else(|| Error::Unsupported("number conversion failed".to_string()))?;
+    let val = lf + rf;
+    if val.fract() == 0.0 {
+        Ok(JsonValue::from(val as i64))
+    } else {
+        Ok(JsonValue::from(val))
     }
 }
 
@@ -1856,6 +1975,28 @@ a:
         assert_eq!(out_min, vec![serde_json::json!(1)]);
         let out_max = run_json_query("max", r#"[3,1,2]"#).expect("query");
         assert_eq!(out_max, vec![serde_json::json!(3)]);
+    }
+
+    #[test]
+    fn run_query_supports_arithmetic_expressions() {
+        let out_add = run_json_query(".a + .b", r#"{"a":2,"b":3}"#).expect("query");
+        assert_eq!(out_add, vec![serde_json::json!(5)]);
+        let out_sub = run_json_query(".a - .b", r#"{"a":7,"b":2}"#).expect("query");
+        assert_eq!(out_sub, vec![serde_json::json!(5)]);
+        let out_mul = run_json_query(".a * .b", r#"{"a":4,"b":3}"#).expect("query");
+        assert_eq!(out_mul, vec![serde_json::json!(12)]);
+        let out_div = run_json_query(".a / .b", r#"{"a":9,"b":2}"#).expect("query");
+        assert_eq!(out_div, vec![serde_json::json!(4.5)]);
+    }
+
+    #[test]
+    fn run_query_supports_add_for_strings_arrays_and_objects() {
+        let out_s = run_json_query(r#".a + .b"#, r#"{"a":"ab","b":"cd"}"#).expect("query");
+        assert_eq!(out_s, vec![serde_json::json!("abcd")]);
+        let out_a = run_json_query(r#".a + .b"#, r#"{"a":[1,2],"b":[3]}"#).expect("query");
+        assert_eq!(out_a, vec![serde_json::json!([1, 2, 3])]);
+        let out_o = run_json_query(r#".a + .b"#, r#"{"a":{"x":1},"b":{"y":2}}"#).expect("query");
+        assert_eq!(out_o, vec![serde_json::json!({"x":1,"y":2})]);
     }
 
     #[test]
