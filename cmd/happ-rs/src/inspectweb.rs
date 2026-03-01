@@ -137,6 +137,39 @@ fn handle_connection(
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
         return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
     }
+    if path == "/api/yq" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let query = payload.get("query").and_then(|v| v.as_str()).unwrap_or(".");
+        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
+        let doc_mode = payload.get("docMode").and_then(|v| v.as_str()).unwrap_or("first");
+        let doc_index = payload
+            .get("docIndex")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize);
+        let compact = payload.get("compact").and_then(|v| v.as_bool()).unwrap_or(false);
+        let raw_output = payload.get("rawOutput").and_then(|v| v.as_bool()).unwrap_or(false);
+        let (ok, output) = match yq_payload(query, input, doc_mode, doc_index, compact, raw_output) {
+            Ok(v) => (true, v),
+            Err(e) => (false, e),
+        };
+        let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
+    if path == "/api/dyff" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let from = payload.get("from").and_then(|v| v.as_str()).unwrap_or_default();
+        let to = payload.get("to").and_then(|v| v.as_str()).unwrap_or_default();
+        let ignore_order = payload.get("ignoreOrder").and_then(|v| v.as_bool()).unwrap_or(false);
+        let ignore_whitespace = payload.get("ignoreWhitespace").and_then(|v| v.as_bool()).unwrap_or(false);
+        let (ok, output) = match dyff_payload(from, to, ignore_order, ignore_whitespace) {
+            Ok(v) => (true, v),
+            Err(e) => (false, e),
+        };
+        let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
 
     let html = html_renderer();
     write_response(stream, 200, "text/html; charset=utf-8", html.as_bytes()).map_err(|e| e.to_string())
@@ -258,6 +291,51 @@ fn jq_payload(
     Ok(lines.join("\n"))
 }
 
+fn yq_payload(
+    query: &str,
+    input: &str,
+    doc_mode: &str,
+    doc_index: Option<usize>,
+    compact: bool,
+    raw_output: bool,
+) -> Result<String, String> {
+    let docs = crate::query::parse_input_docs_prefer_yaml(input).map_err(|e| format!("yq parse error: {e}"))?;
+    let selected = select_docs_for_web(docs, doc_mode, doc_index, "yq")?;
+    let out = crate::query::run_query_stream(query, selected).map_err(|e| format!("yq query error: {e}"))?;
+    let mut lines = Vec::with_capacity(out.len());
+    for v in out {
+        if raw_output {
+            if let Some(s) = v.as_str() {
+                lines.push(s.to_string());
+                continue;
+            }
+        }
+        let line = if compact {
+            serde_json::to_string(&v).map_err(|e| format!("yq output encode error: {e}"))?
+        } else {
+            serde_json::to_string_pretty(&v).map_err(|e| format!("yq output encode error: {e}"))?
+        };
+        lines.push(line);
+    }
+    Ok(lines.join("\n"))
+}
+
+fn dyff_payload(from: &str, to: &str, ignore_order: bool, ignore_whitespace: bool) -> Result<String, String> {
+    let diff = crate::dyfflike::between_yaml(
+        from,
+        to,
+        crate::dyfflike::DiffOptions {
+            ignore_order_changes: ignore_order,
+            ignore_whitespace_change: ignore_whitespace,
+        },
+    )
+    .map_err(|e| format!("dyff parse error: {e}"))?;
+    if diff.trim().is_empty() {
+        return Ok("No differences".to_string());
+    }
+    Ok(diff)
+}
+
 fn select_docs_for_web(
     docs: Vec<serde_json::Value>,
     doc_mode: &str,
@@ -327,6 +405,16 @@ pub fn render_page_html(source_yaml: &str, generated_values_yaml: &str) -> Strin
                 "id": "jq-playground",
                 "title": "jq Playground",
                 "description": "Run jq queries on JSON or YAML input."
+            },
+            {
+                "id": "yq-playground",
+                "title": "yq Playground",
+                "description": "Run yq queries on YAML or JSON input."
+            },
+            {
+                "id": "dyff-compare",
+                "title": "dyff Compare",
+                "description": "Compare two YAML payloads with dyff-like output."
             }
         ]
     });
@@ -356,6 +444,16 @@ pub fn render_compose_page_html(source_compose_yaml: &str, compose_report_yaml: 
                 "id": "jq-playground",
                 "title": "jq Playground",
                 "description": "Run jq queries on JSON or YAML input."
+            },
+            {
+                "id": "yq-playground",
+                "title": "yq Playground",
+                "description": "Run yq queries on YAML or JSON input."
+            },
+            {
+                "id": "dyff-compare",
+                "title": "dyff Compare",
+                "description": "Compare two YAML payloads with dyff-like output."
             }
         ]
     });
@@ -375,6 +473,16 @@ pub fn render_tools_page_html() -> String {
                 "id": "jq-playground",
                 "title": "jq Playground",
                 "description": "Run jq queries on JSON or YAML input."
+            },
+            {
+                "id": "yq-playground",
+                "title": "yq Playground",
+                "description": "Run yq queries on YAML or JSON input."
+            },
+            {
+                "id": "dyff-compare",
+                "title": "dyff Compare",
+                "description": "Compare two YAML payloads with dyff-like output."
             }
         ]
     });
@@ -397,29 +505,29 @@ fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
 <title>{}</title>
 <style>
 :root {{ color-scheme: light dark; }}
-body {{ font-family: ui-monospace, Menlo, monospace; margin:0; padding:16px; background:#f6f8fb; color:#0f172a; }}
-#app {{ max-width: 1800px; margin: 0 auto; }}
+body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin:0; padding:16px; background:linear-gradient(180deg,#f3f6fb 0%,#eef2f7 100%); color:#0f172a; }}
+#app {{ max-width: 1600px; margin: 0 auto; }}
 .top {{ display:flex; gap:8px; align-items:center; margin-bottom:12px; flex-wrap:wrap; }}
-.title {{ margin:0; flex:1; min-width:280px; }}
+.title {{ margin:0; flex:1; min-width:280px; font-size:44px; letter-spacing:-0.02em; font-weight:700; }}
 .toolbar {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
-button {{ border:0; background:#0f172a; color:#fff; padding:8px 12px; border-radius:8px; cursor:pointer; }}
-button.secondary {{ background:#374151; }}
-button.tab {{ background:#334155; }}
-button.tab.active {{ background:#0f172a; }}
+button {{ border:0; background:#0f172a; color:#fff; padding:8px 12px; border-radius:10px; cursor:pointer; font-weight:600; }}
+button.secondary {{ background:#3a4a61; }}
+button.tab {{ background:#3a4a61; }}
+button.tab.active {{ background:#0f172a; box-shadow:inset 0 0 0 1px #64748b; }}
 input[type='text'] {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; }}
 select {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; background:#fff; color:#0f172a; }}
-textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:13px; line-height:1.45; box-sizing:border-box; }}
+textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:14px; line-height:1.45; box-sizing:border-box; background:#fff; }}
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
 .tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px 0; }}
 .util-head {{ margin:0 0 12px 0; }}
 .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:12px; }}
-.card {{ border:1px solid #d0dae8; border-radius:12px; padding:12px; background:#ffffffa8; }}
+.card {{ border:1px solid #d0dae8; border-radius:14px; padding:12px; background:#ffffffd9; box-shadow:0 8px 30px rgba(15,23,42,0.06); }}
 .cardhead {{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }}
 .cardhead h3 {{ margin:0; font-size:16px; }}
 .cardbtns {{ display:flex; gap:6px; }}
 pre {{ background:#081126; color:#d8e6ff; padding:12px; border-radius:12px; overflow:auto; min-height:280px; margin:0; white-space:pre; font-size:13px; line-height:1.45; }}
 pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
-.muted {{ color:#475569; font-size:12px; }}
+.muted {{ color:#475569; font-size:14px; }}
 .conv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; }}
 .converter-controls {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }}
 .converter-controls .muted {{ margin-left:auto; }}
@@ -495,7 +603,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .chip:hover {{ background:#e0e7ff; }}
 .err {{ color:#991b1b; font-weight:600; }}
 @media (prefers-color-scheme: dark) {{
- body {{ background:#0b1220; color:#dbe7ff; }}
+ body {{ background:linear-gradient(180deg,#0b1220 0%,#0a0f1c 100%); color:#dbe7ff; }}
  .card {{ border-color:#243247; background:#0f172ab3; }}
  input[type='text'] {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  select {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
@@ -679,6 +787,83 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='err' v-if='jqError' style='margin-top:8px;'>{{{{ jqError }}}}</div>
   </div>
+
+  <div v-else-if='activeUtilityKey === "yq-playground"' class='card'>
+    <div class='cardhead'>
+      <h3>yq Playground</h3>
+      <div class='cardbtns'>
+        <button class='secondary' @click='runYq'>Run</button>
+        <button class='secondary' @click='clearYq'>Clear</button>
+      </div>
+    </div>
+    <div class='converter-controls'>
+      <select v-model='yqDocMode'>
+        <option value='first'>Input docs: first</option>
+        <option value='all'>Input docs: all</option>
+        <option value='index'>Input docs: index</option>
+      </select>
+      <input v-if='yqDocMode === "index"'
+             v-model.number='yqDocIndex'
+             type='number'
+             min='0'
+             step='1'
+             style='width:140px;'
+             placeholder='doc index' />
+      <label class='chk'><input type='checkbox' v-model='yqCompact'/> compact</label>
+      <label class='chk'><input type='checkbox' v-model='yqRawOutput'/> raw output</label>
+      <button class='secondary' @click='copyYqOutput'>Copy output</button>
+      <div class='muted'>Live query execution is enabled</div>
+    </div>
+    <div style='margin-bottom:10px;'>
+      <div class='muted' style='margin-bottom:6px;'>yq query</div>
+      <div class='chip-row'>
+        <button class='chip' v-for='p in yqPresets' :key='p.label' @click='applyYqPreset(p.query)'>{{{{ p.label }}}}</button>
+      </div>
+      <textarea v-model='yqQuery' spellcheck='false' style='min-height:72px;'></textarea>
+    </div>
+    <div class='conv-grid'>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>Input (YAML or JSON)</div>
+        <textarea v-model='yqInput' spellcheck='false'></textarea>
+      </div>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>Output</div>
+        <textarea :value='yqOutput' readonly spellcheck='false'></textarea>
+      </div>
+    </div>
+    <div class='err' v-if='yqError' style='margin-top:8px;'>{{{{ yqError }}}}</div>
+  </div>
+
+  <div v-else-if='activeUtilityKey === "dyff-compare"' class='card'>
+    <div class='cardhead'>
+      <h3>dyff Compare</h3>
+      <div class='cardbtns'>
+        <button class='secondary' @click='runDyff'>Run compare</button>
+        <button class='secondary' @click='clearDyff'>Clear</button>
+      </div>
+    </div>
+    <div class='converter-controls'>
+      <label class='chk'><input type='checkbox' v-model='dyffIgnoreOrder'/> ignore order</label>
+      <label class='chk'><input type='checkbox' v-model='dyffIgnoreWhitespace'/> ignore whitespace</label>
+      <button class='secondary' @click='copyDyffOutput'>Copy output</button>
+      <div class='muted'>Live compare is enabled</div>
+    </div>
+    <div class='conv-grid'>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>From YAML</div>
+        <textarea v-model='dyffFrom' spellcheck='false'></textarea>
+      </div>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>To YAML</div>
+        <textarea v-model='dyffTo' spellcheck='false'></textarea>
+      </div>
+    </div>
+    <div style='margin-top:10px;'>
+      <div class='muted' style='margin-bottom:6px;'>Diff result</div>
+      <textarea :value='dyffOutput' readonly spellcheck='false'></textarea>
+    </div>
+    <div class='err' v-if='dyffError' style='margin-top:8px;'>{{{{ dyffError }}}}</div>
+  </div>
 </div>
 <script>
 (() => {{
@@ -720,6 +905,30 @@ const app = Vue.createApp({{
       jqRawOutput: false,
       jqRequestSeq: 0,
       jqTimer: null,
+      yqQuery: '.',
+      yqInput: '',
+      yqOutput: '',
+      yqError: '',
+      yqDocMode: 'first',
+      yqDocIndex: 0,
+      yqCompact: false,
+      yqRawOutput: false,
+      yqRequestSeq: 0,
+      yqTimer: null,
+      dyffFrom: '',
+      dyffTo: '',
+      dyffOutput: '',
+      dyffError: '',
+      dyffIgnoreOrder: false,
+      dyffIgnoreWhitespace: false,
+      dyffRequestSeq: 0,
+      dyffTimer: null,
+      yqPresets: [
+        {{ label: 'identity', query: '.' }},
+        {{ label: 'keys', query: 'keys' }},
+        {{ label: 'length', query: 'length' }},
+        {{ label: 'select enabled', query: '.[] | select(.enabled == true)' }},
+      ],
       jqSuggestOpen: false,
       jqSuggestIndex: 0,
       jqPresets: [
@@ -840,6 +1049,16 @@ const app = Vue.createApp({{
         this.jqDocIndex = Number.isFinite(s.jqDocIndex) ? Number(s.jqDocIndex) : 0;
         this.jqCompact = !!s.jqCompact;
         this.jqRawOutput = !!s.jqRawOutput;
+        this.yqQuery = s.yqQuery || '.';
+        this.yqInput = s.yqInput || '';
+        this.yqDocMode = s.yqDocMode || 'first';
+        this.yqDocIndex = Number.isFinite(s.yqDocIndex) ? Number(s.yqDocIndex) : 0;
+        this.yqCompact = !!s.yqCompact;
+        this.yqRawOutput = !!s.yqRawOutput;
+        this.dyffFrom = s.dyffFrom || '';
+        this.dyffTo = s.dyffTo || '';
+        this.dyffIgnoreOrder = !!s.dyffIgnoreOrder;
+        this.dyffIgnoreWhitespace = !!s.dyffIgnoreWhitespace;
       }}
     }} catch(_) {{}}
     if(!(this.utilities || []).some(u => u.id === this.activeUtilityId)) {{
@@ -847,6 +1066,8 @@ const app = Vue.createApp({{
     }}
     this.scheduleConvert();
     this.scheduleJqRun();
+    this.scheduleYqRun();
+    this.scheduleDyffRun();
   }},
   watch: {{
     wrapLines: 'saveSettings',
@@ -892,6 +1113,46 @@ const app = Vue.createApp({{
     jqRawOutput() {{
       this.saveSettings();
       this.scheduleJqRun();
+    }},
+    yqQuery() {{
+      this.saveSettings();
+      this.scheduleYqRun();
+    }},
+    yqInput() {{
+      this.saveSettings();
+      this.scheduleYqRun();
+    }},
+    yqDocMode() {{
+      this.saveSettings();
+      this.scheduleYqRun();
+    }},
+    yqDocIndex() {{
+      this.saveSettings();
+      this.scheduleYqRun();
+    }},
+    yqCompact() {{
+      this.saveSettings();
+      this.scheduleYqRun();
+    }},
+    yqRawOutput() {{
+      this.saveSettings();
+      this.scheduleYqRun();
+    }},
+    dyffFrom() {{
+      this.saveSettings();
+      this.scheduleDyffRun();
+    }},
+    dyffTo() {{
+      this.saveSettings();
+      this.scheduleDyffRun();
+    }},
+    dyffIgnoreOrder() {{
+      this.saveSettings();
+      this.scheduleDyffRun();
+    }},
+    dyffIgnoreWhitespace() {{
+      this.saveSettings();
+      this.scheduleDyffRun();
     }}
   }},
   methods: {{
@@ -911,7 +1172,17 @@ const app = Vue.createApp({{
           jqDocMode: this.jqDocMode,
           jqDocIndex: this.jqDocIndex,
           jqCompact: this.jqCompact,
-          jqRawOutput: this.jqRawOutput
+          jqRawOutput: this.jqRawOutput,
+          yqQuery: this.yqQuery,
+          yqInput: this.yqInput,
+          yqDocMode: this.yqDocMode,
+          yqDocIndex: this.yqDocIndex,
+          yqCompact: this.yqCompact,
+          yqRawOutput: this.yqRawOutput,
+          dyffFrom: this.dyffFrom,
+          dyffTo: this.dyffTo,
+          dyffIgnoreOrder: this.dyffIgnoreOrder,
+          dyffIgnoreWhitespace: this.dyffIgnoreWhitespace
         }}));
       }} catch(_) {{}}
     }},
@@ -1213,6 +1484,132 @@ const app = Vue.createApp({{
         this.jqOutput = '';
       }}
     }},
+    applyYqPreset(query) {{
+      this.yqQuery = query || '.';
+    }},
+    async runYq() {{
+      this.yqError = '';
+      const input = this.yqInput || '';
+      const reqId = ++this.yqRequestSeq;
+      if(!input.trim()) {{
+        this.yqOutput = '';
+        return;
+      }}
+      try {{
+        const res = await fetch('/api/yq', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            query: this.yqQuery || '.',
+            input,
+            docMode: this.yqDocMode,
+            docIndex: this.yqDocMode === 'index' ? Number(this.yqDocIndex) : undefined,
+            compact: this.yqCompact,
+            rawOutput: this.yqRawOutput
+          }})
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('yq API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.output || ('yq API HTTP ' + res.status));
+        }}
+        if(reqId !== this.yqRequestSeq) return;
+        if(!data.ok) {{
+          this.yqError = data.output || 'yq execution failed';
+          this.yqOutput = '';
+          return;
+        }}
+        this.yqOutput = data.output || '';
+      }} catch(e) {{
+        if(reqId !== this.yqRequestSeq) return;
+        this.yqError = String(e);
+        this.yqOutput = '';
+      }}
+    }},
+    scheduleYqRun() {{
+      if(this.yqTimer) {{
+        clearTimeout(this.yqTimer);
+      }}
+      this.yqTimer = setTimeout(() => {{
+        this.runYq();
+      }}, 120);
+    }},
+    clearYq() {{
+      this.yqInput = '';
+      this.yqOutput = '';
+      this.yqError = '';
+      this.yqQuery = '.';
+    }},
+    async copyYqOutput() {{
+      if(!this.yqOutput) return;
+      try {{ await navigator.clipboard.writeText(this.yqOutput); }} catch(_) {{}}
+    }},
+    async runDyff() {{
+      this.dyffError = '';
+      const from = this.dyffFrom || '';
+      const to = this.dyffTo || '';
+      const reqId = ++this.dyffRequestSeq;
+      if(!from.trim() && !to.trim()) {{
+        this.dyffOutput = '';
+        return;
+      }}
+      try {{
+        const res = await fetch('/api/dyff', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            from,
+            to,
+            ignoreOrder: this.dyffIgnoreOrder,
+            ignoreWhitespace: this.dyffIgnoreWhitespace
+          }})
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('dyff API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.output || ('dyff API HTTP ' + res.status));
+        }}
+        if(reqId !== this.dyffRequestSeq) return;
+        if(!data.ok) {{
+          this.dyffError = data.output || 'dyff execution failed';
+          this.dyffOutput = '';
+          return;
+        }}
+        this.dyffOutput = data.output || '';
+      }} catch(e) {{
+        if(reqId !== this.dyffRequestSeq) return;
+        this.dyffError = String(e);
+        this.dyffOutput = '';
+      }}
+    }},
+    scheduleDyffRun() {{
+      if(this.dyffTimer) {{
+        clearTimeout(this.dyffTimer);
+      }}
+      this.dyffTimer = setTimeout(() => {{
+        this.runDyff();
+      }}, 120);
+    }},
+    clearDyff() {{
+      this.dyffFrom = '';
+      this.dyffTo = '';
+      this.dyffOutput = '';
+      this.dyffError = '';
+    }},
+    async copyDyffOutput() {{
+      if(!this.dyffOutput) return;
+      try {{ await navigator.clipboard.writeText(this.dyffOutput); }} catch(_) {{}}
+    }},
     scheduleJqRun() {{
       if(this.jqTimer) {{
         clearTimeout(this.jqTimer);
@@ -1290,6 +1687,10 @@ mod tests {
         assert!(html.contains("YAML/JSON Converter"));
         assert!(html.contains("jq Playground"));
         assert!(html.contains("/api/jq"));
+        assert!(html.contains("yq Playground"));
+        assert!(html.contains("/api/yq"));
+        assert!(html.contains("dyff Compare"));
+        assert!(html.contains("/api/dyff"));
         assert!(html.contains("jq-suggest"));
         assert!(html.contains("onJqKeydown"));
         assert!(html.contains("applyJqPreset"));
@@ -1450,5 +1851,24 @@ text: |-
     fn jq_payload_rejects_out_of_range_doc_index() {
         let err = jq_payload(".", "a: 1\n", "index", Some(5), false, false).expect_err("error");
         assert!(err.contains("out of range"));
+    }
+
+    #[test]
+    fn yq_payload_runs_query_for_yaml_input() {
+        let out = yq_payload(".apps[] | .name", "apps:\n  - name: a\n  - name: b\n", "first", None, false, true)
+            .expect("yq");
+        assert_eq!(out, "a\nb");
+    }
+
+    #[test]
+    fn dyff_payload_finds_changes() {
+        let out = dyff_payload("a: 1\n", "a: 2\n", false, false).expect("dyff");
+        assert!(out.contains("changed: doc[0].a"));
+    }
+
+    #[test]
+    fn dyff_payload_no_differences() {
+        let out = dyff_payload("a: 1\n", "a: 1\n", false, false).expect("dyff");
+        assert_eq!(out, "No differences");
     }
 }
