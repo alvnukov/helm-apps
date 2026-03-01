@@ -1,0 +1,169 @@
+# Compatibility subset derived from yq behavior and YAML processing tests:
+# - https://github.com/mikefarah/yq/tree/master/acceptance_tests
+# Used as stable behavioral contract for happ yq frontend.
+
+cases:
+  - id: yq_identity
+    query: "."
+    input_yaml: |
+      a: 1
+      b:
+        - 1
+        - 2
+    output_json_lines:
+      - '{"a":1,"b":[1,2]}'
+
+  - id: yq_field
+    query: ".a"
+    input_yaml: |
+      a: 7
+      b: 2
+    output_json_lines:
+      - "7"
+
+  - id: yq_array_iter
+    query: ".[]"
+    input_yaml: |
+      - red
+      - green
+      - blue
+    output_json_lines:
+      - '"red"'
+      - '"green"'
+      - '"blue"'
+
+  - id: yq_length
+    query: "length"
+    input_yaml: |
+      x: 1
+      y: 2
+    output_json_lines:
+      - "2"
+
+  - id: yq_keys
+    query: "keys"
+    input_yaml: |
+      z: 1
+      a: 2
+    output_json_lines:
+      - '["a","z"]'
+
+  - id: yq_pipe_iter_field
+    query: ".[] | .name"
+    input_yaml: |
+      - name: one
+      - name: two
+    output_json_lines:
+      - '"one"'
+      - '"two"'
+
+  - id: yq_map_field
+    query: "map(.name)"
+    input_yaml: |
+      - name: one
+      - name: two
+    output_json_lines:
+      - '["one","two"]'
+
+  - id: yq_select_eq
+    query: ".[] | select(.name == \"two\") | .name"
+    input_yaml: |
+      - name: one
+      - name: two
+    output_json_lines:
+      - '"two"'
+
+  - id: yq_index_lookup
+    query: ".[2]"
+    input_yaml: |
+      - a
+      - b
+      - c
+    output_json_lines:
+      - '"c"'
+
+  - id: yq_has_key
+    query: 'has("name")'
+    input_yaml: |
+      name: app
+      replicas: 2
+    output_json_lines:
+      - "true"
+
+  - id: yq_keys_context_lookup_issue2593
+    query: ". as $o | keys[] | $o[.]"
+    input_yaml: |
+      - a
+      - b
+    output_json_lines:
+      - '"a"'
+      - '"b"'
+
+  - id: yq_negative_index_last
+    query: ".[-1]"
+    input_yaml: |
+      - 10
+      - 20
+    output_json_lines:
+      - "20"
+
+  - id: yq_negative_index_wrap_issue2826
+    query: ".[-3]"
+    input_yaml: |
+      - 10
+      - 20
+    output_json_lines:
+      - "null"
+
+  - id: yq_bracket_string_key_lookup
+    query: '.["a-b"]'
+    input_yaml: |
+      a-b: 42
+    output_json_lines:
+      - "42"
+
+  - id: yq_nested_bracket_string_key_lookup
+    query: '.root["a-b"]'
+    input_yaml: |
+      root:
+        a-b: 7
+    output_json_lines:
+      - "7"
+
+  - id: yq_optional_field
+    query: ".missing?"
+    input_yaml: |
+      a: 1
+    output_json_lines:
+      - "null"
+
+  - id: yq_optional_iter_on_object
+    query: ".[]?"
+    input_yaml: |
+      a: 1
+    output_json_lines: []
+
+  - id: yq_select_gt
+    query: ".[] | select(.a > 1) | .a"
+    input_yaml: |
+      - a: 1
+      - a: 2
+      - a: 3
+    output_json_lines:
+      - "2"
+      - "3"
+
+  - id: yq_select_and_or
+    query: '.[] | select(.a > 1 and .name == "x" or .name == "z") | .a'
+    input_yaml: |
+      - a: 1
+        name: x
+      - a: 2
+        name: x
+      - a: 3
+        name: y
+      - a: 4
+        name: z
+    output_json_lines:
+      - "2"
+      - "4"

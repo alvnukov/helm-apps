@@ -1,0 +1,166 @@
+# Compatibility subset derived from jq project tests and jq language behavior:
+# - https://github.com/jqlang/jq/tree/master/tests
+# These are minimal portable cases used to guard happ jq semantics.
+
+cases:
+  - id: jq_identity
+    query: "."
+    input_json: '{"a":1,"b":[1,2,3]}'
+    output_json_lines:
+      - '{"a":1,"b":[1,2,3]}'
+
+  - id: jq_field
+    query: ".a"
+    input_json: '{"a":1,"b":2}'
+    output_json_lines:
+      - "1"
+
+  - id: jq_nested_field
+    query: ".a.b"
+    input_json: '{"a":{"b":3}}'
+    output_json_lines:
+      - "3"
+
+  - id: jq_array_iter
+    query: ".[]"
+    input_json: '[1,2,3]'
+    output_json_lines:
+      - "1"
+      - "2"
+      - "3"
+
+  - id: jq_length
+    query: "length"
+    input_json: '[10,20,30]'
+    output_json_lines:
+      - "3"
+
+  - id: jq_keys
+    query: "keys"
+    input_json: '{"b":1,"a":2}'
+    output_json_lines:
+      - '["a","b"]'
+
+  - id: jq_sort
+    query: "sort"
+    input_json: '[3,1,2]'
+    output_json_lines:
+      - "[1,2,3]"
+
+  - id: jq_pipe_iter_field
+    query: ".[] | .a"
+    input_json: '[{"a":1},{"a":2}]'
+    output_json_lines:
+      - "1"
+      - "2"
+
+  - id: jq_map_field
+    query: "map(.a)"
+    input_json: '[{"a":1},{"a":2}]'
+    output_json_lines:
+      - "[1,2]"
+
+  - id: jq_select_eq
+    query: ".[] | select(.a == 2) | .a"
+    input_json: '[{"a":1},{"a":2}]'
+    output_json_lines:
+      - "2"
+
+  - id: jq_collect_stream
+    query: "[.[] | .a]"
+    input_json: '[{"a":1},{"a":2}]'
+    output_json_lines:
+      - "[1,2]"
+
+  - id: jq_index_lookup
+    query: ".[1]"
+    input_json: '["x","y","z"]'
+    output_json_lines:
+      - '"y"'
+
+  - id: jq_has_key
+    query: 'has("a")'
+    input_json: '{"a":1,"b":2}'
+    output_json_lines:
+      - "true"
+
+  - id: jq_type
+    query: "type"
+    input_json: '{"a":1}'
+    output_json_lines:
+      - '"object"'
+
+  - id: jq_tostring
+    query: "tostring"
+    input_json: "12"
+    output_json_lines:
+      - '"12"'
+
+  - id: jq_add
+    query: "add"
+    input_json: '[1,2,3]'
+    output_json_lines:
+      - "6"
+
+  - id: jq_negative_index_last
+    query: ".[-1]"
+    input_json: '[10,20]'
+    output_json_lines:
+      - "20"
+
+  - id: jq_negative_index_wrap_issue2826
+    query: ".[-3]"
+    input_json: '[10,20]'
+    output_json_lines:
+      - "null"
+
+  - id: jq_keys_context_lookup_issue2593
+    query: ". as $o | keys[] | $o[.]"
+    input_json: '["a","b"]'
+    output_json_lines:
+      - '"a"'
+      - '"b"'
+
+  - id: jq_keys_context_lookup_with_tmp_issue2593
+    query: ". as $o | keys[] | . as $k | $o[$k]"
+    input_json: '["a","b"]'
+    output_json_lines:
+      - '"a"'
+      - '"b"'
+
+  - id: jq_bracket_string_key_lookup
+    query: '.["a-b"]'
+    input_json: '{"a-b":42}'
+    output_json_lines:
+      - "42"
+
+  - id: jq_nested_bracket_string_key_lookup
+    query: '.root["a-b"]'
+    input_json: '{"root":{"a-b":7}}'
+    output_json_lines:
+      - "7"
+
+  - id: jq_optional_field
+    query: ".missing?"
+    input_json: '{"a":1}'
+    output_json_lines:
+      - "null"
+
+  - id: jq_optional_iter_on_object
+    query: ".[]?"
+    input_json: '{"a":1}'
+    output_json_lines: []
+
+  - id: jq_select_gt
+    query: ".[] | select(.a > 1) | .a"
+    input_json: '[{"a":1},{"a":2},{"a":3}]'
+    output_json_lines:
+      - "2"
+      - "3"
+
+  - id: jq_select_and_or
+    query: '.[] | select(.a > 1 and .name == "x" or .name == "z") | .a'
+    input_json: '[{"a":1,"name":"x"},{"a":2,"name":"x"},{"a":3,"name":"y"},{"a":4,"name":"z"}]'
+    output_json_lines:
+      - "2"
+      - "4"
