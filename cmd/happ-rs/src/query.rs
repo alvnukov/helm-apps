@@ -43,6 +43,11 @@ enum CompiledQuery {
     Collect(Box<CompiledQuery>),
     Comma(Vec<CompiledQuery>),
     Alt(Box<CompiledQuery>, Box<CompiledQuery>),
+    IfElse {
+        cond: Box<CompiledQuery>,
+        then_q: Box<CompiledQuery>,
+        else_q: Box<CompiledQuery>,
+    },
     Pipeline(Vec<CompiledStage>),
     Issue2593,
 }
@@ -66,6 +71,7 @@ enum CompiledStage {
     Contains(Box<CompiledQuery>),
     StartsWith(Box<CompiledQuery>),
     EndsWith(Box<CompiledQuery>),
+    Subquery(Box<CompiledQuery>),
     Has(String),
     DotPath(Vec<PathToken>),
     Literal(JsonValue),
@@ -108,6 +114,13 @@ fn compile_query(query: &str) -> Result<CompiledQuery, Error> {
     }
     if is_issue2593_pattern(q) {
         return Ok(CompiledQuery::Issue2593);
+    }
+    if let Some((cond, then_expr, else_expr)) = parse_if_then_else(q) {
+        return Ok(CompiledQuery::IfElse {
+            cond: Box::new(compile_query(cond)?),
+            then_q: Box::new(compile_query(then_expr)?),
+            else_q: Box::new(compile_query(else_expr)?),
+        });
     }
     if q.starts_with('[') && q.ends_with(']') {
         let inner = q[1..q.len() - 1].trim();
@@ -177,6 +190,9 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
     if let Some(inner) = parse_func_inner(s, "has") {
         let key = parse_string_literal(inner.trim()).ok_or_else(|| Error::Unsupported(s.to_string()))?;
         return Ok(CompiledStage::Has(key));
+    }
+    if parse_if_then_else(s).is_some() {
+        return Ok(CompiledStage::Subquery(Box::new(compile_query(s)?)));
     }
     if s.starts_with('.') {
         let tokens = compile_dot_path(s)?;
@@ -446,6 +462,18 @@ fn eval_compiled_query(query: &CompiledQuery, input_stream: Vec<JsonValue>) -> R
                 Ok(preferred)
             }
         }
+        CompiledQuery::IfElse { cond, then_q, else_q } => {
+            let mut out = Vec::new();
+            for v in input_stream {
+                let cond_stream = eval_compiled_query(cond, vec![v.clone()])?;
+                if truthy(&first_or_null(&cond_stream)) {
+                    out.extend(eval_compiled_query(then_q, vec![v])?);
+                } else {
+                    out.extend(eval_compiled_query(else_q, vec![v])?);
+                }
+            }
+            Ok(out)
+        }
         CompiledQuery::Issue2593 => {
             if let Some(root) = input_stream.first() {
                 Ok(issue2593_lookup(root))
@@ -598,6 +626,13 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
                     .map(|(s, p)| s.ends_with(p))
                     .unwrap_or(false);
                 out.push(JsonValue::Bool(ok));
+            }
+            Ok(out)
+        }
+        CompiledStage::Subquery(q) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                out.extend(eval_compiled_query(q, vec![v])?);
             }
             Ok(out)
         }
@@ -1007,6 +1042,145 @@ fn split_once_top_level<'a>(s: &'a str, needle: &str) -> Option<(&'a str, &'a st
 fn split_once_top_level_keyword<'a>(s: &'a str, keyword: &str) -> Option<(&'a str, &'a str)> {
     let needle = format!(" {keyword} ");
     split_once_top_level(s, &needle)
+}
+
+fn parse_if_then_else(s: &str) -> Option<(&str, &str, &str)> {
+    let src = s.trim();
+    let words = top_level_words(src);
+    let (first, first_start, first_end) = *words.first()?;
+    if first != "if" || first_start != 0 {
+        return None;
+    }
+
+    let mut nested = 0i32;
+    let mut then_bounds = None;
+    for (w, ws, we) in words.iter().copied().skip(1) {
+        match w {
+            "if" => nested += 1,
+            "end" => {
+                if nested > 0 {
+                    nested -= 1;
+                } else {
+                    return None;
+                }
+            }
+            "then" if nested == 0 => {
+                then_bounds = Some((ws, we));
+                break;
+            }
+            _ => {}
+        }
+    }
+    let (then_start, then_end) = then_bounds?;
+
+    let mut nested = 0i32;
+    let mut else_bounds = None;
+    let mut end_bounds = None;
+    let mut after_then = false;
+    for (w, ws, we) in words.iter().copied() {
+        if !after_then {
+            if ws == then_start {
+                after_then = true;
+            }
+            continue;
+        }
+        match w {
+            "if" => nested += 1,
+            "end" => {
+                if nested == 0 {
+                    end_bounds = Some((ws, we));
+                    break;
+                }
+                nested -= 1;
+            }
+            "else" if nested == 0 => else_bounds = Some((ws, we)),
+            _ => {}
+        }
+    }
+    let (end_start, end_end) = end_bounds?;
+    let (else_start, else_end) = else_bounds?;
+    if end_end != src.len() {
+        return None;
+    }
+
+    let cond = src[first_end..then_start].trim();
+    let then_expr = src[then_end..else_start].trim();
+    let else_expr = src[else_end..end_start].trim();
+    if cond.is_empty() || then_expr.is_empty() || else_expr.is_empty() {
+        return None;
+    }
+    Some((cond, then_expr, else_expr))
+}
+
+fn top_level_words(s: &str) -> Vec<(&str, usize, usize)> {
+    let bytes = s.as_bytes();
+    let mut out = Vec::new();
+    let mut i = 0usize;
+    let mut depth_paren = 0i32;
+    let mut depth_bracket = 0i32;
+    let mut in_str = false;
+    let mut esc = false;
+
+    while i < bytes.len() {
+        let c = bytes[i] as char;
+        if in_str {
+            if esc {
+                esc = false;
+                i += 1;
+                continue;
+            }
+            if c == '\\' {
+                esc = true;
+                i += 1;
+                continue;
+            }
+            if c == '"' {
+                in_str = false;
+            }
+            i += 1;
+            continue;
+        }
+        match c {
+            '"' => {
+                in_str = true;
+                i += 1;
+                continue;
+            }
+            '(' => {
+                depth_paren += 1;
+                i += 1;
+                continue;
+            }
+            ')' => {
+                depth_paren -= 1;
+                i += 1;
+                continue;
+            }
+            '[' => {
+                depth_bracket += 1;
+                i += 1;
+                continue;
+            }
+            ']' => {
+                depth_bracket -= 1;
+                i += 1;
+                continue;
+            }
+            _ => {}
+        }
+        if depth_paren == 0 && depth_bracket == 0 && c.is_ascii_alphabetic() {
+            let start = i;
+            i += 1;
+            while i < bytes.len() && (bytes[i] as char).is_ascii_alphabetic() {
+                i += 1;
+            }
+            let end = i;
+            out.push((&s[start..end], start, end));
+            continue;
+        }
+        i += 1;
+    }
+    out
 }
 
 fn strip_outer_parens(s: &str) -> Option<&str> {
@@ -1498,6 +1672,26 @@ a:
     }
 
     #[test]
+    fn run_query_supports_if_then_else_end() {
+        let out = run_json_query(
+            r#".[] | if .enabled then .name else "skip" end"#,
+            r#"[{"enabled":true,"name":"a"},{"enabled":false,"name":"b"}]"#,
+        )
+        .expect("query");
+        assert_eq!(out, vec![serde_json::json!("a"), serde_json::json!("skip")]);
+    }
+
+    #[test]
+    fn run_query_supports_nested_if_then_else_end() {
+        let out = run_json_query(
+            r#"if .a then (if .b then "x" else "y" end) else "z" end"#,
+            r#"{"a":true,"b":false}"#,
+        )
+        .expect("query");
+        assert_eq!(out, vec![serde_json::json!("y")]);
+    }
+
+    #[test]
     fn run_query_supports_parenthesized_predicate() {
         let out = run_json_query(
             r#".[] | select((.a > 1) and (.name == "x")) | .a"#,
@@ -1519,6 +1713,23 @@ a:
         assert_eq!(strip_outer_parens("(a)"), Some("a"));
         assert_eq!(strip_outer_parens("(a) + (b)"), None);
         assert_eq!(strip_outer_parens("((a))"), Some("(a)"));
+    }
+
+    #[test]
+    fn parse_if_then_else_detects_basic_form() {
+        let parsed = parse_if_then_else(r#"if .a then .b else .c end"#).expect("if");
+        assert_eq!(parsed.0, ".a");
+        assert_eq!(parsed.1, ".b");
+        assert_eq!(parsed.2, ".c");
+    }
+
+    #[test]
+    fn parse_if_then_else_handles_nested_blocks() {
+        let parsed = parse_if_then_else(r#"if .a then if .b then .x else .y end else .z end"#)
+            .expect("nested if");
+        assert_eq!(parsed.0, ".a");
+        assert_eq!(parsed.1, "if .b then .x else .y end");
+        assert_eq!(parsed.2, ".z");
     }
 
     #[test]

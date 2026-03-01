@@ -234,3 +234,16 @@ cases:
     input_json: '[{"a":1,"name":"x"},{"a":2,"name":"x"},{"a":3,"name":"y"}]'
     output_json_lines:
       - "2"
+
+  - id: jq_if_then_else
+    query: '.[] | if .enabled then .name else "skip" end'
+    input_json: '[{"enabled":true,"name":"a"},{"enabled":false,"name":"b"}]'
+    output_json_lines:
+      - '"a"'
+      - '"skip"'
+
+  - id: jq_nested_if_then_else
+    query: 'if .a then (if .b then "x" else "y" end) else "z" end'
+    input_json: '{"a":true,"b":false}'
+    output_json_lines:
+      - '"y"'

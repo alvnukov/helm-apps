@@ -266,3 +266,22 @@ cases:
         name: y
     output_json_lines:
       - "2"
+
+  - id: yq_if_then_else
+    query: '.[] | if .enabled then .name else "skip" end'
+    input_yaml: |
+      - enabled: true
+        name: a
+      - enabled: false
+        name: b
+    output_json_lines:
+      - '"a"'
+      - '"skip"'
+
+  - id: yq_nested_if_then_else
+    query: 'if .a then (if .b then "x" else "y" end) else "z" end'
+    input_yaml: |
+      a: true
+      b: false
+    output_json_lines:
+      - '"y"'
