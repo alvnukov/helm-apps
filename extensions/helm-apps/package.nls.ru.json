@@ -29,6 +29,7 @@
   "cfg.librarySource.description": "Глобальный режим источника зависимости helm-apps: локальный путь к чарту или кэш, управляемый через GitHub.",
   "cfg.libraryLocalChartPath.description": "Глобальный путь к локальному каталогу чарта helm-apps (должен содержать Chart.yaml), используется при source=local.",
   "cfg.libraryGithubRepo.description": "URL репозитория библиотеки (Helm repo или GitHub repo) для проверки/скачивания версий чарта helm-apps.",
+  "cfg.libraryRepositoryUrl.description": "Предпочитаемый URL репозитория библиотеки (Helm repo или GitHub repo) для проверки/скачивания версий чарта helm-apps.",
   "cfg.libraryGithubCachedChartPath.description": "Путь к кэшу чарта helm-apps, скачанному расширением из GitHub.",
   "cfg.libraryGithubCachedVersion.description": "Версия чарта helm-apps в кэше, скачанном из GitHub.",
   "cfg.helmPath.description": "Путь к бинарнику helm для команд dependency/lock."

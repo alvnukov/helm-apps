@@ -273,6 +273,11 @@
           "default": "https://github.com/alvnukov/helm-apps.git",
           "description": "%cfg.libraryGithubRepo.description%"
         },
+        "helm-apps.libraryRepositoryUrl": {
+          "type": "string",
+          "default": "https://github.com/alvnukov/helm-apps.git",
+          "description": "%cfg.libraryRepositoryUrl.description%"
+        },
         "helm-apps.libraryGithubCachedChartPath": {
           "type": "string",
           "default": "",

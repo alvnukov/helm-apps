@@ -29,6 +29,7 @@
   "cfg.librarySource.description": "Global source mode for helm-apps chart dependency updates: local chart path or GitHub-managed cache.",
   "cfg.libraryLocalChartPath.description": "Global path to local helm-apps chart directory (must contain Chart.yaml) used when source=local.",
   "cfg.libraryGithubRepo.description": "Library repository URL (Helm repo or GitHub repo URL) used to check/download helm-apps chart versions.",
+  "cfg.libraryRepositoryUrl.description": "Preferred library repository URL (Helm repo or GitHub repo URL) used to check/download helm-apps chart versions.",
   "cfg.libraryGithubCachedChartPath.description": "Extension-managed cached helm-apps chart path downloaded from GitHub.",
   "cfg.libraryGithubCachedVersion.description": "Version of cached helm-apps chart downloaded from GitHub.",
   "cfg.helmPath.description": "Path to helm binary used for dependency/lock commands."

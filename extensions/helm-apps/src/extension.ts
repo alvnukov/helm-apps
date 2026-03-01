@@ -979,12 +979,20 @@ function getExtensionConfig() {
   return vscode.workspace.getConfiguration("helm-apps");
 }
 
+function getLibraryRepositoryURL(cfg = getExtensionConfig()): string {
+  const preferred = cfg.get<string>("libraryRepositoryUrl", "").trim();
+  if (preferred.length > 0) {
+    return preferred;
+  }
+  return cfg.get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git").trim();
+}
+
 async function manageLibrarySource(context: vscode.ExtensionContext): Promise<void> {
   const ru = isRuLocale();
   const cfg = getExtensionConfig();
   const source = cfg.get<LibrarySourceMode>("librarySource", "local");
   const localPath = cfg.get<string>("libraryLocalChartPath", "");
-  const githubRepo = cfg.get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git");
+  const githubRepo = getLibraryRepositoryURL(cfg);
   const cachedVersion = cfg.get<string>("libraryGithubCachedVersion", "");
 
   const picked = await vscode.window.showQuickPick(
@@ -1067,6 +1075,7 @@ async function manageLibrarySource(context: vscode.ExtensionContext): Promise<vo
       if (!next || next.trim().length === 0) {
         return;
       }
+      await cfg.update("libraryRepositoryUrl", next.trim(), vscode.ConfigurationTarget.Global);
       await cfg.update("libraryGithubRepo", next.trim(), vscode.ConfigurationTarget.Global);
       void vscode.window.showInformationMessage(ru ? "URL репозитория сохранен" : "Repository URL saved");
       break;
@@ -1134,7 +1143,7 @@ async function resolveCurrentLibraryVersionForComparison(
 async function cacheLibraryFromGithub(context: vscode.ExtensionContext, setAsCurrentSource: boolean): Promise<ResolvedLibraryChart> {
   const ru = isRuLocale();
   const cfg = getExtensionConfig();
-  const repoUrl = cfg.get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git");
+  const repoUrl = getLibraryRepositoryURL(cfg);
   const helmRepoUrl = resolveHelmRepositoryURL(repoUrl);
   const latest = await fetchLatestGithubVersion(repoUrl);
   const globalStoragePath = context.globalStorageUri.fsPath;
@@ -1344,7 +1353,7 @@ async function detectChartVersionFromDir(chartDir: string): Promise<string | und
 }
 
 async function fetchLatestGithubVersion(repoUrl?: string): Promise<string> {
-  const configured = repoUrl ?? getExtensionConfig().get<string>("libraryGithubRepo", "https://github.com/alvnukov/helm-apps.git");
+  const configured = repoUrl ?? getLibraryRepositoryURL(getExtensionConfig());
   const helmRepoUrl = resolveHelmRepositoryURL(configured);
   const { stdout } = await runHelmOrWerf(["show", "chart", HELM_APPS_DEP_NAME, "--repo", helmRepoUrl], {
     timeout: 120000,
