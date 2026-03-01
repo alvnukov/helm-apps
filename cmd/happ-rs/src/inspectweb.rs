@@ -482,6 +482,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   font-size:12px;
   color:#334155;
 }}
+.chip-row {{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 10px 0; }}
+.chip {{
+  border:1px solid #cbd5e1;
+  background:#eef2ff;
+  color:#1e293b;
+  border-radius:999px;
+  padding:4px 10px;
+  font-size:12px;
+  cursor:pointer;
+}}
+.chip:hover {{ background:#e0e7ff; }}
 .err {{ color:#991b1b; font-weight:600; }}
 @media (prefers-color-scheme: dark) {{
  body {{ background:#0b1220; color:#dbe7ff; }}
@@ -503,6 +514,8 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
  .jq-suggest-label {{ color:#dbe7ff; }}
  .jq-suggest-desc {{ color:#9fb0ca; }}
  .jq-suggest-hint {{ border-color:#334155; background:#0b1220; color:#c7d6ef; }}
+ .chip {{ border-color:#334155; background:#1e293b; color:#dbe7ff; }}
+ .chip:hover {{ background:#334155; }}
  .muted {{ color:#9fb0ca; }}
  .err {{ color:#fca5a5; }}
 }}
@@ -621,6 +634,9 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div style='margin-bottom:10px;'>
       <div class='muted' style='margin-bottom:6px;'>jq query (syntax highlighted)</div>
+      <div class='chip-row'>
+        <button class='chip' v-for='p in jqPresets' :key='p.label' @click='applyJqPreset(p.query)'>{{{{ p.label }}}}</button>
+      </div>
       <div class='jq-query-editor'>
         <pre class='jq-query-highlight' aria-hidden='true' v-html='jqQueryHighlighted'></pre>
         <textarea class='jq-query-input'
@@ -706,6 +722,15 @@ const app = Vue.createApp({{
       jqTimer: null,
       jqSuggestOpen: false,
       jqSuggestIndex: 0,
+      jqPresets: [
+        {{ label: 'identity', query: '.' }},
+        {{ label: 'keys', query: 'keys' }},
+        {{ label: 'length', query: 'length' }},
+        {{ label: 'list names', query: '.[] | .name' }},
+        {{ label: 'select enabled', query: '.[] | select(.enabled == true)' }},
+        {{ label: 'map image', query: '.[] | .image' }},
+        {{ label: 'compact', query: '.[] | tostring' }},
+      ],
       jqCatalog: [
         {{ label:'select()', snippet:'select()', cursor:-1, kind:'filter', desc:'Filter stream by predicate.' }},
         {{ label:'map()', snippet:'map()', cursor:-1, kind:'transform', desc:'Apply expression to each array element.' }},
@@ -1001,6 +1026,17 @@ const app = Vue.createApp({{
     onJqInput() {{
       this.updateJqSuggestState();
     }},
+    applyJqPreset(query) {{
+      this.jqQuery = query || '.';
+      this.$nextTick(() => {{
+        const area = this.$refs.jqQueryInput;
+        if(!area) return;
+        const p = (this.jqQuery || '').length;
+        area.focus();
+        area.setSelectionRange(p, p);
+        this.syncJqScroll();
+      }});
+    }},
     currentJqTokenMeta() {{
       const ta = this.$refs.jqQueryInput;
       const src = this.jqQuery || '';
@@ -1256,6 +1292,9 @@ mod tests {
         assert!(html.contains("/api/jq"));
         assert!(html.contains("jq-suggest"));
         assert!(html.contains("onJqKeydown"));
+        assert!(html.contains("applyJqPreset"));
+        assert!(html.contains("chip-row"));
+        assert!(html.contains("select enabled"));
         assert!(html.contains("YAML → JSON"));
         assert!(html.contains("localStorage"));
     }
