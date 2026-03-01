@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import * as YAML from "yaml";
 
 import { buildFieldDocMarkdownLocalized, findFieldDoc, findKeyPathAtPosition } from "./hover/fieldHover";
+import { buildHelmCommandCandidates } from "./library/helmRunner";
 import { compareSemver, resolveHelmRepositoryURL } from "./library/repository";
 import { extractLocalIncludeBlock, trimPreview } from "./hover/includeHover";
 import { buildDependencyGraphModel } from "./language/dependencyGraph";
@@ -1370,25 +1371,11 @@ async function runHelmOrWerf(
   helmArgs: string[],
   options: { timeout?: number; maxBuffer?: number },
 ): Promise<{ stdout: string; stderr: string }> {
-  const configured = getExtensionConfig().get<string>("helmPath", "helm").trim();
-  const candidates: Array<{ cmd: string; args: string[] }> = [];
-  if (configured.length === 0 || configured === "helm") {
-    candidates.push({ cmd: "helm", args: helmArgs });
-  } else if (path.basename(configured) === "werf") {
-    candidates.push({ cmd: configured, args: ["helm", ...helmArgs] });
-  } else {
-    candidates.push({ cmd: configured, args: helmArgs });
-  }
-  candidates.push({ cmd: "werf", args: ["helm", ...helmArgs] });
+  const configured = getExtensionConfig().get<string>("helmPath", "helm");
+  const candidates = buildHelmCommandCandidates(configured, helmArgs);
 
-  const tried = new Set<string>();
   const errors: string[] = [];
   for (const candidate of candidates) {
-    const key = `${candidate.cmd} ${candidate.args.join(" ")}`;
-    if (tried.has(key)) {
-      continue;
-    }
-    tried.add(key);
     try {
       return await execFileAsync(candidate.cmd, candidate.args, options);
     } catch (err) {
