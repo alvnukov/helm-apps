@@ -12,11 +12,12 @@ import { extractLocalIncludeBlock, trimPreview } from "./hover/includeHover";
 import { buildDependencyGraphModel } from "./language/dependencyGraph";
 import { buildHelmAppsDocumentSymbols } from "./language/documentSymbols";
 import { analyzeIncludes } from "./language/includeAnalysis";
-import { collectSymbolOccurrences, findSymbolAtPosition } from "./language/symbols";
+import { collectSymbolOccurrences, findSymbolAtPosition, type SymbolRef } from "./language/symbols";
 import { discoverEnvironments, findAppScopeAtLine, resolveEntityWithIncludes, resolveEnvMaps, type EnvironmentDiscovery } from "./preview/includeResolver";
 import { expandValuesWithFileIncludes, type IncludeDefinition } from "./loader/fileIncludes";
 import { extractAppChildToGlobalInclude, safeRenameAppKey } from "./refactor/appRefactor";
 import { ValuesStructureProvider } from "./structure/valuesTreeProvider";
+import { validateUnexpectedNativeLists } from "./validator/listPolicy";
 
 const execFileAsync = promisify(execFile);
 let previewPanel: vscode.WebviewPanel | undefined;
@@ -24,6 +25,12 @@ let previewMessageSubscription: vscode.Disposable | undefined;
 const includeDiagnostics = vscode.languages.createDiagnosticCollection("helm-apps.includes");
 const semanticDiagnostics = vscode.languages.createDiagnosticCollection("helm-apps.semantic");
 let completionSchemaCache: JsonSchema | null = null;
+const chartDetectionCache = new Map<string, boolean>();
+const diagnosticsTimers = new Map<string, NodeJS.Timeout>();
+const diagnosticsRunVersion = new Map<string, number>();
+const largeDocWarnings = new Set<string>();
+const DIAGNOSTICS_DEBOUNCE_MS = 220;
+const MAX_DIAGNOSTIC_DOC_SIZE_BYTES = 512 * 1024;
 
 type JsonSchema = {
   $ref?: string;
@@ -44,6 +51,7 @@ interface PreviewOptions {
   env: string;
   applyIncludes: boolean;
   applyEnvResolution: boolean;
+  showDiff: boolean;
 }
 
 interface LibrarySettingDef {
@@ -154,7 +162,16 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       valuesStructure.setDocument(active);
-      void refreshDiagnostics(active);
+      scheduleRefreshDiagnostics(active);
+    }),
+  );
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument((document) => {
+      const p = document.uri.fsPath;
+      if (p.endsWith("Chart.yaml") || p.includes(`${path.sep}templates${path.sep}`)) {
+        chartDetectionCache.clear();
+      }
+      scheduleRefreshDiagnostics(vscode.window.activeTextEditor?.document, 0);
     }),
   );
   context.subscriptions.push(includeDiagnostics);
@@ -166,7 +183,7 @@ export function activate(context: vscode.ExtensionContext): void {
         semanticDiagnostics.clear();
         return;
       }
-      void refreshDiagnostics(editor.document);
+      scheduleRefreshDiagnostics(editor.document, 0);
     }),
   );
 
@@ -306,6 +323,7 @@ export function activate(context: vscode.ExtensionContext): void {
           env: defaultEnv,
           applyIncludes: true,
           applyEnvResolution: true,
+          showDiff: true,
         };
         showEntityPreview(scope.group, scope.app, values, envDiscovery, options, loaded.missingFiles.map((m) => m.rawPath));
       } catch (err) {
@@ -352,9 +370,21 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      await rewriteEditorText(editor, (text) =>
-        safeRenameAppKey(text, editor.selection.active.line, newKey),
-      );
+      try {
+        const symbol = findSymbolAtPosition(editor.document.getText(), editor.selection.active.line, editor.selection.active.character);
+        if (symbol) {
+          const edits = await provideRenameEdits(editor.document, editor.selection.active, newKey);
+          if (edits) {
+            await vscode.workspace.applyEdit(edits);
+            void vscode.window.showInformationMessage(`helm-apps: renamed '${symbol.name}' to '${newKey}'`);
+            return;
+          }
+        }
+      } catch (err) {
+        void vscode.window.showWarningMessage(`helm-apps workspace rename fallback: ${extractErrorMessage(err)}`);
+      }
+
+      await rewriteEditorText(editor, (text) => safeRenameAppKey(text, editor.selection.active.line, newKey));
     }),
   );
 
@@ -393,7 +423,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   void configureSchema(context, true);
   valuesStructure.setDocument(vscode.window.activeTextEditor?.document);
-  void refreshDiagnostics(vscode.window.activeTextEditor?.document);
+  scheduleRefreshDiagnostics(vscode.window.activeTextEditor?.document, 0);
 }
 
 export function deactivate(): void {}
@@ -413,8 +443,16 @@ async function configureSchema(context: vscode.ExtensionContext, silent = false)
     delete next[schemaUri];
   }
 
-  await yamlConfig.update("schemas", next, vscode.ConfigurationTarget.Workspace);
-  await configureYamlHoverBehavior();
+  try {
+    await yamlConfig.update("schemas", next, vscode.ConfigurationTarget.Workspace);
+    await configureYamlHoverBehavior();
+  } catch (err) {
+    const message = extractErrorMessage(err);
+    if (!silent) {
+      void vscode.window.showWarningMessage(`helm-apps: unable to configure YAML schema automatically: ${message}`);
+    }
+    return;
+  }
 
   if (!silent) {
     void vscode.window.showInformationMessage(
@@ -711,6 +749,9 @@ async function validateCurrentFile(): Promise<void> {
   }
 
   const happPath = vscode.workspace.getConfiguration("helm-apps").get<string>("happPath", "happ");
+  if (!(await ensureHappReady(happPath))) {
+    return;
+  }
   const filePath = document.uri.fsPath;
 
   try {
@@ -741,6 +782,9 @@ async function pasteClipboardAsHelmApps(editor: vscode.TextEditor): Promise<void
   }
 
   const happPath = vscode.workspace.getConfiguration("helm-apps").get<string>("happPath", "happ");
+  if (!(await ensureHappReady(happPath))) {
+    return;
+  }
   const envDiscovery = discoverEnvironments(editor.document.getText());
   const env = detectDefaultEnv(parseValuesObject(editor.document.getText()), envDiscovery);
   const cwd = workspaceRoot(editor.document.uri) ?? path.dirname(editor.document.uri.fsPath);
@@ -785,6 +829,47 @@ async function pasteClipboardAsHelmApps(editor: vscode.TextEditor): Promise<void
         // ignore temp cleanup errors
       }
     }
+  }
+}
+
+async function ensureHappReady(happPath: string): Promise<boolean> {
+  try {
+    const { stdout, stderr } = await execFileAsync(happPath, ["--help"], {
+      timeout: 15000,
+      maxBuffer: 1024 * 1024,
+    });
+    const combined = `${stdout ?? ""}\n${stderr ?? ""}`;
+    if (!combined.toLowerCase().includes("happ")) {
+      void vscode.window.showWarningMessage("Configured happ binary responded unexpectedly. Check helm-apps.happPath.");
+    }
+    return true;
+  } catch (err) {
+    const message = extractErrorMessage(err);
+    if (message.includes("ENOENT")) {
+      const choice = await vscode.window.showErrorMessage(
+        "happ binary not found. Install happ or set helm-apps.happPath.",
+        "Set happ path",
+        "Install with Homebrew",
+        "Open Releases",
+      );
+      if (choice === "Set happ path") {
+        const next = await vscode.window.showInputBox({
+          prompt: "Path to happ binary",
+          placeHolder: "happ or /usr/local/bin/happ",
+        });
+        if (next && next.trim().length > 0) {
+          await vscode.workspace.getConfiguration("helm-apps").update("happPath", next.trim(), vscode.ConfigurationTarget.Workspace);
+          void vscode.window.showInformationMessage(`helm-apps.happPath set to '${next.trim()}'`);
+        }
+      } else if (choice === "Install with Homebrew") {
+        void vscode.env.openExternal(vscode.Uri.parse("https://github.com/alvnukov/helm-apps#%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-happ-cli"));
+      } else if (choice === "Open Releases") {
+        void vscode.env.openExternal(vscode.Uri.parse("https://github.com/alvnukov/helm-apps/releases"));
+      }
+      return false;
+    }
+    void vscode.window.showErrorMessage(`happ check failed: ${message}`);
+    return false;
   }
 }
 
@@ -846,9 +931,23 @@ function showEntityPreview(
     previewPanel.reveal(vscode.ViewColumn.Beside, true);
   }
 
+  let renderTimer: NodeJS.Timeout | undefined;
   const render = () => {
-    const yamlText = buildEntityPreviewYaml(values, group, app, options);
-    previewPanel!.webview.html = renderPreviewHtml(title, yamlText, envDiscovery, options, missingFiles);
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+      renderTimer = undefined;
+    }
+    const payload = buildEntityPreviewPayload(values, group, app, options);
+    previewPanel!.webview.html = renderPreviewHtml(title, payload.yamlText, payload.diffSummary, envDiscovery, options, missingFiles);
+  };
+  const renderDebounced = () => {
+    if (renderTimer) {
+      clearTimeout(renderTimer);
+    }
+    renderTimer = setTimeout(() => {
+      renderTimer = undefined;
+      render();
+    }, 120);
   };
 
   previewMessageSubscription?.dispose();
@@ -861,30 +960,46 @@ function showEntityPreview(
       options.env = msg.env;
       options.applyIncludes = msg.applyIncludes;
       options.applyEnvResolution = msg.applyEnvResolution;
-      render();
+      options.showDiff = msg.showDiff;
+      renderDebounced();
     }
   });
 
   render();
 }
 
-function buildEntityPreviewYaml(values: unknown, group: string, app: string, options: PreviewOptions): string {
+function buildEntityPreviewPayload(
+  values: unknown,
+  group: string,
+  app: string,
+  options: PreviewOptions,
+): { yamlText: string; diffSummary: string[] } {
+  const rawEntity = readRawEntity(values, group, app);
+  const entity = resolvePreviewEntity(values, group, app, options);
+  const diffSummary = options.showDiff ? diffObjects(rawEntity, entity) : [];
+  const yamlText = YAML.stringify({
+    global: { env: options.env },
+    [group]: { [app]: entity },
+  });
+  return { yamlText, diffSummary };
+}
+
+function resolvePreviewEntity(values: unknown, group: string, app: string, options: PreviewOptions): unknown {
   let entity: unknown;
   if (options.applyIncludes) {
     entity = resolveEntityWithIncludes(values, group, app);
   } else {
-    const parsed = values as Record<string, unknown>;
-    entity = (((parsed[group] as Record<string, unknown> | undefined) ?? {})[app] ?? {}) as unknown;
+    entity = readRawEntity(values, group, app);
   }
-
   if (options.applyEnvResolution) {
     entity = resolveEnvMaps(entity, options.env);
   }
+  return entity;
+}
 
-  return YAML.stringify({
-    global: { env: options.env },
-    [group]: { [app]: entity },
-  });
+function readRawEntity(values: unknown, group: string, app: string): unknown {
+  const parsed = values as Record<string, unknown>;
+  return (((parsed[group] as Record<string, unknown> | undefined) ?? {})[app] ?? {}) as unknown;
 }
 
 async function loadExpandedValues(document: vscode.TextDocument): Promise<{
@@ -971,14 +1086,14 @@ async function provideReferences(
     return undefined;
   }
 
-  const occurrences = collectSymbolOccurrences(document.getText(), symbol);
+  const occurrences = await collectWorkspaceSymbolOccurrences(document, symbol);
   if (occurrences.length === 0) {
     return undefined;
   }
 
   return occurrences.map((it) =>
     new vscode.Location(
-      document.uri,
+      it.uri,
       new vscode.Range(new vscode.Position(it.line, it.start), new vscode.Position(it.line, it.end)),
     ));
 }
@@ -1029,7 +1144,7 @@ async function provideRenameEdits(
     throw new Error("Use ^[A-Za-z0-9_.-]+$ for symbol rename");
   }
 
-  const occurrences = collectSymbolOccurrences(document.getText(), symbol);
+  const occurrences = await collectWorkspaceSymbolOccurrences(document, symbol);
   if (occurrences.length === 0) {
     throw new Error("No symbol occurrences found");
   }
@@ -1037,12 +1152,61 @@ async function provideRenameEdits(
   const edit = new vscode.WorkspaceEdit();
   for (const occ of occurrences) {
     edit.replace(
-      document.uri,
+      occ.uri,
       new vscode.Range(new vscode.Position(occ.line, occ.start), new vscode.Position(occ.line, occ.end)),
       newName,
     );
   }
   return edit;
+}
+
+type SymbolOccurrenceWithUri = ReturnType<typeof collectSymbolOccurrences>[number] & { uri: vscode.Uri };
+
+async function collectWorkspaceSymbolOccurrences(
+  document: vscode.TextDocument,
+  symbol: SymbolRef,
+): Promise<SymbolOccurrenceWithUri[]> {
+  const out: SymbolOccurrenceWithUri[] = [];
+  const seen = new Set<string>();
+
+  const chart = await findNearestChartYaml(document.uri.fsPath);
+  const chartRoot = chart ? path.dirname(chart.fsPath) : workspaceRoot(document.uri);
+  if (!chartRoot) {
+    const local = collectSymbolOccurrences(document.getText(), symbol);
+    for (const occ of local) {
+      out.push({ ...occ, uri: document.uri });
+    }
+    return out;
+  }
+
+  const files = await vscode.workspace.findFiles(
+    new vscode.RelativePattern(chartRoot, "**/*.{yaml,yml}"),
+    "**/{.git,node_modules,vendor,tmp,.werf}/**",
+  );
+
+  for (const uri of files) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const doc = await vscode.workspace.openTextDocument(uri);
+      const text = doc.getText();
+      if (!looksLikeHelmAppsValuesText(text)) {
+        continue;
+      }
+      const occs = collectSymbolOccurrences(text, symbol);
+      for (const occ of occs) {
+        const key = `${uri.toString()}:${occ.line}:${occ.start}:${occ.end}:${occ.role}`;
+        if (seen.has(key)) {
+          continue;
+        }
+        seen.add(key);
+        out.push({ ...occ, uri });
+      }
+    } catch {
+      // ignore unreadable file
+    }
+  }
+
+  return out;
 }
 
 async function provideCompletionItems(
@@ -1640,6 +1804,59 @@ async function provideCodeActions(
       const insertion = buildIncludeProfileInsertion(document, includeName);
       action.edit.insert(document.uri, insertion.position, insertion.text);
       actions.push(action);
+
+      const includeFileTarget = await findFirstExistingIncludeFile(document);
+      if (includeFileTarget) {
+        const targetDoc = await vscode.workspace.openTextDocument(includeFileTarget);
+        if (findTopLevelKeyLine(targetDoc.getText(), includeName) < 0) {
+          const actionInFile = new vscode.CodeAction(
+            `Create include profile '${includeName}' in ${path.basename(includeFileTarget.fsPath)}`,
+            vscode.CodeActionKind.QuickFix,
+          );
+          actionInFile.edit = new vscode.WorkspaceEdit();
+          const insertionInFile = buildIncludeProfileInsertionForIncludeFile(targetDoc, includeName);
+          actionInFile.edit.insert(targetDoc.uri, insertionInFile.position, insertionInFile.text);
+          actions.push(actionInFile);
+        }
+      }
+    }
+  }
+
+  const missingInclude = (context?.diagnostics ?? []).find((d) => d.message.startsWith("Include file not found:"));
+  if (missingInclude) {
+    const rawPath = missingInclude.message.replace("Include file not found:", "").trim();
+    if (rawPath.length > 0 && !isTemplatedIncludePath(rawPath)) {
+      const candidates = buildIncludeCandidates(rawPath, path.dirname(document.uri.fsPath));
+      const target = candidates[0];
+      if (target) {
+        const action = new vscode.CodeAction(`Create include file '${rawPath}'`, vscode.CodeActionKind.QuickFix);
+        action.edit = new vscode.WorkspaceEdit();
+        action.edit.createFile(vscode.Uri.file(target), { ignoreIfExists: true });
+        action.edit.insert(vscode.Uri.file(target), new vscode.Position(0, 0), "# include profiles\n");
+        actions.push(action);
+      }
+    }
+  }
+
+  const listPolicyViolation = (context?.diagnostics ?? []).find((d) => String(d.code ?? "") === "E_UNEXPECTED_LIST");
+  if (listPolicyViolation) {
+    const lines = document.getText().split(/\r?\n/);
+    const listLine = listPolicyViolation.range.start.line;
+    const parentKeyLine = findParentKeyLineForList(lines, listLine);
+    if (parentKeyLine >= 0) {
+      const parentText = lines[parentKeyLine] ?? "";
+      const keyMatch = parentText.match(/^(\s*)([A-Za-z0-9_.-]+):\s*(.*)$/);
+      if (keyMatch && !/^[|>][-+]?/.test((keyMatch[3] ?? "").trim())) {
+        const replacement = `${keyMatch[1]}${keyMatch[2]}: |-`;
+        const action = new vscode.CodeAction("Convert native list to YAML block string", vscode.CodeActionKind.QuickFix);
+        action.edit = new vscode.WorkspaceEdit();
+        action.edit.replace(
+          document.uri,
+          new vscode.Range(new vscode.Position(parentKeyLine, 0), new vscode.Position(parentKeyLine, parentText.length)),
+          replacement,
+        );
+        actions.push(action);
+      }
     }
   }
 
@@ -1710,6 +1927,61 @@ function buildIncludeProfileInsertion(
     position: new vscode.Position(lines.length, 0),
     text: `${prefix}global:\n  _includes:\n    ${includeName}:\n      enabled: true\n`,
   };
+}
+
+function buildIncludeProfileInsertionForIncludeFile(
+  document: vscode.TextDocument,
+  includeName: string,
+): { position: vscode.Position; text: string } {
+  const text = document.getText();
+  const lines = text.split(/\r?\n/);
+  const hasTrailingNewline = text.endsWith("\n");
+  const prefix = text.trim().length > 0 ? (hasTrailingNewline ? "" : "\n") : "";
+  return {
+    position: new vscode.Position(lines.length, 0),
+    text: `${prefix}${includeName}:\n  enabled: true\n`,
+  };
+}
+
+async function findFirstExistingIncludeFile(document: vscode.TextDocument): Promise<vscode.Uri | undefined> {
+  const refs = collectIncludeFileRefs(document.getText());
+  const baseDir = path.dirname(document.uri.fsPath);
+  for (const ref of refs) {
+    if (isTemplatedIncludePath(ref.path)) {
+      continue;
+    }
+    const candidates = buildIncludeCandidates(ref.path, baseDir);
+    for (const candidate of candidates) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await access(candidate);
+        return vscode.Uri.file(candidate);
+      } catch {
+        // try next
+      }
+    }
+  }
+  return undefined;
+}
+
+function findParentKeyLineForList(lines: string[], listLine: number): number {
+  const current = lines[listLine] ?? "";
+  const listIndent = countIndent(current);
+  for (let i = listLine - 1; i >= 0; i -= 1) {
+    const line = lines[i] ?? "";
+    if (line.trim().length === 0 || line.trim().startsWith("#")) {
+      continue;
+    }
+    const m = line.match(/^(\s*)([A-Za-z0-9_.-]+):\s*(.*)$/);
+    if (!m) {
+      continue;
+    }
+    const indent = m[1].length;
+    if (indent < listIndent) {
+      return i;
+    }
+  }
+  return -1;
 }
 
 async function provideIncludeHover(
@@ -1817,6 +2089,11 @@ async function discoverHelmAppsSchemaTargets(): Promise<string[]> {
 }
 
 async function isHelmAppsChart(chartYamlUri: vscode.Uri): Promise<boolean> {
+  const cacheKey = chartYamlUri.fsPath;
+  const cached = chartDetectionCache.get(cacheKey);
+  if (cached !== undefined) {
+    return cached;
+  }
   const chartDir = path.dirname(chartYamlUri.fsPath);
   const templates = await vscode.workspace.findFiles(
     new vscode.RelativePattern(chartDir, "templates/**/*.{yaml,yml,tpl}"),
@@ -1828,12 +2105,14 @@ async function isHelmAppsChart(chartYamlUri: vscode.Uri): Promise<boolean> {
       // eslint-disable-next-line no-await-in-loop
       const raw = await readFile(t.fsPath, "utf8");
       if (raw.includes(`include "apps-utils.init-library"`)) {
+        chartDetectionCache.set(cacheKey, true);
         return true;
       }
     } catch {
       // skip unreadable template
     }
   }
+  chartDetectionCache.set(cacheKey, false);
   return false;
 }
 
@@ -1855,6 +2134,9 @@ async function isHelmAppsValuesDocument(document: vscode.TextDocument): Promise<
 
 function looksLikeHelmAppsValuesText(text: string): boolean {
   if (/\n?global:\s*/m.test(text) && /(?:^|\n)\s*_includes:\s*/m.test(text)) {
+    return true;
+  }
+  if (/\n?global:\s*/m.test(text) && /(?:^|\n)\s*releases:\s*/m.test(text)) {
     return true;
   }
   if (/(?:^|\n)apps-[a-z0-9-]+:\s*/m.test(text)) {
@@ -2037,6 +2319,7 @@ function findLocalGlobalIncludeLines(document: vscode.TextDocument): Map<string,
 function renderPreviewHtml(
   title: string,
   yamlText: string,
+  diffSummary: string[],
   envDiscovery: { literals: string[]; regexes: string[] },
   options: PreviewOptions,
   missingFiles: string[],
@@ -2076,6 +2359,16 @@ function renderPreviewHtml(
         }
       </details>`
     : "";
+  const diffSection = options.showDiff
+    ? `<details open>
+        <summary>Semantic diff (raw vs resolved): ${diffSummary.length} change(s)</summary>
+        <div class="diff-list">${
+          diffSummary.length > 0
+            ? diffSummary.map((d) => `<div class="diff-item"><code>${escapeHtml(d)}</code></div>`).join("")
+            : `<div class="hint">no semantic changes</div>`
+        }</div>
+      </details>`
+    : "";
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -2094,6 +2387,8 @@ function renderPreviewHtml(
       .quick-env:hover { background: #17305f; }
       .hint { font-size: 11px; opacity: 0.8; margin-top: 8px; }
       .warn { font-size: 11px; color: #f2ad4e; margin-top: 8px; }
+      .diff-list { margin-top: 8px; border: 1px solid #2a3654; border-radius: 8px; padding: 8px; background: #0a152e; max-height: 180px; overflow: auto; }
+      .diff-item { font-size: 12px; margin-bottom: 4px; }
       .render { margin-top: 10px; border: 1px solid #2a3654; border-radius: 8px; background: #081126; overflow: auto; max-height: calc(100vh - 260px); }
       pre { margin: 0; padding: 14px; color: #d8e6ff; font-size: 12px; line-height: 1.45; white-space: pre; }
       .y-key { color: #8dc3ff; font-weight: 600; }
@@ -2114,9 +2409,11 @@ function renderPreviewHtml(
       </label>
       <label><input id="applyIncludes" type="checkbox" ${options.applyIncludes ? "checked" : ""}/> apply includes</label>
       <label><input id="applyEnvResolution" type="checkbox" ${options.applyEnvResolution ? "checked" : ""}/> resolve env maps</label>
+      <label><input id="showDiff" type="checkbox" ${options.showDiff ? "checked" : ""}/> show semantic diff</label>
     </div>
     ${quickEnvButtons}
     ${details}
+    ${diffSection}
     <div class="render"><pre id="yamlPreview">${renderYamlHighlightedHtml(yamlText)}</pre></div>
     <script>
       const vscode = acquireVsCodeApi();
@@ -2125,6 +2422,7 @@ function renderPreviewHtml(
       const quickEnvButtons = document.querySelectorAll(".quick-env");
       const applyIncludes = document.getElementById("applyIncludes");
       const applyEnvResolution = document.getElementById("applyEnvResolution");
+      const showDiff = document.getElementById("showDiff");
 
       envInput.addEventListener("change", emit);
       envInput.addEventListener("keyup", (e) => {
@@ -2142,13 +2440,15 @@ function renderPreviewHtml(
       });
       applyIncludes.addEventListener("change", emit);
       applyEnvResolution.addEventListener("change", emit);
+      showDiff.addEventListener("change", emit);
 
       function emit() {
         vscode.postMessage({
           type: "optionsChanged",
           env: envInput.value || options.env,
           applyIncludes: applyIncludes.checked,
-          applyEnvResolution: applyEnvResolution.checked
+          applyEnvResolution: applyEnvResolution.checked,
+          showDiff: showDiff.checked
         });
       }
     </script>
@@ -2224,6 +2524,53 @@ function sampleEnvFromRegex(regex: string): string | null {
   return s.length > 0 ? s : null;
 }
 
+function diffObjects(before: unknown, after: unknown, prefix = ""): string[] {
+  if (before === after) {
+    return [];
+  }
+  if (typeof before !== typeof after) {
+    return [`${prefix || "<root>"}: type ${typeof before} -> ${typeof after}`];
+  }
+  if (Array.isArray(before) || Array.isArray(after)) {
+    if (!Array.isArray(before) || !Array.isArray(after)) {
+      return [`${prefix || "<root>"}: list/other changed`];
+    }
+    if (before.length !== after.length) {
+      return [`${prefix || "<root>"}: list length ${before.length} -> ${after.length}`];
+    }
+    const out: string[] = [];
+    for (let i = 0; i < before.length; i += 1) {
+      const childPrefix = `${prefix}[${i}]`;
+      out.push(...diffObjects(before[i], after[i], childPrefix));
+      if (out.length >= 300) {
+        break;
+      }
+    }
+    return out;
+  }
+  if (isMap(before) && isMap(after)) {
+    const out: string[] = [];
+    const keys = new Set<string>([...Object.keys(before), ...Object.keys(after)]);
+    for (const key of keys) {
+      const childPrefix = prefix.length > 0 ? `${prefix}.${key}` : key;
+      if (!Object.prototype.hasOwnProperty.call(before, key)) {
+        out.push(`${childPrefix}: added`);
+        continue;
+      }
+      if (!Object.prototype.hasOwnProperty.call(after, key)) {
+        out.push(`${childPrefix}: removed`);
+        continue;
+      }
+      out.push(...diffObjects(before[key], after[key], childPrefix));
+      if (out.length >= 300) {
+        break;
+      }
+    }
+    return out;
+  }
+  return [`${prefix || "<root>"}: '${String(before)}' -> '${String(after)}'`];
+}
+
 function escapeHtml(input: string): string {
   return input
     .split("&").join("&amp;")
@@ -2233,14 +2580,15 @@ function escapeHtml(input: string): string {
 
 function isWebviewMessage(
   value: unknown,
-): value is { type: "optionsChanged"; env: string; applyIncludes: boolean; applyEnvResolution: boolean } {
+): value is { type: "optionsChanged"; env: string; applyIncludes: boolean; applyEnvResolution: boolean; showDiff: boolean } {
   if (!value || typeof value !== "object") {
     return false;
   }
   const v = value as Record<string, unknown>;
   return v.type === "optionsChanged" && typeof v.env === "string"
     && typeof v.applyIncludes === "boolean"
-    && typeof v.applyEnvResolution === "boolean";
+    && typeof v.applyEnvResolution === "boolean"
+    && typeof v.showDiff === "boolean";
 }
 
 function isMap(value: unknown): value is Record<string, unknown> {
@@ -2252,8 +2600,51 @@ function toMap(value: unknown): Record<string, unknown> | null {
 }
 
 async function refreshDiagnostics(document: vscode.TextDocument | undefined): Promise<void> {
+  if (!document) {
+    includeDiagnostics.clear();
+    semanticDiagnostics.clear();
+    return;
+  }
+  if (Buffer.byteLength(document.getText(), "utf8") > MAX_DIAGNOSTIC_DOC_SIZE_BYTES) {
+    includeDiagnostics.clear();
+    const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1));
+    const diag = new vscode.Diagnostic(
+      range,
+      "Diagnostics paused for large file (>512KB). Run validation command for full checks.",
+      vscode.DiagnosticSeverity.Information,
+    );
+    diag.source = "helm-apps";
+    semanticDiagnostics.set(document.uri, [diag]);
+    if (!largeDocWarnings.has(document.uri.toString())) {
+      largeDocWarnings.add(document.uri.toString());
+      void vscode.window.showWarningMessage("helm-apps: diagnostics paused for large file (>512KB).");
+    }
+    return;
+  }
   await refreshIncludeDiagnostics(document);
   await refreshSemanticDiagnostics(document);
+}
+
+function scheduleRefreshDiagnostics(document: vscode.TextDocument | undefined, delayMs = DIAGNOSTICS_DEBOUNCE_MS): void {
+  if (!document) {
+    includeDiagnostics.clear();
+    semanticDiagnostics.clear();
+    return;
+  }
+  const key = document.uri.toString();
+  const prev = diagnosticsTimers.get(key);
+  if (prev) {
+    clearTimeout(prev);
+  }
+  const runId = (diagnosticsRunVersion.get(key) ?? 0) + 1;
+  diagnosticsRunVersion.set(key, runId);
+  const timer = setTimeout(() => {
+    diagnosticsTimers.delete(key);
+    void refreshDiagnostics(document).catch(() => {
+      // diagnostics errors should not break editing
+    });
+  }, Math.max(0, delayMs));
+  diagnosticsTimers.set(key, timer);
 }
 
 async function refreshIncludeDiagnostics(document: vscode.TextDocument | undefined): Promise<void> {
@@ -2300,13 +2691,23 @@ async function refreshSemanticDiagnostics(document: vscode.TextDocument | undefi
     semanticDiagnostics.clear();
     return;
   }
+  const docKey = document.uri.toString();
+  const runId = diagnosticsRunVersion.get(docKey) ?? 0;
   if (!(await isHelmAppsValuesDocument(document))) {
     semanticDiagnostics.clear();
     return;
   }
 
   const text = document.getText();
+  const parsed = parseValuesObject(text);
+  const allowNativeListsInBuiltInListFields = readBooleanByPath(
+    parsed,
+    ["global", "validation", "allowNativeListsInBuiltInListFields"],
+  );
   const loaded = await loadExpandedValues(document);
+  if ((diagnosticsRunVersion.get(docKey) ?? 0) !== runId) {
+    return;
+  }
   const analysis = analyzeIncludes(text, loaded.includeDefinitions);
   const diagnostics: vscode.Diagnostic[] = [];
 
@@ -2343,6 +2744,21 @@ async function refreshSemanticDiagnostics(document: vscode.TextDocument | undefi
       vscode.DiagnosticSeverity.Information,
     );
     d.source = "helm-apps";
+    diagnostics.push(d);
+  }
+
+  const listIssues = validateUnexpectedNativeLists(text, { allowNativeListsInBuiltInListFields });
+  for (const issue of listIssues) {
+    const idxLine = Math.max(0, issue.line - 1);
+    const lineText = document.lineAt(idxLine).text;
+    const range = new vscode.Range(new vscode.Position(idxLine, 0), new vscode.Position(idxLine, lineText.length));
+    const d = new vscode.Diagnostic(
+      range,
+      `List policy violation at ${issue.path}: ${issue.message}`,
+      vscode.DiagnosticSeverity.Warning,
+    );
+    d.source = "helm-apps";
+    d.code = issue.code;
     diagnostics.push(d);
   }
 

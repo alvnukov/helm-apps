@@ -147,6 +147,7 @@ jobs:
           npm ci
           npm run build
           npm test
+          xvfb-run -a npm run test:e2e
 
       - name: Package extension VSIX
         if: ${{ github.ref == 'refs/heads/main' }}

@@ -161,14 +161,20 @@
     "build": "tsc -p .",
     "watch": "tsc -w -p .",
     "package": "vsce package",
-    "test": "tsc -p . && node --test out/test/**/*.test.js"
+    "generate:hover-docs": "node ./scripts/generate-hover-doc-links.js",
+    "check:hover-docs": "node ./scripts/check-hover-doc-links.js",
+    "test": "tsc -p . && node --test out/test/**/*.test.js && npm run check:hover-docs",
+    "test:e2e": "tsc -p . && node ./out/test/e2e/runTest.js"
   },
   "dependencies": {
     "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.16.5",
+    "@types/mocha": "^10.0.10",
     "@types/vscode": "^1.90.0",
+    "@vscode/test-electron": "^2.5.2",
+    "mocha": "^10.8.2",
     "typescript": "^5.6.2"
   }
 }

@@ -1,0 +1,17 @@
+global:
+  env: dev
+  _includes:
+    local-profile:
+      enabled: true
+  _include_files:
+    - include-profiles.yaml
+apps-stateless:
+  app-1:
+    _include:
+      - file-profile
+      - missing-profile
+    enabled: true
+apps-services:
+  app-1:
+    ports:
+      - port: 80

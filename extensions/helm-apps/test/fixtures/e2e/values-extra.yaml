@@ -1,0 +1,4 @@
+global:
+  releases:
+    rel-1:
+      app-1: 1.2.3

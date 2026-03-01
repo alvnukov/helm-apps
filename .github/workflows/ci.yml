@@ -159,6 +159,7 @@ jobs:
           set -euo pipefail
           cd extensions/helm-apps
           npm test
+          xvfb-run -a npm run test:e2e
 
   kube-compatibility-matrix:
     runs-on: ubuntu-latest
