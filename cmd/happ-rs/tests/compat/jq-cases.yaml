@@ -204,3 +204,21 @@ cases:
     query: ".[] | empty"
     input_json: "[1,2,3]"
     output_json_lines: []
+
+  - id: jq_contains
+    query: 'contains("bc")'
+    input_json: '"abcd"'
+    output_json_lines:
+      - "true"
+
+  - id: jq_startswith
+    query: 'startswith("ab")'
+    input_json: '"abcd"'
+    output_json_lines:
+      - "true"
+
+  - id: jq_endswith
+    query: 'endswith("cd")'
+    input_json: '"abcd"'
+    output_json_lines:
+      - "true"

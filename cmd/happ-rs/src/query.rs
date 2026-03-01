@@ -63,6 +63,9 @@ enum CompiledStage {
     Sort,
     Not,
     Empty,
+    Contains(Box<CompiledQuery>),
+    StartsWith(Box<CompiledQuery>),
+    EndsWith(Box<CompiledQuery>),
     Has(String),
     DotPath(Vec<PathToken>),
     Literal(JsonValue),
@@ -146,6 +149,15 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
             return Ok(CompiledStage::MapPath(path));
         }
         return Ok(CompiledStage::Map(Box::new(compile_query(inner)?)));
+    }
+    if let Some(inner) = parse_func_inner(s, "contains") {
+        return Ok(CompiledStage::Contains(Box::new(compile_query(inner.trim())?)));
+    }
+    if let Some(inner) = parse_func_inner(s, "startswith") {
+        return Ok(CompiledStage::StartsWith(Box::new(compile_query(inner.trim())?)));
+    }
+    if let Some(inner) = parse_func_inner(s, "endswith") {
+        return Ok(CompiledStage::EndsWith(Box::new(compile_query(inner.trim())?)));
     }
     match s {
         "length" => return Ok(CompiledStage::Length),
@@ -549,6 +561,40 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
             .map(|v| JsonValue::Bool(!truthy(v)))
             .collect()),
         CompiledStage::Empty => Ok(Vec::new()),
+        CompiledStage::Contains(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let needle = eval_predicate_side(inner, &v)?;
+                out.push(JsonValue::Bool(contains_value(&v, &needle)));
+            }
+            Ok(out)
+        }
+        CompiledStage::StartsWith(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let needle = eval_predicate_side(inner, &v)?;
+                let ok = v
+                    .as_str()
+                    .zip(needle.as_str())
+                    .map(|(s, p)| s.starts_with(p))
+                    .unwrap_or(false);
+                out.push(JsonValue::Bool(ok));
+            }
+            Ok(out)
+        }
+        CompiledStage::EndsWith(inner) => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in input_stream {
+                let needle = eval_predicate_side(inner, &v)?;
+                let ok = v
+                    .as_str()
+                    .zip(needle.as_str())
+                    .map(|(s, p)| s.ends_with(p))
+                    .unwrap_or(false);
+                out.push(JsonValue::Bool(ok));
+            }
+            Ok(out)
+        }
         CompiledStage::DotPath(tokens) => {
             let mut out = Vec::with_capacity(input_stream.len());
             if is_scalar_path(tokens) {
@@ -1143,6 +1189,17 @@ fn has_key(v: &JsonValue, key: &str) -> bool {
     }
 }
 
+fn contains_value(haystack: &JsonValue, needle: &JsonValue) -> bool {
+    match (haystack, needle) {
+        (JsonValue::String(s), JsonValue::String(sub)) => s.contains(sub),
+        (JsonValue::Array(arr), _) => arr.iter().any(|v| v == needle),
+        (JsonValue::Object(map), JsonValue::Object(sub)) => sub
+            .iter()
+            .all(|(k, v)| map.get(k).map(|hv| contains_value(hv, v) || hv == v).unwrap_or(false)),
+        _ => haystack == needle,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1366,6 +1423,22 @@ a:
     fn run_query_supports_empty_stage() {
         let out = run_json_query(".[] | empty", r#"[1,2,3]"#).expect("query");
         assert!(out.is_empty());
+    }
+
+    #[test]
+    fn run_query_supports_contains() {
+        let out = run_json_query(r#"contains("bc")"#, r#""abcd""#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(true)]);
+        let out_arr = run_json_query("contains(2)", "[1,2,3]").expect("query");
+        assert_eq!(out_arr, vec![serde_json::json!(true)]);
+    }
+
+    #[test]
+    fn run_query_supports_startswith_and_endswith() {
+        let out_sw = run_json_query(r#"startswith("ab")"#, r#""abcd""#).expect("query");
+        assert_eq!(out_sw, vec![serde_json::json!(true)]);
+        let out_ew = run_json_query(r#"endswith("cd")"#, r#""abcd""#).expect("query");
+        assert_eq!(out_ew, vec![serde_json::json!(true)]);
     }
 
     #[test]

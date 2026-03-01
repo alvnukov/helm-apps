@@ -228,3 +228,21 @@ cases:
       - 2
       - 3
     output_json_lines: []
+
+  - id: yq_contains
+    query: 'contains("bc")'
+    input_yaml: '"abcd"'
+    output_json_lines:
+      - "true"
+
+  - id: yq_startswith
+    query: 'startswith("ab")'
+    input_yaml: '"abcd"'
+    output_json_lines:
+      - "true"
+
+  - id: yq_endswith
+    query: 'endswith("cd")'
+    input_yaml: '"abcd"'
+    output_json_lines:
+      - "true"
