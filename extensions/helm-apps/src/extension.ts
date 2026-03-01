@@ -1010,12 +1010,12 @@ async function manageLibrarySource(context: vscode.ExtensionContext): Promise<vo
         action: "set-github-repo" as const,
       },
       {
-        label: ru ? "Проверить новую версию в GitHub" : "Check latest GitHub version",
+        label: ru ? "Проверить новую версию в репозитории" : "Check latest repository version",
         description: cachedVersion ? `${ru ? "Кэш" : "Cached"}: ${cachedVersion}` : undefined,
         action: "check-update" as const,
       },
       {
-        label: ru ? "Скачать библиотеку из GitHub в кэш расширения" : "Download library from GitHub into extension cache",
+        label: ru ? "Скачать библиотеку из репозитория в кэш расширения" : "Download library from repository into extension cache",
         description: cachedVersion ? `${ru ? "Текущий кэш" : "Current cache"}: ${cachedVersion}` : undefined,
         action: "cache-github" as const,
       },
@@ -1068,7 +1068,7 @@ async function manageLibrarySource(context: vscode.ExtensionContext): Promise<vo
         return;
       }
       await cfg.update("libraryGithubRepo", next.trim(), vscode.ConfigurationTarget.Global);
-      void vscode.window.showInformationMessage(ru ? "GitHub репозиторий сохранен" : "GitHub repository saved");
+      void vscode.window.showInformationMessage(ru ? "URL репозитория сохранен" : "Repository URL saved");
       break;
     }
     case "check-update":
@@ -1090,7 +1090,7 @@ async function checkLibraryUpdate(context: vscode.ExtensionContext): Promise<voi
     const source = cfg.get<LibrarySourceMode>("librarySource", "local");
     const current = await resolveCurrentLibraryVersionForComparison(context, source);
     if (!current) {
-      void vscode.window.showInformationMessage(`${ru ? "Последняя версия" : "Latest version"}: ${latest}`);
+      void vscode.window.showInformationMessage(`${ru ? "Последняя версия в репозитории" : "Latest repository version"}: ${latest}`);
       return;
     }
     if (compareSemver(current, latest) >= 0) {
@@ -1106,7 +1106,7 @@ async function checkLibraryUpdate(context: vscode.ExtensionContext): Promise<voi
       }
     });
   } catch (err) {
-    void vscode.window.showErrorMessage(`${ru ? "Не удалось проверить обновления" : "Failed to check updates"}: ${extractErrorMessage(err)}`);
+    void vscode.window.showErrorMessage(`${ru ? "Не удалось проверить обновления в репозитории" : "Failed to check repository updates"}: ${extractErrorMessage(err)}`);
   }
 }
 
