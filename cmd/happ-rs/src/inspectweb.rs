@@ -117,6 +117,25 @@ fn handle_connection(
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
         return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
     }
+    if path == "/api/jq" && method == "POST" {
+        let payload: serde_json::Value = serde_json::from_str(body)
+            .map_err(|e| format!("invalid JSON request: {e}"))?;
+        let query = payload.get("query").and_then(|v| v.as_str()).unwrap_or(".");
+        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
+        let doc_mode = payload.get("docMode").and_then(|v| v.as_str()).unwrap_or("first");
+        let doc_index = payload
+            .get("docIndex")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize);
+        let compact = payload.get("compact").and_then(|v| v.as_bool()).unwrap_or(false);
+        let raw_output = payload.get("rawOutput").and_then(|v| v.as_bool()).unwrap_or(false);
+        let (ok, output) = match jq_payload(query, input, doc_mode, doc_index, compact, raw_output) {
+            Ok(v) => (true, v),
+            Err(e) => (false, e),
+        };
+        let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
+        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+    }
 
     let html = html_renderer();
     write_response(stream, 200, "text/html; charset=utf-8", html.as_bytes()).map_err(|e| e.to_string())
@@ -209,6 +228,61 @@ fn convert_payload(mode: &str, input: &str, doc_mode: &str, doc_index: Option<us
     }
 }
 
+fn jq_payload(
+    query: &str,
+    input: &str,
+    doc_mode: &str,
+    doc_index: Option<usize>,
+    compact: bool,
+    raw_output: bool,
+) -> Result<String, String> {
+    let docs = crate::query::parse_input_docs_prefer_json(input).map_err(|e| format!("jq parse error: {e}"))?;
+    let selected = select_docs_for_web(docs, doc_mode, doc_index, "jq")?;
+    let out = crate::query::run_query_stream(query, selected).map_err(|e| format!("jq query error: {e}"))?;
+    let mut lines = Vec::with_capacity(out.len());
+    for v in out {
+        if raw_output {
+            if let Some(s) = v.as_str() {
+                lines.push(s.to_string());
+                continue;
+            }
+        }
+        let line = if compact {
+            serde_json::to_string(&v).map_err(|e| format!("jq output encode error: {e}"))?
+        } else {
+            serde_json::to_string_pretty(&v).map_err(|e| format!("jq output encode error: {e}"))?
+        };
+        lines.push(line);
+    }
+    Ok(lines.join("\n"))
+}
+
+fn select_docs_for_web(
+    docs: Vec<serde_json::Value>,
+    doc_mode: &str,
+    doc_index: Option<usize>,
+    tool: &str,
+) -> Result<Vec<serde_json::Value>, String> {
+    match doc_mode.trim().to_ascii_lowercase().as_str() {
+        "" | "first" => Ok(docs.into_iter().next().into_iter().collect()),
+        "all" => Ok(docs),
+        "index" => {
+            let idx = doc_index.ok_or_else(|| format!("{tool}: doc index is required for doc mode 'index'"))?;
+            if idx >= docs.len() {
+                return Err(format!(
+                    "{tool}: doc index {} is out of range for {} document(s)",
+                    idx,
+                    docs.len()
+                ));
+            }
+            Ok(vec![docs[idx].clone()])
+        }
+        other => Err(format!(
+            "{tool}: unsupported doc mode '{other}' (expected first|all|index)"
+        )),
+    }
+}
+
 fn write_response(stream: &mut TcpStream, code: u16, content_type: &str, body: &[u8]) -> std::io::Result<()> {
     let head = format!(
         "HTTP/1.1 {} OK\r\nContent-Type: {}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
@@ -238,6 +312,11 @@ pub fn render_page_html(source_yaml: &str, generated_values_yaml: &str) -> Strin
                 "id": "converter",
                 "title": "YAML/JSON Converter",
                 "description": "Convert data between YAML and JSON formats."
+            },
+            {
+                "id": "jq-playground",
+                "title": "jq Playground",
+                "description": "Run jq queries on JSON or YAML input."
             }
         ]
     });
@@ -262,6 +341,11 @@ pub fn render_compose_page_html(source_compose_yaml: &str, compose_report_yaml: 
                 "id": "converter",
                 "title": "YAML/JSON Converter",
                 "description": "Convert data between YAML and JSON formats."
+            },
+            {
+                "id": "jq-playground",
+                "title": "jq Playground",
+                "description": "Run jq queries on JSON or YAML input."
             }
         ]
     });
@@ -276,6 +360,11 @@ pub fn render_tools_page_html() -> String {
                 "id": "converter",
                 "title": "YAML/JSON Converter",
                 "description": "Convert data between YAML and JSON formats."
+            },
+            {
+                "id": "jq-playground",
+                "title": "jq Playground",
+                "description": "Run jq queries on JSON or YAML input."
             }
         ]
     });
@@ -322,6 +411,37 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .conv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; }}
 .converter-controls {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }}
 .converter-controls .muted {{ margin-left:auto; }}
+.jq-query-editor {{ position:relative; }}
+.jq-query-highlight {{
+  position:absolute; inset:0;
+  margin:0;
+  border:1px solid #cbd5e1;
+  border-radius:12px;
+  background:#f8fafc;
+  color:#1e293b;
+  padding:10px;
+  overflow:auto;
+  min-height:72px;
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-size:13px;
+  line-height:1.45;
+  z-index:1;
+}}
+.jq-query-input {{
+  position:relative;
+  z-index:2;
+  background:transparent;
+  color:transparent;
+  caret-color:#0f172a;
+  min-height:72px;
+}}
+.jq-token-keyword {{ color:#7c3aed; font-weight:700; }}
+.jq-token-func {{ color:#0c4a6e; font-weight:700; }}
+.jq-token-string {{ color:#0f766e; }}
+.jq-token-number {{ color:#b45309; }}
+.jq-token-op {{ color:#be123c; font-weight:700; }}
+.jq-token-field {{ color:#1d4ed8; }}
 .err {{ color:#991b1b; font-weight:600; }}
 @media (prefers-color-scheme: dark) {{
  body {{ background:#0b1220; color:#dbe7ff; }}
@@ -329,6 +449,14 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
  input[type='text'] {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  select {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  textarea {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
+ .jq-query-highlight {{ border-color:#334155; background:#0b1220; color:#dbe7ff; }}
+ .jq-query-input {{ caret-color:#dbe7ff; }}
+ .jq-token-keyword {{ color:#c4b5fd; }}
+ .jq-token-func {{ color:#93c5fd; }}
+ .jq-token-string {{ color:#5eead4; }}
+ .jq-token-number {{ color:#fcd34d; }}
+ .jq-token-op {{ color:#fda4af; }}
+ .jq-token-field {{ color:#93c5fd; }}
  .muted {{ color:#9fb0ca; }}
  .err {{ color:#fca5a5; }}
 }}
@@ -378,7 +506,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
   </div>
 
-  <div v-else class='card'>
+  <div v-else-if='activeUtilityId === "converter"' class='card'>
     <div class='cardhead'>
       <h3>YAML ↔ JSON Converter</h3>
       <div class='cardbtns'>
@@ -418,10 +546,60 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='err' v-if='converterError' style='margin-top:8px;'>{{{{ converterError }}}}</div>
   </div>
+
+  <div v-else-if='activeUtilityId === "jq-playground"' class='card'>
+    <div class='cardhead'>
+      <h3>jq Playground</h3>
+      <div class='cardbtns'>
+        <button class='secondary' @click='runJq'>Run</button>
+        <button class='secondary' @click='clearJq'>Clear</button>
+      </div>
+    </div>
+    <div class='converter-controls'>
+      <select v-model='jqDocMode'>
+        <option value='first'>Input docs: first</option>
+        <option value='all'>Input docs: all</option>
+        <option value='index'>Input docs: index</option>
+      </select>
+      <input v-if='jqDocMode === "index"'
+             v-model.number='jqDocIndex'
+             type='number'
+             min='0'
+             step='1'
+             style='width:140px;'
+             placeholder='doc index' />
+      <label class='chk'><input type='checkbox' v-model='jqCompact'/> compact</label>
+      <label class='chk'><input type='checkbox' v-model='jqRawOutput'/> raw output</label>
+      <button class='secondary' @click='copyJqOutput'>Copy output</button>
+      <div class='muted'>Live query execution is enabled</div>
+    </div>
+    <div style='margin-bottom:10px;'>
+      <div class='muted' style='margin-bottom:6px;'>jq query (syntax highlighted)</div>
+      <div class='jq-query-editor'>
+        <pre class='jq-query-highlight' aria-hidden='true' v-html='jqQueryHighlighted'></pre>
+        <textarea class='jq-query-input'
+                  v-model='jqQuery'
+                  spellcheck='false'
+                  @scroll='syncJqScroll'
+                  ref='jqQueryInput'></textarea>
+      </div>
+    </div>
+    <div class='conv-grid'>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>Input (JSON or YAML)</div>
+        <textarea v-model='jqInput' spellcheck='false'></textarea>
+      </div>
+      <div>
+        <div class='muted' style='margin-bottom:6px;'>Output</div>
+        <textarea :value='jqOutput' readonly spellcheck='false'></textarea>
+      </div>
+    </div>
+    <div class='err' v-if='jqError' style='margin-top:8px;'>{{{{ jqError }}}}</div>
+  </div>
 </div>
 <script>
 window.__HAPP_MODEL__ = {};
-const APP_STORE_KEY = 'happ.inspect.ui.v5';
+const APP_STORE_KEY = 'happ.inspect.ui.v6';
 const app = Vue.createApp({{
   data() {{
     const model = window.__HAPP_MODEL__ || {{ title: 'happ', utilities: [] }};
@@ -442,6 +620,16 @@ const app = Vue.createApp({{
       converterError: '',
       converterRequestSeq: 0,
       converterTimer: null,
+      jqQuery: '.',
+      jqInput: '',
+      jqOutput: '',
+      jqError: '',
+      jqDocMode: 'first',
+      jqDocIndex: 0,
+      jqCompact: false,
+      jqRawOutput: false,
+      jqRequestSeq: 0,
+      jqTimer: null,
       converting: false,
     }};
   }},
@@ -463,6 +651,9 @@ const app = Vue.createApp({{
     }},
     converterModeLabel() {{
       return this.converterMode === 'yaml-to-json' ? 'YAML → JSON' : 'JSON → YAML';
+    }},
+    jqQueryHighlighted() {{
+      return this.highlightJq(this.jqQuery || '');
     }}
   }},
   mounted() {{
@@ -478,9 +669,16 @@ const app = Vue.createApp({{
         if(s.converterDocMode) this.converterDocMode = s.converterDocMode;
         this.converterDocIndex = Number.isFinite(s.converterDocIndex) ? Number(s.converterDocIndex) : 0;
         this.converterInput = s.converterInput || '';
+        this.jqQuery = s.jqQuery || '.';
+        this.jqInput = s.jqInput || '';
+        this.jqDocMode = s.jqDocMode || 'first';
+        this.jqDocIndex = Number.isFinite(s.jqDocIndex) ? Number(s.jqDocIndex) : 0;
+        this.jqCompact = !!s.jqCompact;
+        this.jqRawOutput = !!s.jqRawOutput;
       }}
     }} catch(_) {{}}
     this.scheduleConvert();
+    this.scheduleJqRun();
   }},
   watch: {{
     wrapLines: 'saveSettings',
@@ -502,6 +700,30 @@ const app = Vue.createApp({{
     converterInput() {{
       this.saveSettings();
       this.scheduleConvert();
+    }},
+    jqQuery() {{
+      this.saveSettings();
+      this.scheduleJqRun();
+    }},
+    jqInput() {{
+      this.saveSettings();
+      this.scheduleJqRun();
+    }},
+    jqDocMode() {{
+      this.saveSettings();
+      this.scheduleJqRun();
+    }},
+    jqDocIndex() {{
+      this.saveSettings();
+      this.scheduleJqRun();
+    }},
+    jqCompact() {{
+      this.saveSettings();
+      this.scheduleJqRun();
+    }},
+    jqRawOutput() {{
+      this.saveSettings();
+      this.scheduleJqRun();
     }}
   }},
   methods: {{
@@ -515,7 +737,13 @@ const app = Vue.createApp({{
           converterMode: this.converterMode,
           converterDocMode: this.converterDocMode,
           converterDocIndex: this.converterDocIndex,
-          converterInput: this.converterInput
+          converterInput: this.converterInput,
+          jqQuery: this.jqQuery,
+          jqInput: this.jqInput,
+          jqDocMode: this.jqDocMode,
+          jqDocIndex: this.jqDocIndex,
+          jqCompact: this.jqCompact,
+          jqRawOutput: this.jqRawOutput
         }}));
       }} catch(_) {{}}
     }},
@@ -617,6 +845,79 @@ const app = Vue.createApp({{
       if(!this.converterOutput) return;
       try {{ await navigator.clipboard.writeText(this.converterOutput); }} catch(_) {{}}
     }},
+    syncJqScroll() {{
+      const ta = this.$refs.jqQueryInput;
+      const pre = this.$el && this.$el.querySelector('.jq-query-highlight');
+      if(!ta || !pre) return;
+      pre.scrollTop = ta.scrollTop;
+      pre.scrollLeft = ta.scrollLeft;
+    }},
+    highlightJq(src) {{
+      const escapeHtml = (s) => s
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      let out = escapeHtml(src);
+      out = out.replace(/(\"(?:[^\"\\\\]|\\\\.)*\")/g, "<span class='jq-token-string'>$1</span>");
+      out = out.replace(/\b(-?\d+(?:\.\d+)?)\b/g, "<span class='jq-token-number'>$1</span>");
+      out = out.replace(/(\|\||\/\/|==|!=|>=|<=|[|,()[\]{{}}+\-*\/])/g, "<span class='jq-token-op'>$1</span>");
+      out = out.replace(/\b(select|map|if|then|else|end|and|or|not|empty|contains|startswith|endswith|keys|length|type|tostring|tonumber|add|sort|reverse|min|max|values|has|index|rindex|split|join)\b/g, "<span class='jq-token-func'>$1</span>");
+      out = out.replace(/(\.[A-Za-z0-9_\-]+)/g, "<span class='jq-token-field'>$1</span>");
+      return out || ' ';
+    }},
+    async runJq() {{
+      this.jqError = '';
+      const input = this.jqInput || '';
+      const reqId = ++this.jqRequestSeq;
+      if(!input.trim()) {{
+        this.jqOutput = '';
+        return;
+      }}
+      try {{
+        const res = await fetch('/api/jq', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            query: this.jqQuery || '.',
+            input,
+            docMode: this.jqDocMode,
+            docIndex: this.jqDocMode === 'index' ? Number(this.jqDocIndex) : undefined,
+            compact: this.jqCompact,
+            rawOutput: this.jqRawOutput
+          }})
+        }});
+        const data = await res.json();
+        if(reqId !== this.jqRequestSeq) return;
+        if(!data.ok) {{
+          this.jqError = data.output || 'jq execution failed';
+          this.jqOutput = '';
+          return;
+        }}
+        this.jqOutput = data.output || '';
+      }} catch(e) {{
+        if(reqId !== this.jqRequestSeq) return;
+        this.jqError = String(e);
+        this.jqOutput = '';
+      }}
+    }},
+    scheduleJqRun() {{
+      if(this.jqTimer) {{
+        clearTimeout(this.jqTimer);
+      }}
+      this.jqTimer = setTimeout(() => {{
+        this.runJq();
+      }}, 120);
+    }},
+    clearJq() {{
+      this.jqInput = '';
+      this.jqOutput = '';
+      this.jqError = '';
+      this.jqQuery = '.';
+    }},
+    async copyJqOutput() {{
+      if(!this.jqOutput) return;
+      try {{ await navigator.clipboard.writeText(this.jqOutput); }} catch(_) {{}}
+    }},
     async exitUi() {{
       try {{ await fetch('/exit'); }} finally {{ window.close(); }}
     }}
@@ -673,6 +974,8 @@ mod tests {
         assert!(html.contains("Copy"));
         assert!(html.contains("Download"));
         assert!(html.contains("YAML/JSON Converter"));
+        assert!(html.contains("jq Playground"));
+        assert!(html.contains("/api/jq"));
         assert!(html.contains("YAML → JSON"));
         assert!(html.contains("localStorage"));
     }
@@ -803,5 +1106,30 @@ text: |-
     fn convert_payload_rejects_bad_doc_mode() {
         let err = convert_payload("yaml-to-json", "a: 1\n", "weird", None).expect_err("error");
         assert!(err.contains("unsupported doc mode"));
+    }
+
+    #[test]
+    fn jq_payload_runs_query_for_yaml_input() {
+        let out = jq_payload(".apps[] | .name", "apps:\n  - name: a\n  - name: b\n", "first", None, false, true)
+            .expect("jq");
+        assert_eq!(out, "a\nb");
+    }
+
+    #[test]
+    fn jq_payload_supports_doc_index_mode() {
+        let out = jq_payload(".a", "a: 1\n---\na: 2\n", "index", Some(1), false, false).expect("jq");
+        assert_eq!(out.trim(), "2");
+    }
+
+    #[test]
+    fn jq_payload_rejects_bad_doc_mode() {
+        let err = jq_payload(".", "a: 1\n", "weird", None, false, false).expect_err("error");
+        assert!(err.contains("unsupported doc mode"));
+    }
+
+    #[test]
+    fn jq_payload_rejects_out_of_range_doc_index() {
+        let err = jq_payload(".", "a: 1\n", "index", Some(5), false, false).expect_err("error");
+        assert!(err.contains("out of range"));
     }
 }
