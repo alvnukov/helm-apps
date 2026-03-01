@@ -436,3 +436,30 @@ cases:
       - 2
     output_json_lines:
       - "3"
+
+  - id: yq_anchor_merge_single
+    query: ".svc"
+    input_yaml: |
+      base: &base
+        name: app
+        port: 8080
+      svc:
+        <<: *base
+        port: 9090
+    output_json_lines:
+      - '{"name":"app","port":9090}'
+
+  - id: yq_anchor_merge_sequence
+    query: ".svc"
+    input_yaml: |
+      base1: &base1
+        a: 1
+        b: 1
+      base2: &base2
+        b: 2
+        c: 2
+      svc:
+        <<: [*base1, *base2]
+        c: 3
+    output_json_lines:
+      - '{"a":1,"b":1,"c":3}'

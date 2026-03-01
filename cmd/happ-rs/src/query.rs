@@ -13,21 +13,23 @@ pub enum Error {
 pub fn run_json_query(_query: &str, _input: &str) -> Result<Vec<JsonValue>, Error> {
     let input_value: JsonValue = match serde_json::from_str(_input) {
         Ok(v) => v,
-        Err(json_err) => match serde_yaml::from_str(_input) {
+        Err(json_err) => match parse_yaml_json_with_merge(_input) {
             Ok(v) => v,
-            Err(_) => return Err(Error::Json(json_err)),
+            Err(Error::Yaml(_)) => return Err(Error::Json(json_err)),
+            Err(e) => return Err(e),
         },
     };
     eval_query(_query, vec![input_value])
 }
 
 pub fn run_yaml_query(query: &str, input: &str) -> Result<Vec<JsonValue>, Error> {
-    let as_json: JsonValue = match serde_yaml::from_str(input) {
+    let as_json: JsonValue = match parse_yaml_json_with_merge(input) {
         Ok(v) => v,
-        Err(yaml_err) => match serde_json::from_str(input) {
+        Err(Error::Yaml(yaml_err)) => match serde_json::from_str(input) {
             Ok(v) => v,
             Err(_) => return Err(Error::Yaml(yaml_err)),
         },
+        Err(e) => return Err(e),
     };
     eval_query(query, vec![as_json])
 }
@@ -35,6 +37,57 @@ pub fn run_yaml_query(query: &str, input: &str) -> Result<Vec<JsonValue>, Error>
 fn eval_query(query: &str, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue>, Error> {
     let compiled = compile_query(query)?;
     eval_compiled_query(&compiled, input_stream)
+}
+
+fn parse_yaml_json_with_merge(input: &str) -> Result<JsonValue, Error> {
+    let raw: serde_yaml::Value = serde_yaml::from_str(input).map_err(Error::Yaml)?;
+    let normalized = normalize_yaml_merge(raw);
+    serde_json::to_value(normalized)
+        .map_err(|e| Error::Unsupported(format!("yaml to json conversion failed: {e}")))
+}
+
+fn normalize_yaml_merge(v: serde_yaml::Value) -> serde_yaml::Value {
+    match v {
+        serde_yaml::Value::Mapping(map) => normalize_yaml_mapping_merge(map),
+        serde_yaml::Value::Sequence(seq) => {
+            serde_yaml::Value::Sequence(seq.into_iter().map(normalize_yaml_merge).collect())
+        }
+        other => other,
+    }
+}
+
+fn normalize_yaml_mapping_merge(map: serde_yaml::Mapping) -> serde_yaml::Value {
+    let mut out = serde_yaml::Mapping::new();
+    if let Some(merge_source) = map.get(serde_yaml::Value::String("<<".to_string())).cloned() {
+        apply_yaml_merge_source(&mut out, merge_source);
+    }
+    for (k, v) in map {
+        if matches!(&k, serde_yaml::Value::String(s) if s == "<<") {
+            continue;
+        }
+        out.insert(k, normalize_yaml_merge(v));
+    }
+    serde_yaml::Value::Mapping(out)
+}
+
+fn apply_yaml_merge_source(target: &mut serde_yaml::Mapping, source: serde_yaml::Value) {
+    match normalize_yaml_merge(source) {
+        serde_yaml::Value::Mapping(m) => merge_yaml_mapping_into(target, m),
+        serde_yaml::Value::Sequence(seq) => {
+            for item in seq {
+                if let serde_yaml::Value::Mapping(m) = normalize_yaml_merge(item) {
+                    merge_yaml_mapping_into(target, m);
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn merge_yaml_mapping_into(target: &mut serde_yaml::Mapping, source: serde_yaml::Mapping) {
+    for (k, v) in source {
+        target.entry(k).or_insert(v);
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -1821,6 +1874,53 @@ a:
         let input = r#"{"a":{"b":42}}"#;
         let out = run_yaml_query(".a.b", input).expect("query");
         assert_eq!(out, vec![serde_json::json!(42)]);
+    }
+
+    #[test]
+    fn yq_resolves_yaml_merge_key_single_source() {
+        let input = r#"
+base: &base
+  name: app
+  port: 8080
+svc:
+  <<: *base
+  port: 9090
+"#;
+        let out = run_yaml_query(".svc.name", input).expect("query");
+        assert_eq!(out, vec![serde_json::json!("app")]);
+        let out_port = run_yaml_query(".svc.port", input).expect("query");
+        assert_eq!(out_port, vec![serde_json::json!(9090)]);
+        let full = run_yaml_query(".svc", input).expect("query");
+        assert_eq!(full, vec![serde_json::json!({"name":"app","port":9090})]);
+    }
+
+    #[test]
+    fn yq_resolves_yaml_merge_key_sequence_source() {
+        let input = r#"
+base1: &base1
+  a: 1
+  b: 1
+base2: &base2
+  b: 2
+  c: 2
+svc:
+  <<: [*base1, *base2]
+  c: 3
+"#;
+        let out = run_yaml_query(".svc", input).expect("query");
+        assert_eq!(out, vec![serde_json::json!({"a":1,"b":1,"c":3})]);
+    }
+
+    #[test]
+    fn jq_yaml_fallback_resolves_yaml_merge_key() {
+        let input = r#"
+base: &base
+  name: app
+svc:
+  <<: *base
+"#;
+        let out = run_json_query(".svc.name", input).expect("query");
+        assert_eq!(out, vec![serde_json::json!("app")]);
     }
 
     #[test]
