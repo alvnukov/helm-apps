@@ -515,7 +515,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   </div>
   <div class='tabs'>
     <button class='tab'
-            :class='{{ active: activeUtilityId === u.id }}'
+            :class='{{ active: activeUtilityKey === u.id }}'
             v-for='u in utilities'
             :key='u.id'
             @click='selectUtility(u.id)'>{{{{ u.title }}}}</button>
@@ -540,7 +540,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
   </div>
 
-  <div v-else-if='activeUtilityId === "converter"' class='card'>
+  <div v-else-if='activeUtilityKey === "converter"' class='card'>
     <div class='cardhead'>
       <h3>YAML ↔ JSON Converter</h3>
       <div class='cardbtns'>
@@ -581,7 +581,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     <div class='err' v-if='converterError' style='margin-top:8px;'>{{{{ converterError }}}}</div>
   </div>
 
-  <div v-else-if='activeUtilityId === "jq-playground"' class='card'>
+  <div v-else-if='activeUtilityKey === "jq-playground"' class='card'>
     <div class='cardhead'>
       <h3>jq Playground</h3>
       <div class='cardbtns'>
@@ -718,6 +718,9 @@ const app = Vue.createApp({{
     }};
   }},
   computed: {{
+    activeUtilityKey() {{
+      return this.currentUtility && this.currentUtility.id ? this.currentUtility.id : '';
+    }},
     currentUtility() {{
       const u = (this.utilities || []).find(x => x.id === this.activeUtilityId);
       return u || (this.utilities[0] || {{ id: 'main', title: 'Main', panes: [] }});
@@ -774,6 +777,9 @@ const app = Vue.createApp({{
         this.jqRawOutput = !!s.jqRawOutput;
       }}
     }} catch(_) {{}}
+    if(!(this.utilities || []).some(u => u.id === this.activeUtilityId)) {{
+      this.activeUtilityId = (this.utilities[0] && this.utilities[0].id) || 'main';
+    }}
     this.scheduleConvert();
     this.scheduleJqRun();
   }},
