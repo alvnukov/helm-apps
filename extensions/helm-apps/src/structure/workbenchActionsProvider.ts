@@ -72,7 +72,7 @@ export class HelmAppsWorkbenchActionsProvider implements vscode.TreeDataProvider
         },
         {
           label: "Источник библиотеки",
-          description: "Переключить GitHub/локальный источник и кэш чарта",
+          description: "Переключить источник (репозиторий/локальный) и кэш чарта",
           command: "helm-apps.manageLibrarySource",
           icon: new vscode.ThemeIcon("repo"),
         },
@@ -124,7 +124,7 @@ export class HelmAppsWorkbenchActionsProvider implements vscode.TreeDataProvider
       },
       {
         label: "Library Source",
-        description: "Switch GitHub/local source and manage chart cache",
+        description: "Switch repository/local source and manage chart cache",
         command: "helm-apps.manageLibrarySource",
         icon: new vscode.ThemeIcon("repo"),
       },

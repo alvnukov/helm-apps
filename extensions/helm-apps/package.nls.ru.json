@@ -26,11 +26,11 @@
   "cfg.schemaFileMatch.description": "Необязательные ручные шаблоны файлов для схемы helm-apps в yaml.schemas (пусто = автоопределение чартов с helm-apps).",
   "cfg.happPath.description": "Путь к бинарнику happ для команд импорта/конвертации (например, вставка как helm-apps).",
   "cfg.disableYamlSchemaHover.description": "Отключить schema-hover от YAML-расширения (например, 'Source: values.schema.json'), оставив только контекстные hover helm-apps.",
-  "cfg.librarySource.description": "Глобальный режим источника зависимости helm-apps: локальный путь к чарту или кэш, управляемый через GitHub.",
+  "cfg.librarySource.description": "Глобальный режим источника зависимости helm-apps: локальный путь к чарту или кэш из репозитория.",
   "cfg.libraryLocalChartPath.description": "Глобальный путь к локальному каталогу чарта helm-apps (должен содержать Chart.yaml), используется при source=local.",
   "cfg.libraryGithubRepo.description": "URL репозитория библиотеки (Helm repo или GitHub repo) для проверки/скачивания версий чарта helm-apps.",
   "cfg.libraryRepositoryUrl.description": "Предпочитаемый URL репозитория библиотеки (Helm repo или GitHub repo) для проверки/скачивания версий чарта helm-apps.",
-  "cfg.libraryGithubCachedChartPath.description": "Путь к кэшу чарта helm-apps, скачанному расширением из GitHub.",
-  "cfg.libraryGithubCachedVersion.description": "Версия чарта helm-apps в кэше, скачанном из GitHub.",
+  "cfg.libraryGithubCachedChartPath.description": "Путь к кэшу чарта helm-apps, скачанному расширением из репозитория.",
+  "cfg.libraryGithubCachedVersion.description": "Версия чарта helm-apps в кэше, скачанном из репозитория.",
   "cfg.helmPath.description": "Путь к бинарнику helm для команд dependency/lock."
 }
