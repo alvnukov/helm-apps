@@ -776,17 +776,17 @@ function renderDependencyGraphHtml(model: {
 async function validateCurrentFile(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) {
-    void vscode.window.showWarningMessage("No active editor");
+    void vscode.window.showWarningMessage(t("No active editor", "Нет активного редактора"));
     return;
   }
 
   const document = editor.document;
   if (document.languageId !== "yaml") {
-    void vscode.window.showWarningMessage("Validation is available for YAML files only");
+    void vscode.window.showWarningMessage(t("Validation is available for YAML files only", "Проверка доступна только для YAML-файлов"));
     return;
   }
   if (!(await isHelmAppsValuesDocument(document))) {
-    void vscode.window.showWarningMessage("Current file is not detected as helm-apps values");
+    void vscode.window.showWarningMessage(t("Current file is not detected as helm-apps values", "Текущий файл не распознан как helm-apps values"));
     return;
   }
 
@@ -800,20 +800,30 @@ async function validateCurrentFile(): Promise<void> {
     const infos = all.filter((d) => d.severity === vscode.DiagnosticSeverity.Information).length;
     if (errors === 0 && warnings === 0) {
       const infoText = infos > 0 ? `, info: ${infos}` : "";
-      void vscode.window.showInformationMessage(`helm-apps validation passed (warnings: 0${infoText})`);
+      void vscode.window.showInformationMessage(
+        isRuLocale()
+          ? `Проверка helm-apps пройдена (предупреждений: 0${infos > 0 ? `, info: ${infos}` : ""})`
+          : `helm-apps validation passed (warnings: 0${infoText})`,
+      );
       return;
     }
-    void vscode.window.showWarningMessage(`helm-apps validation: errors ${errors}, warnings ${warnings}, info ${infos}`);
+    void vscode.window.showWarningMessage(
+      isRuLocale()
+        ? `Проверка helm-apps: ошибок ${errors}, предупреждений ${warnings}, info ${infos}`
+        : `helm-apps validation: errors ${errors}, warnings ${warnings}, info ${infos}`,
+    );
   } catch (err) {
     const message = extractErrorMessage(err);
-    void vscode.window.showErrorMessage(`helm-apps validation failed: ${message}`);
+    void vscode.window.showErrorMessage(
+      isRuLocale() ? `Проверка helm-apps завершилась ошибкой: ${message}` : `helm-apps validation failed: ${message}`,
+    );
   }
 }
 
 async function pasteClipboardAsHelmApps(editor: vscode.TextEditor): Promise<void> {
   const clipboard = (await vscode.env.clipboard.readText()).trim();
   if (clipboard.length === 0) {
-    void vscode.window.showWarningMessage("Clipboard is empty");
+    void vscode.window.showWarningMessage(t("Clipboard is empty", "Буфер обмена пуст"));
     return;
   }
 
@@ -854,9 +864,13 @@ async function pasteClipboardAsHelmApps(editor: vscode.TextEditor): Promise<void
         builder.insert(editor.selection.active, generated);
       }
     });
-    void vscode.window.showInformationMessage("Inserted clipboard as helm-apps values");
+    void vscode.window.showInformationMessage(t("Inserted clipboard as helm-apps values", "Содержимое буфера вставлено как helm-apps values"));
   } catch (err) {
-    void vscode.window.showErrorMessage(`Paste as helm-apps failed: ${extractErrorMessage(err)}`);
+    void vscode.window.showErrorMessage(
+      isRuLocale()
+        ? `Вставка как helm-apps завершилась ошибкой: ${extractErrorMessage(err)}`
+        : `Paste as helm-apps failed: ${extractErrorMessage(err)}`,
+    );
   } finally {
     if (tempDir.length > 0) {
       try {
@@ -955,6 +969,10 @@ interface ResolvedLibraryChart {
 
 function isRuLocale(): boolean {
   return vscode.env.language.toLowerCase().startsWith("ru");
+}
+
+function t(en: string, ru: string): string {
+  return isRuLocale() ? ru : en;
 }
 
 function getExtensionConfig() {
@@ -1457,42 +1475,58 @@ async function copyDirectoryRecursive(src: string, dst: string): Promise<void> {
 }
 
 async function ensureHappReady(happPath: string): Promise<boolean> {
+  const ru = isRuLocale();
   try {
     const { stdout, stderr } = await execFileAsync(happPath, ["--help"], {
       timeout: 15000,
       maxBuffer: 1024 * 1024,
     });
-    const combined = `${stdout ?? ""}\n${stderr ?? ""}`;
-    if (!combined.toLowerCase().includes("happ")) {
-      void vscode.window.showWarningMessage("Configured happ binary responded unexpectedly. Check helm-apps.happPath.");
+    const lc = `${stdout ?? ""}\n${stderr ?? ""}`.toLowerCase();
+    if (!lc.includes("happ")) {
+      void vscode.window.showWarningMessage(
+        ru
+          ? "Настроенный бинарник happ ответил неожиданно. Проверьте helm-apps.happPath."
+          : "Configured happ binary responded unexpectedly. Check helm-apps.happPath.",
+      );
+    }
+    if (!lc.includes("happ chart") || !lc.includes("happ manifests")) {
+      void vscode.window.showWarningMessage(
+        ru
+          ? "Похоже, указан несовместимый бинарник happ (нет команд chart/manifests)."
+          : "Configured happ binary looks incompatible (missing chart/manifests commands).",
+      );
     }
     return true;
   } catch (err) {
     const message = extractErrorMessage(err);
     if (message.includes("ENOENT")) {
       const choice = await vscode.window.showErrorMessage(
-        "happ binary not found. Install happ or set helm-apps.happPath.",
-        "Set happ path",
-        "Install with Homebrew",
-        "Open Releases",
+        ru
+          ? "Бинарник happ не найден. Установите happ или задайте helm-apps.happPath."
+          : "happ binary not found. Install happ or set helm-apps.happPath.",
+        ru ? "Указать путь к happ" : "Set happ path",
+        ru ? "Установить через Homebrew" : "Install with Homebrew",
+        ru ? "Открыть Releases" : "Open Releases",
       );
-      if (choice === "Set happ path") {
+      if (choice === (ru ? "Указать путь к happ" : "Set happ path")) {
         const next = await vscode.window.showInputBox({
-          prompt: "Path to happ binary",
-          placeHolder: "happ or /usr/local/bin/happ",
+          prompt: ru ? "Путь к бинарнику happ" : "Path to happ binary",
+          placeHolder: ru ? "happ или /usr/local/bin/happ" : "happ or /usr/local/bin/happ",
         });
         if (next && next.trim().length > 0) {
           await vscode.workspace.getConfiguration("helm-apps").update("happPath", next.trim(), vscode.ConfigurationTarget.Workspace);
-          void vscode.window.showInformationMessage(`helm-apps.happPath set to '${next.trim()}'`);
+          void vscode.window.showInformationMessage(
+            ru ? `helm-apps.happPath установлен: '${next.trim()}'` : `helm-apps.happPath set to '${next.trim()}'`,
+          );
         }
-      } else if (choice === "Install with Homebrew") {
+      } else if (choice === (ru ? "Установить через Homebrew" : "Install with Homebrew")) {
         void vscode.env.openExternal(vscode.Uri.parse("https://github.com/alvnukov/helm-apps#%D1%83%D1%81%D1%82%D0%B0%D0%BD%D0%BE%D0%B2%D0%BA%D0%B0-happ-cli"));
-      } else if (choice === "Open Releases") {
+      } else if (choice === (ru ? "Открыть Releases" : "Open Releases")) {
         void vscode.env.openExternal(vscode.Uri.parse("https://github.com/alvnukov/helm-apps/releases"));
       }
       return false;
     }
-    void vscode.window.showErrorMessage(`happ check failed: ${message}`);
+    void vscode.window.showErrorMessage(ru ? `Проверка happ завершилась ошибкой: ${message}` : `happ check failed: ${message}`);
     return false;
   }
 }
