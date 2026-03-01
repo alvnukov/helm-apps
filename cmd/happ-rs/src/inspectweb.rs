@@ -555,12 +555,12 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
         <option value='yaml-to-json'>YAML → JSON</option>
         <option value='json-to-yaml'>JSON → YAML</option>
       </select>
-      <select v-model='converterDocMode' :disabled='converterMode !== \"yaml-to-json\"'>
+      <select v-model='converterDocMode' :disabled='converterMode !== "yaml-to-json"'>
         <option value='all'>YAML docs: all</option>
         <option value='first'>YAML docs: first</option>
         <option value='index'>YAML docs: index</option>
       </select>
-      <input v-if='converterMode === \"yaml-to-json\" && converterDocMode === \"index\"'
+      <input v-if='converterMode === "yaml-to-json" && converterDocMode === "index"'
              v-model.number='converterDocIndex'
              type='number'
              min='0'
