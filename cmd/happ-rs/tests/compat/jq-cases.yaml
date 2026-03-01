@@ -272,3 +272,21 @@ cases:
     input_json: '["a","b","c"]'
     output_json_lines:
       - '"a-b-c"'
+
+  - id: jq_reverse
+    query: "reverse"
+    input_json: "[1,2,3]"
+    output_json_lines:
+      - "[3,2,1]"
+
+  - id: jq_min
+    query: "min"
+    input_json: "[3,1,2]"
+    output_json_lines:
+      - "1"
+
+  - id: jq_max
+    query: "max"
+    input_json: "[3,1,2]"
+    output_json_lines:
+      - "3"

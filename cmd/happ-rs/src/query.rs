@@ -66,6 +66,9 @@ enum CompiledStage {
     ToString,
     Add,
     Sort,
+    Reverse,
+    Min,
+    Max,
     Not,
     Empty,
     Values,
@@ -193,6 +196,9 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
         "tostring" => return Ok(CompiledStage::ToString),
         "add" => return Ok(CompiledStage::Add),
         "sort" => return Ok(CompiledStage::Sort),
+        "reverse" => return Ok(CompiledStage::Reverse),
+        "min" => return Ok(CompiledStage::Min),
+        "max" => return Ok(CompiledStage::Max),
         "not" => return Ok(CompiledStage::Not),
         "empty" => return Ok(CompiledStage::Empty),
         "values" => return Ok(CompiledStage::Values),
@@ -595,6 +601,27 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
             let mut out = Vec::with_capacity(input_stream.len());
             for v in &input_stream {
                 out.push(sort_of(v)?);
+            }
+            Ok(out)
+        }
+        CompiledStage::Reverse => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in &input_stream {
+                out.push(reverse_of(v)?);
+            }
+            Ok(out)
+        }
+        CompiledStage::Min => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in &input_stream {
+                out.push(min_of(v)?);
+            }
+            Ok(out)
+        }
+        CompiledStage::Max => {
+            let mut out = Vec::with_capacity(input_stream.len());
+            for v in &input_stream {
+                out.push(max_of(v)?);
             }
             Ok(out)
         }
@@ -1380,6 +1407,50 @@ fn sort_of(v: &JsonValue) -> Result<JsonValue, Error> {
     Ok(JsonValue::Array(out))
 }
 
+fn reverse_of(v: &JsonValue) -> Result<JsonValue, Error> {
+    match v {
+        JsonValue::Array(arr) => {
+            let mut out = arr.clone();
+            out.reverse();
+            Ok(JsonValue::Array(out))
+        }
+        JsonValue::String(s) => Ok(JsonValue::String(s.chars().rev().collect())),
+        _ => Err(Error::Unsupported("reverse requires array or string input".to_string())),
+    }
+}
+
+fn min_of(v: &JsonValue) -> Result<JsonValue, Error> {
+    let JsonValue::Array(arr) = v else {
+        return Err(Error::Unsupported("min requires array input".to_string()));
+    };
+    if arr.is_empty() {
+        return Ok(JsonValue::Null);
+    }
+    let mut best = arr[0].clone();
+    for item in arr.iter().skip(1) {
+        if canonical(item) < canonical(&best) {
+            best = item.clone();
+        }
+    }
+    Ok(best)
+}
+
+fn max_of(v: &JsonValue) -> Result<JsonValue, Error> {
+    let JsonValue::Array(arr) = v else {
+        return Err(Error::Unsupported("max requires array input".to_string()));
+    };
+    if arr.is_empty() {
+        return Ok(JsonValue::Null);
+    }
+    let mut best = arr[0].clone();
+    for item in arr.iter().skip(1) {
+        if canonical(item) > canonical(&best) {
+            best = item.clone();
+        }
+    }
+    Ok(best)
+}
+
 fn add_of(v: &JsonValue) -> Result<JsonValue, Error> {
     let JsonValue::Array(arr) = v else {
         return Err(Error::Unsupported("add requires array input".to_string()));
@@ -1771,6 +1842,20 @@ a:
         assert_eq!(out, vec![serde_json::json!(["a", "b", "c"])]);
         let out_join = run_json_query(r#"join("-")"#, r#"["a","b","c"]"#).expect("query");
         assert_eq!(out_join, vec![serde_json::json!("a-b-c")]);
+    }
+
+    #[test]
+    fn run_query_supports_reverse() {
+        let out = run_json_query("reverse", r#"[1,2,3]"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!([3, 2, 1])]);
+    }
+
+    #[test]
+    fn run_query_supports_min_max() {
+        let out_min = run_json_query("min", r#"[3,1,2]"#).expect("query");
+        assert_eq!(out_min, vec![serde_json::json!(1)]);
+        let out_max = run_json_query("max", r#"[3,1,2]"#).expect("query");
+        assert_eq!(out_max, vec![serde_json::json!(3)]);
     }
 
     #[test]

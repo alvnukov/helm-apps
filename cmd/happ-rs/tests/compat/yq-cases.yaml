@@ -316,3 +316,30 @@ cases:
       - c
     output_json_lines:
       - '"a-b-c"'
+
+  - id: yq_reverse
+    query: "reverse"
+    input_yaml: |
+      - 1
+      - 2
+      - 3
+    output_json_lines:
+      - "[3,2,1]"
+
+  - id: yq_min
+    query: "min"
+    input_yaml: |
+      - 3
+      - 1
+      - 2
+    output_json_lines:
+      - "1"
+
+  - id: yq_max
+    query: "max"
+    input_yaml: |
+      - 3
+      - 1
+      - 2
+    output_json_lines:
+      - "3"
