@@ -8,6 +8,7 @@ import * as vscode from "vscode";
 import * as YAML from "yaml";
 
 import { buildFieldDocMarkdownLocalized, findFieldDoc, findKeyPathAtPosition } from "./hover/fieldHover";
+import { compareSemver, resolveHelmRepositoryURL } from "./library/repository";
 import { extractLocalIncludeBlock, trimPreview } from "./hover/includeHover";
 import { buildDependencyGraphModel } from "./language/dependencyGraph";
 import { buildHelmAppsDocumentSymbols } from "./language/documentSymbols";
@@ -1338,21 +1339,6 @@ async function fetchLatestGithubVersion(repoUrl?: string): Promise<string> {
   return parsed.version.trim().replace(/^v/, "");
 }
 
-function resolveHelmRepositoryURL(input: string): string {
-  const trimmed = input.trim();
-  if (trimmed.length === 0) {
-    throw new Error("library repository URL is empty");
-  }
-  const ghMatch = trimmed.match(/github\.com[/:]([^/]+)\/([^/.]+)(?:\.git)?\/?$/i);
-  if (ghMatch) {
-    return `https://${ghMatch[1]}.github.io/${ghMatch[2]}`;
-  }
-  if (/^https?:\/\//i.test(trimmed)) {
-    return trimmed.replace(/\/+$/g, "");
-  }
-  throw new Error(`unsupported repository URL: ${trimmed}`);
-}
-
 async function runHelmOrWerf(
   helmArgs: string[],
   options: { timeout?: number; maxBuffer?: number },
@@ -1384,29 +1370,6 @@ async function runHelmOrWerf(
   }
 
   throw new Error(`unable to execute Helm command (tried helm and werf helm): ${errors.join(" | ")}`);
-}
-
-function compareSemver(a: string, b: string): number {
-  const pa = normalizeSemverParts(a);
-  const pb = normalizeSemverParts(b);
-  for (let i = 0; i < 3; i += 1) {
-    if (pa[i] > pb[i]) {
-      return 1;
-    }
-    if (pa[i] < pb[i]) {
-      return -1;
-    }
-  }
-  return 0;
-}
-
-function normalizeSemverParts(input: string): [number, number, number] {
-  const cleaned = input.replace(/^v/, "").split("-")[0];
-  const parts = cleaned.split(".");
-  const major = Number.parseInt(parts[0] ?? "0", 10) || 0;
-  const minor = Number.parseInt(parts[1] ?? "0", 10) || 0;
-  const patch = Number.parseInt(parts[2] ?? "0", 10) || 0;
-  return [major, minor, patch];
 }
 
 async function findExistingScaffoldFiles(chartDir: string, relPaths: string[]): Promise<string[]> {
