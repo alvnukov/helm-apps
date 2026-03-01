@@ -14,7 +14,7 @@
 {{- if not .containers }}
 {{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "app '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the app (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}
-{{/* Defaults values */}}
+{{- /* Defaults values */ -}}
 {{- if .service }}
 {{- if include "fl.isTrue" (list $ . .service.enabled) }}
 {{- if not .service.name }}
@@ -22,11 +22,11 @@
 {{- end }}
 {{- end }}
 {{- end }}
-{{/* Defaults values end */}}
-{{- $serviceAccount := include "apps-system.serviceAccount" $ }}
+{{- /* Defaults values end */ -}}
+{{- $serviceAccount := include "apps-system.serviceAccount" $ -}}
 apiVersion: apps/v1
 kind: StatefulSet
-{{ $_ := set . "__annotations__" dict }}
+{{- $_ := set . "__annotations__" dict -}}
 {{- if .reloader }}
 {{- $_ := set .__annotations__ "pod-reloader.deckhouse.io/auto" "true" }}
 {{- else }}
@@ -34,29 +34,25 @@ kind: StatefulSet
 {{- end }}
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
-  {{- include "apps-compat.normalizeStatefulSetSpec" (list $ .) }}
-  {{- /* https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#statefulset-v1-apps */ -}}
-  {{- $specs := dict }}
-  {{- $_ = set $specs "Maps" (list "apps-helpers.podTemplate" "apps-specs.selector" "persistentVolumeClaimRetentionPolicy" "updateStrategy") }}
-  {{- $_ = set $specs "Numbers" (list "replicas" "minReadySeconds" "revisionHistoryLimit" "progressDeadlineSeconds") }}
-  {{- $_ = set $specs "Strings" (list "apps-specs.serviceName" "podManagementPolicy") }}
-  {{- $_ = set $specs "Lists" (list "apps-specs.volumeClaimTemplates") }}
-  {{- include "apps-utils.generateSpecs" (list $ . $specs) | nindent 2 }}
+{{- include "apps-compat.normalizeStatefulSetSpec" (list $ .) -}}
+{{- /* https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#statefulset-v1-apps */ -}}
+{{- $specs := dict -}}
+{{- $_ = set $specs "Maps" (list "apps-helpers.podTemplate" "apps-specs.selector" "persistentVolumeClaimRetentionPolicy" "updateStrategy") -}}
+{{- $_ = set $specs "Numbers" (list "replicas" "minReadySeconds" "revisionHistoryLimit" "progressDeadlineSeconds") -}}
+{{- $_ = set $specs "Strings" (list "apps-specs.serviceName" "podManagementPolicy") -}}
+{{- $_ = set $specs "Lists" (list "apps-specs.volumeClaimTemplates") -}}
+  {{- with include "apps-utils.generateSpecs" (list $ . $specs) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  {{- $_ = unset . "__annotations__" -}}
-
+{{- $_ = unset . "__annotations__" -}}
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}
-
 {{- include "apps-components.service" (list $ . .service) -}}
-
 {{- include "apps-components.podDisruptionBudget" (list $ . .podDisruptionBudget) -}}
-
 {{- include "apps-components.verticalPodAutoscaler" (list $ . .verticalPodAutoscaler "StatefulSet") -}}
-
 {{- include "apps-deckhouse.metrics" $ -}}
-
 {{ $serviceAccount -}}
 
 {{- end }}

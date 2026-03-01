@@ -78,12 +78,12 @@ Values
 {{- range $_, $specName := . }}
 {{- if hasPrefix "apps-" $specName }}
 {{- with  include $specName (list $ $relativeScope (index $relativeScope .)) | trim }}
-{{ $relativeScope.__specName__ }}: {{ print . | nindent 0 }}
+{{ $relativeScope.__specName__ }}:{{ print . | nindent 2 }}
 {{- end }}
 {{- else }}
 {{- if hasKey $relativeScope $specName }}
 {{- with  include "apps-compat.renderRawResolved" (list $ $relativeScope (index $relativeScope .)) | trim }}
-{{ $specName }}: {{ print . | trim | nindent 0 }}
+{{ $specName }}:{{ print . | trim | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -93,12 +93,12 @@ Values
 {{- range $_, $specName := . }}
 {{- if hasPrefix "apps-" $specName }}
 {{- with  include $specName (list $ $relativeScope (index $relativeScope .)) | trim }}
-{{ $relativeScope.__specName__ }}: {{ print . | nindent 2 }}
+{{ $relativeScope.__specName__ }}:{{ print . | nindent 2 }}
 {{- end }}
 {{- else }}
 {{- if hasKey $relativeScope $specName }}
 {{- with  include "fl.value" (list $ $relativeScope (index $relativeScope .)) | trim }}
-{{ $specName }}: {{ print . | nindent 2 }}
+{{ $specName }}:{{ print . | nindent 2 }}
 {{- end }}
 {{- end }}
 {{- end }}
@@ -220,7 +220,7 @@ Values
 {{- end }}
 {{- if include "fl.isTrue" (list $ . .enabled) }}
 {{- if not .__Rendered__ }}
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 {{- include "apps-helpers.activateContainerForDefault" $ }}
 {{- include (printf "%s.render" $type) $ }}
 {{- end }}
@@ -327,8 +327,8 @@ Values
 {{- end -}}
 
 {{- define "apps-utils.printPath" }}
-{{- printf "\n---\n# Helm Apps Library: %s" (.CurrentPath | join ".") }}
-{{- end }}
+{{- printf "\n---\n# Helm Apps Library: %s\n" (.CurrentPath | join ".") -}}
+{{- end -}}
 
 {{- define "apps-utils.includesFromFiles" }}
 {{- $_ := set $ "HelmAppsArgs" (dict "owner" . "current" .Values "currentName" "Values")}}

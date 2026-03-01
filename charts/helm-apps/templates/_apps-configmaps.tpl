@@ -18,23 +18,23 @@ kind: ConfigMap
 {{- . | nindent 0 }}
 {{- end }}
 {{- $data :=  "" }}
-{{- with include "apps.generateConfigMapEnvVars" (list $ . .envVars) }}
+{{- with include "apps.generateConfigMapEnvVars" (list $ . .envVars) | trim }}
 {{- $data = printf "%s\n%s" $data . | trim }}
 {{- end }}
 {{- if kindIs "map" .data }}
-{{- with include "apps.generateConfigMapData" (list $ . .data) }}
+{{- with include "apps.generateConfigMapData" (list $ . .data) | trim }}
 {{- $data = printf "%s\n%s" $data . | trim }}
 {{- end }}
 {{- else }}
-{{- with include "fl.value" (list $ . .data) }}
+{{- with include "fl.value" (list $ . .data) | trim }}
 {{- $data = printf "%s\n%s" $data . | trim }}
 {{- end }}
 {{- end }}
-{{ with $data }}
+{{- with $data }}
 data:
 {{- . | nindent 2 }}
 {{- end }}
-{{ with include "fl.value" (list $ . .binaryData) }}
+{{- with include "fl.value" (list $ . .binaryData) | trim }}
 binaryData:
 {{- . | nindent 2 }}
 {{- end }}

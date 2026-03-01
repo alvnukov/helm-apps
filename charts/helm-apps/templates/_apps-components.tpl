@@ -12,8 +12,7 @@
 {{- include "apps-utils.enterScope" (list $ "verticalPodAutoscaler") }}
 {{- if $verticalPodAutoscaler }}
 {{- if include "fl.isTrue" (list $ . $verticalPodAutoscaler.enabled) }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: {{ include "apps-api-versions.verticalPodAutoscaler" $ }}
 kind: VerticalPodAutoscaler
 {{- include "apps-helpers.metadataGenerator" (list $ $verticalPodAutoscaler ) }}
@@ -68,8 +67,7 @@ spec:
 
 {{- with $podDisruptionBudget }}
 {{- if include "fl.isTrue" (list $ . .enabled) }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: {{ include "apps-api-versions.podDisruptionBudget" $ }}
 kind: PodDisruptionBudget
 {{- include "apps-helpers.metadataGenerator" (list $ $podDisruptionBudget) }}
@@ -104,8 +102,7 @@ spec:
 {{- $servicePortsRaw := include "apps-compat.renderRawResolved" (list $ . $service.ports) | trim -}}
 {{- if or $servicePortsRaw (and (kindIs "slice" $service.ports) (gt (len $service.ports) 0)) }}
 {{- include "apps-utils.enterScope" (list $ "service") }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 {{- if empty (include "fl.value" (list $ . $service.selector)) }}
 {{- $_ := set $service "selector" (include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim) }}
 {{- end }}
@@ -120,21 +117,23 @@ spec:
 {{- end }}
 
 {{- define "apps-components._service" }}
-{{- $ := index . 0 }}
-{{- $RelatedScope := index . 1 }}
-{{- include "apps-compat.normalizeServiceSpec" (list $ $RelatedScope) }}
+{{- $ := index . 0 -}}
+{{- $RelatedScope := index . 1 -}}
+{{- include "apps-compat.normalizeServiceSpec" (list $ $RelatedScope) -}}
 apiVersion: v1
 kind: Service
 {{- include "apps-helpers.metadataGenerator" (list $ $RelatedScope) }}
 spec:
   {{- /* https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.24/#service-v1-core */ -}}
-  {{- $specs := dict }}
-  {{- $_ := set $specs "Bools" (list "publishNotReadyAddresses" "allocateLoadBalancerNodePorts") }}
-  {{- $_ = set $specs "Lists" (list "clusterIPs" "externalIPs" "ipFamilies" "loadBalancerSourceRanges" "ports") }}
-  {{- $_ = set $specs "Strings" (list "externalName" "externalTrafficPolicy" "internalTrafficPolicy" "ipFamilyPolicy" "loadBalancerClass" "loadBalancerIP" "sessionAffinity" "type" "clusterIP") }}
-  {{- $_ = set $specs "Numbers" (list "healthCheckNodePort") }}
-  {{- $_ = set $specs "Maps" (list "sessionAffinityConfig" "selector") }}
-  {{- include "apps-utils.generateSpecs" (list $ $RelatedScope $specs) | nindent 2 }}
+  {{- $specs := dict -}}
+  {{- $_ := set $specs "Bools" (list "publishNotReadyAddresses" "allocateLoadBalancerNodePorts") -}}
+  {{- $_ = set $specs "Lists" (list "clusterIPs" "externalIPs" "ipFamilies" "loadBalancerSourceRanges" "ports") -}}
+  {{- $_ = set $specs "Strings" (list "externalName" "externalTrafficPolicy" "internalTrafficPolicy" "ipFamilyPolicy" "loadBalancerClass" "loadBalancerIP" "sessionAffinity" "type" "clusterIP") -}}
+  {{- $_ = set $specs "Numbers" (list "healthCheckNodePort") -}}
+  {{- $_ = set $specs "Maps" (list "sessionAffinityConfig" "selector") -}}
+  {{- with include "apps-utils.generateSpecs" (list $ $RelatedScope $specs) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ $RelatedScope $RelatedScope.extraSpec) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
@@ -149,8 +148,7 @@ spec:
 {{- with $RelatedScope }}
 {{- if $.CurrentApp.horizontalPodAutoscaler }}
 {{- if include "fl.isTrue" (list $ . $.CurrentApp.horizontalPodAutoscaler.enabled) }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: {{ include "apps-api-versions.horizontalPodAutoscaler" $ }}
 kind: HorizontalPodAutoscaler
 {{- include "apps-helpers.metadataGenerator" (list $ $.CurrentApp.horizontalPodAutoscaler ) }}
@@ -184,7 +182,7 @@ spec:
 {{- $currentApp := $.CurrentApp}}
 {{- $_ = set $ "CurrentApp" . }}
 ---
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 {{- include "apps-deckhouse-metrics.render" $ }}
 {{- $_ = set $ "CurrentApp" $currentApp }}
 {{- end }}
@@ -211,8 +209,7 @@ spec:
 {{- range $configFileName, $configFile := .configFiles }}
 {{- if include "fl.value" (list $ . .content) }}
 {{- include "apps-utils.enterScope" (list $ $configFileName) }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -220,7 +217,7 @@ metadata:
   {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
+  labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 data:
   {{ $configFileName | quote }}: | {{ include "fl.value" (list $ . .content) | trim | nindent 4 }}
 {{- include "apps-utils.leaveScope" $ }}
@@ -232,8 +229,7 @@ data:
 {{- range $configFileName, $configFile := .configFilesYAML }}
 {{- if kindIs "map" .content }}
 {{- include "apps-utils.enterScope" (list $ $configFileName) }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -241,9 +237,8 @@ metadata:
   {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
+  labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 data:
-
 {{- include "apps-helpers.generateConfigYAML" (list $ .content .content "content") }}
   {{ $configFileName | quote }}: | {{ toYaml .content | trim | nindent 4 }}
 {{- include "apps-utils.leaveScope" $ }}
@@ -254,8 +249,7 @@ data:
 {{- range $secretConfigFileName, $secretConfigFile := .secretConfigFiles }}
 {{- if include "fl.value" (list $ . .content) }}
 {{- include "apps-utils.enterScope" (list $ $secretConfigFileName) }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -263,7 +257,7 @@ metadata:
   {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
+  labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 type: Opaque
 data:
   {{ $secretConfigFileName | quote }}: {{ include "fl.value" (list $ . .content) | b64enc | quote }}
@@ -273,8 +267,7 @@ data:
 {{- /* Secret created by "secretEnvVars:" option */ -}}
 {{- if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
 {{- include "apps-utils.enterScope" (list $ "secretEnvVars") }}
----
-{{- include "apps-utils.printPath" $ }}
+{{- include "apps-utils.printPath" $ -}}
 apiVersion: v1
 kind: Secret
 metadata:
@@ -282,9 +275,9 @@ metadata:
   {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  labels: {{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
+  labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 type: Opaque
-data: {{ include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) | trim | nindent 2 }}
+data:{{ include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) | trim | nindent 2 }}
 {{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 {{- end }}

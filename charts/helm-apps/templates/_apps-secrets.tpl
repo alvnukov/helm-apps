@@ -17,14 +17,17 @@ kind: Secret
 {{- with include "apps-compat.renderRaw" (list $ . .extraFields) | trim }}
 {{- . | nindent 0 }}
 {{- end }}
-type: {{- include "fl.value" (list $ . .type) | default "Opaque" | nindent 2 }}
+type: {{ include "fl.value" (list $ . .type) | default "Opaque" }}
 data:
-{{- if (include "fl.value" (list $ . .data)) }}
-{{- include "fl.value" (list $ . .data) | nindent 2}}
+{{- if (include "fl.value" (list $ . .data) | trim) }}
+{{- include "fl.value" (list $ . .data) | trim | nindent 2 }}
 {{- else }}
-{{- include "fl.generateSecretEnvVars" (list $ . .envVars) | nindent 2 }}
-{{- include "fl.generateSecretData" (list $ . .data) | nindent 2 }}
+{{- with include "fl.generateSecretEnvVars" (list $ . .envVars) | trim }}
+{{- . | nindent 2 }}
 {{- end }}
-
+{{- with include "fl.generateSecretData" (list $ . .data) | trim }}
+{{- . | nindent 2 }}
+{{- end }}
+{{- end }}
 {{- end }}
 {{- end }}

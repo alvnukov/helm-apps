@@ -14,6 +14,6 @@ apiVersion: v1
 kind: LimitRange
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
-  limits: {{- include "fl.value" (list $ . .limits) | nindent 4 }}
+  limits:{{- include "fl.value" (list $ . .limits) | trim | nindent 4 }}
 {{- end }}
 {{- end }}

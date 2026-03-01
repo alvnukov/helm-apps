@@ -120,22 +120,23 @@
     {{- . | nindent 2 }}
   {{- end }}
   {{- $resources := include "fl.generateContainerResources" (list $ . .resources) | trim }}
-  {{ with $resources }}
+  {{- with $resources }}
   resources:
     {{- . | nindent 4 }}
   {{- end }}
   {{- $volumeMounts := include "fl.value" (list $ . .volumeMounts) | trim }}
   {{- $volumeMounts = list $volumeMounts (include "apps-helpers.generateVolumeMounts" (list $ .) | trim) | join "\n" | trim }}
   {{- with $volumeMounts }}
-  volumeMounts: {{ print $volumeMounts | trim | nindent 2}}
+  volumeMounts:{{ print $volumeMounts | trim | nindent 2 }}
   {{- end -}}
-
-  {{- $specsContainers := dict }}
-  {{- $_ = set $specsContainers "Lists" ( list "args" "command" "ports") }}
-  {{- $_ = set $specsContainers "Maps" (list "lifecycle" "livenessProbe" "readinessProbe" "securityContext" "startupProbe") }}
-  {{- $_ = set $specsContainers "Strings" (list "imagePullPolicy" "terminationMessagePath" "terminationMessagePolicy" "workingDir") }}
-  {{- $_ = set $specsContainers "Bools" (list "stdin" "stdinOnce" "tty" ) }}
-  {{- include "apps-utils.generateSpecs" (list $ . $specsContainers) | trim | nindent 2 }}
+  {{- $specsContainers := dict -}}
+  {{- $_ = set $specsContainers "Lists" ( list "args" "command" "ports") -}}
+  {{- $_ = set $specsContainers "Maps" (list "lifecycle" "livenessProbe" "readinessProbe" "securityContext" "startupProbe") -}}
+  {{- $_ = set $specsContainers "Strings" (list "imagePullPolicy" "terminationMessagePath" "terminationMessagePolicy" "workingDir") -}}
+  {{- $_ = set $specsContainers "Bools" (list "stdin" "stdinOnce" "tty" ) -}}
+  {{- with include "apps-utils.generateSpecs" (list $ . $specsContainers) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraFields) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
@@ -153,20 +154,22 @@
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
   {{- $_ := set $.CurrentApp "_currentContainersType" "initContainers" }}
-  {{ with (include "apps-helpers.generateContainers" (list $ . .initContainers) | trim) }}
+  {{- with (include "apps-helpers.generateContainers" (list $ . .initContainers) | trim) }}
   initContainers:
   {{- . | nindent 2 }}
   {{- end }}
   {{- $_ = set $.CurrentApp "_currentContainersType" "containers" }}
   containers:
   {{- include "apps-helpers.generateContainers" (list $ . .containers) | trim | nindent 2 }}
-  {{- $specsTemplate := dict }}
-  {{- $_ = set $specsTemplate "Lists" ( list "tolerations" "imagePullSecrets" "hostAliases" "topologySpreadConstraints" "apps-specs.containers.volumes") }}
-  {{- $_ = set $specsTemplate "Maps" (list "affinity" "dnsConfig" "nodeSelector" "overhead" "readinessGates" "securityContext") }}
-  {{- $_ = set $specsTemplate "Strings" (list "dnsPolicy" "hostname" "nodeName" "preemptionPolicy" "priorityClassName" "restartPolicy" "runtimeClassName" "schedulerName" "serviceAccount" "serviceAccountName" "subdomain") }}
-  {{- $_ = set $specsTemplate "Numbers" (list "activeDeadlineSeconds" "priority" "terminationGracePeriodSeconds") }}
-  {{- $_ = set $specsTemplate "Bools" (list "automountServiceAccountToken" "enableServiceLinks" "hostIPC" "hostNetwork" "hostPID" "setHostnameAsFQDN" "shareProcessNamespace") }}
-  {{- include "apps-utils.generateSpecs" (list $ . $specsTemplate) | trim | nindent 2 }}
+  {{- $specsTemplate := dict -}}
+  {{- $_ = set $specsTemplate "Lists" ( list "tolerations" "imagePullSecrets" "hostAliases" "topologySpreadConstraints" "apps-specs.containers.volumes") -}}
+  {{- $_ = set $specsTemplate "Maps" (list "affinity" "dnsConfig" "nodeSelector" "overhead" "readinessGates" "securityContext") -}}
+  {{- $_ = set $specsTemplate "Strings" (list "dnsPolicy" "hostname" "nodeName" "preemptionPolicy" "priorityClassName" "restartPolicy" "runtimeClassName" "schedulerName" "serviceAccount" "serviceAccountName" "subdomain") -}}
+  {{- $_ = set $specsTemplate "Numbers" (list "activeDeadlineSeconds" "priority" "terminationGracePeriodSeconds") -}}
+  {{- $_ = set $specsTemplate "Bools" (list "automountServiceAccountToken" "enableServiceLinks" "hostIPC" "hostNetwork" "hostPID" "setHostnameAsFQDN" "shareProcessNamespace") -}}
+  {{- with include "apps-utils.generateSpecs" (list $ . $specsTemplate) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .podSpecExtra) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
@@ -198,7 +201,9 @@ spec:
     {{- include "apps-helpers.generateEnvYAML" $ }}
     {{- include "apps-utils.leaveScope" $ }}
     {{- end }}
-    {{- include "apps.generateContainerEnvVars" (list $ . .envVars) | trim | nindent 0 }}
+    {{- with include "apps.generateContainerEnvVars" (list $ . .envVars) | trim }}
+    {{- . | nindent 0 }}
+    {{- end }}
     {{- with (include "fl.value" (list $ . .env) | trim) }}
     {{- . | nindent 0}}
     {{- end }}
@@ -218,7 +223,9 @@ spec:
     {{- with (include "apps-helpers.generateSharedEnvSecretsEnvFrom" (list $ .) | trim) }}
     {{- . | nindent 0 }}
     {{- end }}
-    {{- include "fl.value" (list $ . .envFrom) | trim | nindent 0 }}
+    {{- with include "fl.value" (list $ . .envFrom) | trim }}
+    {{- . | nindent 0 }}
+    {{- end }}
     {{- /* Mount envs from Secret created by "secretEnvVars:" option */ -}}
     {{- if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
 - secretRef:
@@ -265,11 +272,13 @@ spec:
   {{- $_ = set $specs "Strings" (list "completionMode") }}
   {{- $_ = set $specs "Numbers" (list "activeDeadlineSeconds" "backoffLimit" "completions" "parallelism" "ttlSecondsAfterFinished") }}
   {{- $_ = set $specs "Bools" (list "manualSelector" "suspend") }}
-{{ include "apps-utils.generateSpecs" (list $ . $specs) | trim | indent 2 }}
+  {{- with include "apps-utils.generateSpecs" (list $ . $specs) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .jobTemplateExtraSpec) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  template: {{ include "apps-helpers.podTemplate" (list $ .) | trim | nindent 4 }}
+  template:{{ include "apps-helpers.podTemplate" (list $ .) | trim | nindent 4 }}
 {{- end }}
 {{- end -}}
 
@@ -335,9 +344,9 @@ annotations:
 {{- end }}
 {{- end }}
 
-{{- define "apps-helpers.metadataGenerator"}}
-    {{- $ := index . 0 }}
-    {{- $RelatedScope := index . 1 }}
+{{- define "apps-helpers.metadataGenerator" -}}
+{{- $ := index . 0 -}}
+{{- $RelatedScope := index . 1 -}}
 {{- with $RelatedScope }}
 metadata:
   {{- if hasKey . "name" }}
@@ -345,14 +354,16 @@ metadata:
   {{- else }}
   name: {{ $.CurrentApp.name | quote }}
   {{- end }}
-  {{- include "apps-helpers.generateAnnotations" (list $ .) | nindent 2 }}
+  {{- with include "apps-helpers.generateAnnotations" (list $ .) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   labels:
-  {{- include "fl.generateLabels" (list $ . $.CurrentApp.name) | nindent 4 }}
-  {{- with include "fl.value" (list $ . .labels) }}
-    {{- . | nindent 4 }}
+{{- include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
+  {{- with include "fl.value" (list $ . .labels) | trim }}
+  {{- . | nindent 4 }}
   {{- end }}
 {{- end }}
-{{- end }}
+{{- end -}}
 
 {{- define "apps-helpers.generateHPAMetrics" }}
 {{- $ := index . 0 }}

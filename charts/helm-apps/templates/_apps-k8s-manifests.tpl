@@ -194,20 +194,20 @@ immutable: {{ include "fl.value" (list $ . .immutable) }}
 {{- if hasKey . "type" }}
 type: {{ include "fl.valueQuoted" (list $ . .type) }}
 {{- end }}
-{{ if hasKey . "data" }}
+{{- if hasKey . "data" }}
 {{ include "apps-k8s-manifests.emitTopField" (list $ . "data" .data) }}
-{{ end }}
-{{ if hasKey . "stringData" }}
+{{- end }}
+{{- if hasKey . "stringData" }}
 {{ include "apps-k8s-manifests.emitTopField" (list $ . "stringData" .stringData) }}
-{{ end }}
-{{ if hasKey . "binaryData" }}
+{{- end }}
+{{- if hasKey . "binaryData" }}
 {{ include "apps-k8s-manifests.emitTopField" (list $ . "binaryData" .binaryData) }}
-{{ end }}
-{{ if hasKey . "spec" }}
+{{- end }}
+{{- if hasKey . "spec" }}
 {{ include "apps-k8s-manifests.emitTopField" (list $ . "spec" .spec) }}
-{{ end }}
-{{ range $k, $v := $extraTopLevel }}
+{{- end }}
+{{- range $k, $v := $extraTopLevel }}
 {{ include "apps-k8s-manifests.emitTopField" (list $ $.CurrentApp $k $v) }}
-{{ end }}
+{{- end }}
 {{- end }}
 {{- end }}

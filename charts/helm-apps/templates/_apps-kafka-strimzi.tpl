@@ -19,7 +19,7 @@ spec:
   kafkaExporter:
     groupRegex: ".*"
     topicRegex: ".*"
-    resources:  {{- include "fl.generateContainerResources" (list $ . .exporter.resources) | nindent 6 }}
+    resources:{{- include "fl.generateContainerResources" (list $ . .exporter.resources) | trim | nindent 6 }}
     template:
       pod:
         metadata:
@@ -28,18 +28,20 @@ spec:
           annotations:
             prometheus.deckhouse.io/port: "9404"
             prometheus.deckhouse.io/sample-limit: "{{ include "fl.value" (list $ . .prometheusSampleLimit) | default 10000 }}"
-            {{- include "fl.value" (list $ . .annotations) | nindent 12 }}
+            {{- with include "fl.value" (list $ . .annotations) | trim }}
+            {{- . | nindent 12 }}
+            {{- end }}
         {{- with .exporter.tolerations }}
-        tolerations: {{ include "fl.value" (list $ $.CurrentApp .) | nindent 8 }}
+        tolerations:{{ include "fl.value" (list $ $.CurrentApp .) | trim | nindent 8 }}
         {{- end }}
         {{- with .exporter.affinity }}
-        affinity: {{ include "fl.value" (list $ . .) | nindent 10 }}
+        affinity:{{ include "fl.value" (list $ . .) | trim | nindent 10 }}
         {{- end }}
   kafka:
     version: {{ include "fl.value" (list $ . .version) }}
     replicas: {{ include "fl.value" (list $ . .replicas) }}
-    resources: {{ include "fl.generateContainerResources" (list $ . .resources) | nindent 6 }}
-    jvmOptions: {{ include "fl.value" (list $ . .jvmOptions ) | nindent 6 }}
+    resources:{{ include "fl.generateContainerResources" (list $ . .resources) | trim | nindent 6 }}
+    jvmOptions:{{ include "fl.value" (list $ . .jvmOptions ) | trim | nindent 6 }}
     listeners:
     - name: plain
       port: 9092
@@ -57,12 +59,14 @@ spec:
           annotations:
             prometheus.deckhouse.io/port: "9404"
             prometheus.deckhouse.io/sample-limit: "{{ include "fl.value" (list $ . .prometheusSampleLimit) | default 50000 }}"
-        priorityClassName: {{ include "fl.valueQuoted" (list $ . .priorityClassName) }}
+        {{- with include "fl.valueQuoted" (list $ . .priorityClassName) | trim }}
+        priorityClassName: {{ . }}
+        {{- end }}
         {{- with .tolerations }}
-        tolerations: {{ include "fl.value" (list $ $.CurrentApp .) | nindent 8 }}
+        tolerations:{{ include "fl.value" (list $ $.CurrentApp .) | trim | nindent 8 }}
         {{- end }}
         {{- with .affinity }}
-        affinity: {{ include "fl.value" (list $ $.CurrentApp .) | nindent 10 }}
+        affinity:{{ include "fl.value" (list $ $.CurrentApp .) | trim | nindent 10 }}
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
             - topologyKey: "kubernetes.io/hostname"
@@ -93,9 +97,11 @@ spec:
         class: {{ include "fl.value" (list $ . .storage.class) }}
         deleteClaim: false
   zookeeper:
-    priorityClassName: {{ include "fl.valueQuoted" (list $ . .priorityClassName) }}
+    {{- with include "fl.valueQuoted" (list $ . .priorityClassName) | trim }}
+    priorityClassName: {{ . }}
+    {{- end }}
     replicas: {{ include "fl.value" (list $ . .zookeeper.replicas) }}
-    resources: {{ include "fl.generateContainerResources" (list $ . .zookeeper.resources) | nindent 6 }}
+    resources:{{ include "fl.generateContainerResources" (list $ . .zookeeper.resources) | trim | nindent 6 }}
     template:
       pod:
         metadata:
@@ -105,11 +111,13 @@ spec:
             prometheus.deckhouse.io/port: "9404"
             prometheus.deckhouse.io/sample-limit: "{{ include "fl.value" (list $ . .prometheusSampleLimit) | default 5000 }}"
         {{- with .zookeeper.tolerations }}
-        tolerations: {{ include "fl.value" (list $ $.CurrentApp .) | nindent 8 }}
+        tolerations:{{ include "fl.value" (list $ $.CurrentApp .) | trim | nindent 8 }}
         {{- end }}
-        priorityClassName: {{ include "fl.valueQuoted" (list $ . .priorityClassName) }}
+        {{- with include "fl.valueQuoted" (list $ . .priorityClassName) | trim }}
+        priorityClassName: {{ . }}
+        {{- end }}
         affinity:
-          {{- include "fl.value" (list $ $.CurrentApp .zookeeper.affinity) | nindent 10 }}
+          {{- include "fl.value" (list $ $.CurrentApp .zookeeper.affinity) | trim | nindent 10 }}
           podAntiAffinity:
             requiredDuringSchedulingIgnoredDuringExecution:
             - topologyKey: "kubernetes.io/hostname"
@@ -117,31 +125,35 @@ spec:
                 matchLabels:
                   strimzi.io/name: {{ $.CurrentKafka.name }}-{{ $.Values.global.env }}-zookeeper
         terminationGracePeriodSeconds: 120
-    metricsConfig: {{ include "fl.value" (list $ . .zookeeper.metricsConfig) | nindent 6 }}
-    jvmOptions: {{ include "fl.value" (list $ . .zookeeper.jvmOptions) | nindent 6 }}
+    metricsConfig:{{ include "fl.value" (list $ . .zookeeper.metricsConfig) | trim | nindent 6 }}
+    jvmOptions:{{ include "fl.value" (list $ . .zookeeper.jvmOptions) | trim | nindent 6 }}
     storage:
       type: persistent-claim
       size: {{ include "fl.value" (list $ . .zookeeper.storage.size) }}
       class: {{ include "fl.value" (list $ . .zookeeper.storage.class) }}
       deleteClaim: false
   entityOperator:
-    priorityClassName: {{ include "fl.valueQuoted" (list $ . .priorityClassName) }}
+    {{- with include "fl.valueQuoted" (list $ . .priorityClassName) | trim }}
+    priorityClassName: {{ . }}
+    {{- end }}
     template:
       pod:
         metadata:
           labels:
             apps-kafka-strimzi: entity-operator
-        priorityClassName: {{ include "fl.valueQuoted" (list $ . .priorityClassName) }}
+        {{- with include "fl.valueQuoted" (list $ . .priorityClassName) | trim }}
+        priorityClassName: {{ . }}
+        {{- end }}
         {{- with .entityOperator.tolerations }}
-        tolerations: {{ include "fl.value" (list $ $.CurrentApp .) | nindent 8 }}
+        tolerations:{{ include "fl.value" (list $ $.CurrentApp .) | trim | nindent 8 }}
         {{- end }}
         {{- with .entityOperator.affinity }}
-        affinity: {{ include "fl.value" (list $ $.CurrentApp .) | nindent 10 }}
+        affinity:{{ include "fl.value" (list $ $.CurrentApp .) | trim | nindent 10 }}
         {{- end }}
     topicOperator:
-      resources: {{ include "fl.generateContainerResources" (list $ . .entityOperator.topicOperator.resources) | nindent 8 }}
+      resources:{{ include "fl.generateContainerResources" (list $ . .entityOperator.topicOperator.resources) | trim | nindent 8 }}
     userOperator:
-      resources: {{ include "fl.generateContainerResources" (list $ . .entityOperator.userOperator.resources) | nindent 8 }}
+      resources:{{ include "fl.generateContainerResources" (list $ . .entityOperator.userOperator.resources) | trim | nindent 8 }}
 
 {{- include "kafka-topics" (list $ . .topics) }}
 

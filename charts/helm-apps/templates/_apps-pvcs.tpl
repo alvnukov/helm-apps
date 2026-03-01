@@ -14,11 +14,13 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
-  {{- $specsPVCs := dict }}
-  {{- $_ := set $specsPVCs "Lists" ( list "accessModes" ) }}
-  {{- $_ := set $specsPVCs "Maps" (list "resources" ) }}
-  {{- $_ := set $specsPVCs "Strings" (list "storageClassName") }}
-  {{- include "apps-utils.generateSpecs" (list $ . $specsPVCs) | indent 2 }}
+{{- $specsPVCs := dict -}}
+{{- $_ := set $specsPVCs "Lists" ( list "accessModes" ) -}}
+{{- $_ := set $specsPVCs "Maps" (list "resources" ) -}}
+{{- $_ := set $specsPVCs "Strings" (list "storageClassName") -}}
+  {{- with include "apps-utils.generateSpecs" (list $ . $specsPVCs) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
   {{- . | nindent 2 }}
   {{- end }}

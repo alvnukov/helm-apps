@@ -44,10 +44,10 @@ matchLabels:
 {{- $_ = set $ "CurrentContainer" $_container }}
 {{- range $persistantVolumeName, $persistantVolume := .persistantVolumes }}
 {{- $pvcName := print $persistantVolumeName "-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $persistantVolume.mountPath | include "fl.formatStringAsDNSLabel" }}
-- metadata:
+  - metadata:
     name: {{ $pvcName }}
   spec:
-    accessModes: {{include "fl.value" (list $ . $persistantVolume.accessModes) | default "\n- ReadWriteOnce" | nindent 4 }}
+    accessModes:{{ include "fl.value" (list $ . $persistantVolume.accessModes) | default "\n- ReadWriteOnce" | trim | nindent 4 }}
     resources:
       requests:
         storage: {{ include "fl.value" (list $ . $persistantVolume.size) }}

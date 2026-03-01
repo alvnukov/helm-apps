@@ -53,6 +53,6 @@ kind: GrafanaDashboardDefinition
 spec:
   folder: {{ include "fl.value" (list $ . .folder) | default "Custom" }}
   definition: |
-    {{ $.Files.Get (printf "dashboards/%s.json" .name) | nindent 4 }}
+{{ $.Files.Get (printf "dashboards/%s.json" .name) | trim | nindent 4 }}
 {{- end }}
 {{- end }}

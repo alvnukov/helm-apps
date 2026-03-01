@@ -84,15 +84,15 @@ spec:
     matchLabels:
 {{- include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim | nindent 6 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .policyTypes) }}
+  {{- with include "fl.value" (list $ . .policyTypes) | trim }}
   policyTypes:
   {{- . | nindent 2 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .ingress) }}
+  {{- with include "fl.value" (list $ . .ingress) | trim }}
   ingress:
   {{- . | nindent 2 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .egress) }}
+  {{- with include "fl.value" (list $ . .egress) | trim }}
   egress:
   {{- . | nindent 2 }}
   {{- end }}
@@ -105,19 +105,19 @@ spec:
     matchLabels:
 {{- include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim | nindent 6 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .ingress) }}
+  {{- with include "fl.value" (list $ . .ingress) | trim }}
   ingress:
   {{- . | nindent 2 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .egress) }}
+  {{- with include "fl.value" (list $ . .egress) | trim }}
   egress:
   {{- . | nindent 2 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .ingressDeny) }}
+  {{- with include "fl.value" (list $ . .ingressDeny) | trim }}
   ingressDeny:
   {{- . | nindent 2 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .egressDeny) }}
+  {{- with include "fl.value" (list $ . .egressDeny) | trim }}
   egressDeny:
   {{- . | nindent 2 }}
   {{- end }}
@@ -127,7 +127,7 @@ spec:
   {{- else }}
   selector: {{ print "app == '" $.CurrentApp.name "'" | quote }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .types) }}
+  {{- with include "fl.value" (list $ . .types) | trim }}
   types:
   {{- . | nindent 2 }}
   {{- else }}
@@ -141,11 +141,11 @@ spec:
     {{- end }}
   {{- end }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .ingress) }}
+  {{- with include "fl.value" (list $ . .ingress) | trim }}
   ingress:
   {{- . | nindent 2 }}
   {{- end }}
-  {{- with include "fl.value" (list $ . .egress) }}
+  {{- with include "fl.value" (list $ . .egress) | trim }}
   egress:
   {{- . | nindent 2 }}
   {{- end }}

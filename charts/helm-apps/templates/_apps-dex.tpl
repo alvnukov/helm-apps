@@ -48,6 +48,6 @@ apiVersion: deckhouse.io/v1alpha1
 kind: DexClient
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
-  redirectURIs: {{ include "fl.value" (list $ . .redirectURIs) | nindent 2 }}
+  redirectURIs:{{ include "fl.value" (list $ . .redirectURIs) | trim | nindent 2 }}
 {{- end }}
 {{- end }}

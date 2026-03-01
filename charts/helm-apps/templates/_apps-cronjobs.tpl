@@ -19,15 +19,17 @@ apiVersion: {{ include "apps-api-versions.cronJob" $ }}
 kind: CronJob
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
-  {{- $specs := dict }}
-  {{- $_ = set $specs "Strings" (list "schedule" "concurrencyPolicy") }}
-  {{- $_ = set $specs "Numbers" (list "failedJobsHistoryLimit" "startingDeadlineSeconds" "successfulJobsHistoryLimit") }}
-  {{- $_ = set $specs "Bools" (list "suspend") }}
-  {{- include "apps-utils.generateSpecs" (list $ . $specs) | indent 2 }}
+{{- $specs := dict -}}
+{{- $_ = set $specs "Strings" (list "schedule" "concurrencyPolicy") -}}
+{{- $_ = set $specs "Numbers" (list "failedJobsHistoryLimit" "startingDeadlineSeconds" "successfulJobsHistoryLimit") -}}
+{{- $_ = set $specs "Bools" (list "suspend") -}}
+  {{- with include "apps-utils.generateSpecs" (list $ . $specs) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
-  jobTemplate: {{ include "apps-helpers.jobTemplate" (list $ .) | nindent 4 -}}
+  jobTemplate:{{ include "apps-helpers.jobTemplate" (list $ .) | trim | nindent 4 }}
 
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}
 
