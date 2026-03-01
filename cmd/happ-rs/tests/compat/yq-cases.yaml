@@ -246,3 +246,23 @@ cases:
     input_yaml: '"abcd"'
     output_json_lines:
       - "true"
+
+  - id: yq_outer_parentheses
+    query: "(.a // .b)"
+    input_yaml: |
+      a: null
+      b: 2
+    output_json_lines:
+      - "2"
+
+  - id: yq_parenthesized_predicate
+    query: '.[] | select((.a > 1) and (.name == "x")) | .a'
+    input_yaml: |
+      - a: 1
+        name: x
+      - a: 2
+        name: x
+      - a: 3
+        name: y
+    output_json_lines:
+      - "2"

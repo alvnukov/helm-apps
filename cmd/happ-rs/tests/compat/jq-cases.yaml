@@ -222,3 +222,15 @@ cases:
     input_json: '"abcd"'
     output_json_lines:
       - "true"
+
+  - id: jq_outer_parentheses
+    query: "(.a // .b)"
+    input_json: '{"a":null,"b":2}'
+    output_json_lines:
+      - "2"
+
+  - id: jq_parenthesized_predicate
+    query: '.[] | select((.a > 1) and (.name == "x")) | .a'
+    input_json: '[{"a":1,"name":"x"},{"a":2,"name":"x"},{"a":3,"name":"y"}]'
+    output_json_lines:
+      - "2"

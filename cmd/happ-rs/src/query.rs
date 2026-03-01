@@ -99,7 +99,10 @@ enum PathToken {
 }
 
 fn compile_query(query: &str) -> Result<CompiledQuery, Error> {
-    let q = query.trim();
+    let mut q = query.trim();
+    while let Some(inner) = strip_outer_parens(q) {
+        q = inner.trim();
+    }
     if q.is_empty() || q == "." {
         return Ok(CompiledQuery::Identity);
     }
@@ -192,7 +195,10 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
 }
 
 fn compile_predicate(expr: &str) -> Result<CompiledPredicate, Error> {
-    let e = expr.trim();
+    let mut e = expr.trim();
+    while let Some(inner) = strip_outer_parens(e) {
+        e = inner.trim();
+    }
     if let Some((l, r)) = split_once_top_level_keyword(e, "or") {
         return Ok(CompiledPredicate::Or(
             Box::new(compile_predicate(l.trim())?),
@@ -1003,6 +1009,50 @@ fn split_once_top_level_keyword<'a>(s: &'a str, keyword: &str) -> Option<(&'a st
     split_once_top_level(s, &needle)
 }
 
+fn strip_outer_parens(s: &str) -> Option<&str> {
+    if !(s.starts_with('(') && s.ends_with(')')) {
+        return None;
+    }
+    let mut depth = 0i32;
+    let mut in_str = false;
+    let mut esc = false;
+    for (i, c) in s.char_indices() {
+        if in_str {
+            if esc {
+                esc = false;
+                continue;
+            }
+            if c == '\\' {
+                esc = true;
+                continue;
+            }
+            if c == '"' {
+                in_str = false;
+            }
+            continue;
+        }
+        match c {
+            '"' => in_str = true,
+            '(' => depth += 1,
+            ')' => {
+                depth -= 1;
+                if depth == 0 && i != s.len() - 1 {
+                    return None;
+                }
+                if depth < 0 {
+                    return None;
+                }
+            }
+            _ => {}
+        }
+    }
+    if depth == 0 {
+        Some(&s[1..s.len() - 1])
+    } else {
+        None
+    }
+}
+
 fn select_field(v: &JsonValue, field: &str) -> JsonValue {
     match v {
         JsonValue::Object(m) => m.get(field).cloned().unwrap_or(JsonValue::Null),
@@ -1442,10 +1492,33 @@ a:
     }
 
     #[test]
+    fn run_query_supports_outer_parentheses() {
+        let out = run_json_query("(.a // .b)", r#"{"a":null,"b":2}"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(2)]);
+    }
+
+    #[test]
+    fn run_query_supports_parenthesized_predicate() {
+        let out = run_json_query(
+            r#".[] | select((.a > 1) and (.name == "x")) | .a"#,
+            r#"[{"a":1,"name":"x"},{"a":2,"name":"x"},{"a":3,"name":"y"}]"#,
+        )
+        .expect("query");
+        assert_eq!(out, vec![serde_json::json!(2)]);
+    }
+
+    #[test]
     fn scalar_path_detection() {
         assert!(is_scalar_path(&compile_dot_path(".a.b[0]").expect("path")));
         assert!(!is_scalar_path(&compile_dot_path(".a[]").expect("path")));
         assert!(!is_scalar_path(&compile_dot_path(".a[1:3]").expect("path")));
+    }
+
+    #[test]
+    fn strip_outer_parens_detects_balanced_expression() {
+        assert_eq!(strip_outer_parens("(a)"), Some("a"));
+        assert_eq!(strip_outer_parens("(a) + (b)"), None);
+        assert_eq!(strip_outer_parens("((a))"), Some("(a)"));
     }
 
     #[test]
