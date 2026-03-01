@@ -518,6 +518,31 @@ input[type='text'] {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 1
 select {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; background:#fff; color:#0f172a; }}
 textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:14px; line-height:1.45; box-sizing:border-box; background:#fff; }}
 textarea {{ resize:vertical; max-height:720px; }}
+.code-output {{
+  border:1px solid #cbd5e1;
+  border-radius:12px;
+  padding:10px;
+  min-height:240px;
+  max-height:720px;
+  overflow:auto;
+  white-space:pre-wrap;
+  word-break:break-word;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size:14px;
+  line-height:1.45;
+  box-sizing:border-box;
+  background:#fff;
+  margin:0;
+}}
+.tok-key {{ color:#1d4ed8; font-weight:700; }}
+.tok-str {{ color:#0f766e; }}
+.tok-num {{ color:#b45309; }}
+.tok-bool {{ color:#7c3aed; font-weight:700; }}
+.tok-null {{ color:#be123c; font-weight:700; }}
+.tok-op {{ color:#64748b; }}
+.tok-diff-add {{ color:#166534; font-weight:700; }}
+.tok-diff-rem {{ color:#991b1b; font-weight:700; }}
+.tok-diff-chg {{ color:#92400e; font-weight:700; }}
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
 .tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px 0; }}
 .util-head {{ margin:0 0 12px 0; }}
@@ -612,6 +637,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
  input[type='text'] {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  select {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  textarea {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
+ .code-output {{ border-color:#334155; background:#0f172a; color:#dbe7ff; }}
  .jq-query-highlight {{ border-color:#334155; background:#0b1220; color:#dbe7ff; }}
  .jq-query-input {{ caret-color:#dbe7ff; }}
  .jq-token-keyword {{ color:#c4b5fd; }}
@@ -620,6 +646,15 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
  .jq-token-number {{ color:#fcd34d; }}
  .jq-token-op {{ color:#fda4af; }}
  .jq-token-field {{ color:#93c5fd; }}
+ .tok-key {{ color:#93c5fd; }}
+ .tok-str {{ color:#5eead4; }}
+ .tok-num {{ color:#fcd34d; }}
+ .tok-bool {{ color:#c4b5fd; }}
+ .tok-null {{ color:#fda4af; }}
+ .tok-op {{ color:#93a6c7; }}
+ .tok-diff-add {{ color:#86efac; }}
+ .tok-diff-rem {{ color:#fca5a5; }}
+ .tok-diff-chg {{ color:#fde68a; }}
  .jq-suggest {{ border-color:#334155; background:#0f172a; }}
  .jq-suggest-row:hover,
  .jq-suggest-row.active {{ background:#1e293b; }}
@@ -721,7 +756,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       </div>
       <div>
         <div class='panel-label'>Output</div>
-        <textarea :value='converterOutput' readonly spellcheck='false'></textarea>
+        <pre class='code-output' v-html='converterOutputHighlighted'></pre>
       </div>
     </div>
     <div class='result-meta'>
@@ -800,7 +835,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       </div>
       <div>
         <div class='panel-label'>Output</div>
-        <textarea :value='jqOutput' readonly spellcheck='false'></textarea>
+        <pre class='code-output' v-html='jqOutputHighlighted'></pre>
       </div>
     </div>
     <div class='result-meta'>
@@ -851,7 +886,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       </div>
       <div>
         <div class='panel-label'>Output</div>
-        <textarea :value='yqOutput' readonly spellcheck='false'></textarea>
+        <pre class='code-output' v-html='yqOutputHighlighted'></pre>
       </div>
     </div>
     <div class='result-meta'>
@@ -888,7 +923,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div style='margin-top:10px;'>
       <div class='panel-label'>Diff result</div>
-      <textarea :value='dyffOutput' readonly spellcheck='false'></textarea>
+      <pre class='code-output' v-html='dyffOutputHighlighted'></pre>
     </div>
     <div class='result-meta'>
       <span>changed lines: {{{{ dyffChangedCount }}}}</span>
@@ -1028,6 +1063,18 @@ const app = Vue.createApp({{
     }},
     jqQueryHighlighted() {{
       return this.highlightJq(this.jqQuery || '');
+    }},
+    converterOutputHighlighted() {{
+      return this.highlightStructured(this.converterOutput || '');
+    }},
+    jqOutputHighlighted() {{
+      return this.highlightStructured(this.jqOutput || '');
+    }},
+    yqOutputHighlighted() {{
+      return this.highlightStructured(this.yqOutput || '');
+    }},
+    dyffOutputHighlighted() {{
+      return this.highlightDyff(this.dyffOutput || '');
     }},
     jqSuggestions() {{
       const meta = this.currentJqTokenMeta();
@@ -1481,12 +1528,37 @@ const app = Vue.createApp({{
       pre.scrollTop = ta.scrollTop;
       pre.scrollLeft = ta.scrollLeft;
     }},
-    highlightJq(src) {{
-      const escapeHtml = (s) => s
+    escapeHtml(s) {{
+      return String(s || '')
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
-      let out = escapeHtml(src);
+    }},
+    highlightStructured(src) {{
+      let out = this.escapeHtml(src);
+      out = out.replace(/^(\s*)([A-Za-z0-9_.-]+)(\s*:)/gm, "$1<span class='tok-key'>$2</span><span class='tok-op'>$3</span>");
+      out = out.replace(/("([^"\\]|\\.)*")(\s*:)?/g, (m, q, _inner, c) => {{
+        if (c) return "<span class='tok-key'>" + q + "</span><span class='tok-op'>" + c + "</span>";
+        return "<span class='tok-str'>" + q + "</span>";
+      }});
+      out = out.replace(/\b(true|false)\b/g, "<span class='tok-bool'>$1</span>");
+      out = out.replace(/\bnull\b/g, "<span class='tok-null'>$1</span>");
+      out = out.replace(/\b(-?\d+(?:\.\d+)?)\b/g, "<span class='tok-num'>$1</span>");
+      return out || ' ';
+    }},
+    highlightDyff(src) {{
+      const lines = String(src || '').split('\n');
+      const html = lines.map((line) => {{
+        const safe = this.escapeHtml(line);
+        if (safe.startsWith('added: ')) return "<span class='tok-diff-add'>" + safe + "</span>";
+        if (safe.startsWith('removed: ')) return "<span class='tok-diff-rem'>" + safe + "</span>";
+        if (safe.startsWith('changed: ')) return "<span class='tok-diff-chg'>" + safe + "</span>";
+        return safe;
+      }});
+      return html.join('\n');
+    }},
+    highlightJq(src) {{
+      let out = this.escapeHtml(src);
       out = out.replace(/(\"(?:[^\"\\\\]|\\\\.)*\")/g, "<span class='jq-token-string'>$1</span>");
       out = out.replace(/\b(-?\d+(?:\.\d+)?)\b/g, "<span class='jq-token-number'>$1</span>");
       out = out.replace(/(\|\||\/\/|==|!=|>=|<=|[|,()[\]{{}}+\-*\/])/g, "<span class='jq-token-op'>$1</span>");
