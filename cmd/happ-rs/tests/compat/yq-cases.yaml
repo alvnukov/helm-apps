@@ -167,3 +167,64 @@ cases:
     output_json_lines:
       - "2"
       - "4"
+
+  - id: yq_comma_operator
+    query: ".a, .b"
+    input_yaml: |
+      a: 1
+      b: 2
+    output_json_lines:
+      - "1"
+      - "2"
+
+  - id: yq_alt_operator
+    query: ".a // .b"
+    input_yaml: |
+      a: null
+      b: 2
+    output_json_lines:
+      - "2"
+
+  - id: yq_slice_operator
+    query: ".[1:3]"
+    input_yaml: |
+      - 10
+      - 20
+      - 30
+      - 40
+    output_json_lines:
+      - "[20,30]"
+
+  - id: yq_field_slice_operator
+    query: ".arr[1:3]"
+    input_yaml: |
+      arr:
+        - 1
+        - 2
+        - 3
+        - 4
+    output_json_lines:
+      - "[2,3]"
+
+  - id: yq_not_stage
+    query: ".[] | not"
+    input_yaml: |
+      - true
+      - false
+      - null
+      - 1
+      - ""
+    output_json_lines:
+      - "false"
+      - "true"
+      - "true"
+      - "false"
+      - "true"
+
+  - id: yq_empty_stage
+    query: ".[] | empty"
+    input_yaml: |
+      - 1
+      - 2
+      - 3
+    output_json_lines: []

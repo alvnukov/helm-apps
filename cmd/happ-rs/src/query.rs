@@ -41,6 +41,8 @@ fn eval_query(query: &str, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue
 enum CompiledQuery {
     Identity,
     Collect(Box<CompiledQuery>),
+    Comma(Vec<CompiledQuery>),
+    Alt(Box<CompiledQuery>, Box<CompiledQuery>),
     Pipeline(Vec<CompiledStage>),
     Issue2593,
 }
@@ -59,6 +61,8 @@ enum CompiledStage {
     ToString,
     Add,
     Sort,
+    Not,
+    Empty,
     Has(String),
     DotPath(Vec<PathToken>),
     Literal(JsonValue),
@@ -87,6 +91,8 @@ enum PathToken {
     FieldIter(String),
     Index(i64),
     FieldIndex(String, i64),
+    Slice(Option<i64>, Option<i64>),
+    FieldSlice(String, Option<i64>, Option<i64>),
 }
 
 fn compile_query(query: &str) -> Result<CompiledQuery, Error> {
@@ -100,6 +106,24 @@ fn compile_query(query: &str) -> Result<CompiledQuery, Error> {
     if q.starts_with('[') && q.ends_with(']') {
         let inner = q[1..q.len() - 1].trim();
         return Ok(CompiledQuery::Collect(Box::new(compile_query(inner)?)));
+    }
+    let parts = split_top_level(q, ',')
+        .into_iter()
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .collect::<Vec<_>>();
+    if parts.len() > 1 {
+        let mut compiled = Vec::with_capacity(parts.len());
+        for p in parts {
+            compiled.push(compile_query(p)?);
+        }
+        return Ok(CompiledQuery::Comma(compiled));
+    }
+    if let Some((l, r)) = split_once_top_level(q, "//") {
+        return Ok(CompiledQuery::Alt(
+            Box::new(compile_query(l.trim())?),
+            Box::new(compile_query(r.trim())?),
+        ));
     }
     let stages = split_top_level(q, '|');
     let mut compiled = Vec::with_capacity(stages.len());
@@ -131,6 +155,8 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
         "tostring" => return Ok(CompiledStage::ToString),
         "add" => return Ok(CompiledStage::Add),
         "sort" => return Ok(CompiledStage::Sort),
+        "not" => return Ok(CompiledStage::Not),
+        "empty" => return Ok(CompiledStage::Empty),
         _ => {}
     }
     if let Some(inner) = parse_func_inner(s, "has") {
@@ -230,6 +256,7 @@ fn compile_dot_path(query: &str) -> Result<Vec<PathToken>, Error> {
                     BracketExpr::Iter => out.push(PathToken::Iter),
                     BracketExpr::Index(idx) => out.push(PathToken::Index(idx)),
                     BracketExpr::Key(key) => out.push(PathToken::Field(key)),
+                    BracketExpr::Slice(start, end) => out.push(PathToken::Slice(start, end)),
                 }
                 i = next;
             }
@@ -271,6 +298,13 @@ fn compile_dot_path(query: &str) -> Result<Vec<PathToken>, Error> {
                                 }
                                 out.push(PathToken::Field(key));
                             }
+                            BracketExpr::Slice(start, end) => {
+                                if first {
+                                    out.push(PathToken::FieldSlice(field.to_string(), start, end));
+                                } else {
+                                    out.push(PathToken::Slice(start, end));
+                                }
+                            }
                         }
                         first = false;
                         i = next;
@@ -289,6 +323,7 @@ enum BracketExpr {
     Iter,
     Index(i64),
     Key(String),
+    Slice(Option<i64>, Option<i64>),
 }
 
 fn parse_bracket_expr(query: &str, start: usize) -> Result<(BracketExpr, usize), Error> {
@@ -341,6 +376,29 @@ fn parse_bracket_expr(query: &str, start: usize) -> Result<(BracketExpr, usize),
     if let Some(key) = parse_string_literal(content) {
         return Ok((BracketExpr::Key(key), i));
     }
+    if let Some((start_txt, end_txt)) = content.split_once(':') {
+        let start = if start_txt.trim().is_empty() {
+            None
+        } else {
+            Some(
+                start_txt
+                    .trim()
+                    .parse::<i64>()
+                    .map_err(|_| Error::Unsupported(query.to_string()))?,
+            )
+        };
+        let end = if end_txt.trim().is_empty() {
+            None
+        } else {
+            Some(
+                end_txt
+                    .trim()
+                    .parse::<i64>()
+                    .map_err(|_| Error::Unsupported(query.to_string()))?,
+            )
+        };
+        return Ok((BracketExpr::Slice(start, end), i));
+    }
     if let Ok(idx) = content.parse::<i64>() {
         return Ok((BracketExpr::Index(idx), i));
     }
@@ -351,6 +409,25 @@ fn eval_compiled_query(query: &CompiledQuery, input_stream: Vec<JsonValue>) -> R
     match query {
         CompiledQuery::Identity => Ok(input_stream),
         CompiledQuery::Collect(inner) => Ok(vec![JsonValue::Array(eval_compiled_query(inner, input_stream)?)]),
+        CompiledQuery::Comma(queries) => {
+            let mut out = Vec::new();
+            for q in queries {
+                out.extend(eval_compiled_query(q, input_stream.clone())?);
+            }
+            Ok(out)
+        }
+        CompiledQuery::Alt(l, r) => {
+            let left = eval_compiled_query(l, input_stream.clone())?;
+            let preferred = left
+                .into_iter()
+                .filter(|v| !matches!(v, JsonValue::Null | JsonValue::Bool(false)))
+                .collect::<Vec<_>>();
+            if preferred.is_empty() {
+                eval_compiled_query(r, input_stream)
+            } else {
+                Ok(preferred)
+            }
+        }
         CompiledQuery::Issue2593 => {
             if let Some(root) = input_stream.first() {
                 Ok(issue2593_lookup(root))
@@ -467,6 +544,11 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
             .iter()
             .map(|v| JsonValue::Bool(has_key(v, key)))
             .collect()),
+        CompiledStage::Not => Ok(input_stream
+            .iter()
+            .map(|v| JsonValue::Bool(!truthy(v)))
+            .collect()),
+        CompiledStage::Empty => Ok(Vec::new()),
         CompiledStage::DotPath(tokens) => {
             let mut out = Vec::with_capacity(input_stream.len());
             if is_scalar_path(tokens) {
@@ -603,6 +685,17 @@ fn eval_dot_tokens(tokens: &[PathToken], input: &JsonValue) -> Vec<JsonValue> {
                     next.push(select_index(&selected, *i));
                 }
             }
+            PathToken::Slice(start, end) => {
+                for v in curr {
+                    next.push(select_slice(&v, *start, *end));
+                }
+            }
+            PathToken::FieldSlice(name, start, end) => {
+                for v in curr {
+                    let selected = select_field(&v, name);
+                    next.push(select_slice(&selected, *start, *end));
+                }
+            }
         }
         curr = next;
     }
@@ -612,7 +705,12 @@ fn eval_dot_tokens(tokens: &[PathToken], input: &JsonValue) -> Vec<JsonValue> {
 fn is_scalar_path(tokens: &[PathToken]) -> bool {
     !tokens
         .iter()
-        .any(|t| matches!(t, PathToken::Iter | PathToken::FieldIter(_)))
+        .any(|t| {
+            matches!(
+                t,
+                PathToken::Iter | PathToken::FieldIter(_) | PathToken::Slice(_, _) | PathToken::FieldSlice(_, _, _)
+            )
+        })
 }
 
 fn path_matches_literal(input: &JsonValue, tokens: &[PathToken], lit: &JsonValue, eq: bool) -> bool {
@@ -663,7 +761,7 @@ fn eval_path_single_ref<'a>(input: &'a JsonValue, tokens: &[PathToken]) -> Optio
                 }
                 _ => None,
             },
-            PathToken::Iter | PathToken::FieldIter(_) => None,
+            PathToken::Iter | PathToken::FieldIter(_) | PathToken::Slice(_, _) | PathToken::FieldSlice(_, _, _) => None,
         };
     }
     current
@@ -879,6 +977,45 @@ fn select_index(v: &JsonValue, idx: i64) -> JsonValue {
         }
         _ => JsonValue::Null,
     }
+}
+
+fn select_slice(v: &JsonValue, start: Option<i64>, end: Option<i64>) -> JsonValue {
+    match v {
+        JsonValue::Array(arr) => {
+            let n = arr.len() as i64;
+            let s = normalize_slice_bound(start.unwrap_or(0), n);
+            let e = normalize_slice_bound(end.unwrap_or(n), n);
+            if e <= s {
+                return JsonValue::Array(Vec::new());
+            }
+            let s_usize = s as usize;
+            let e_usize = e as usize;
+            JsonValue::Array(arr[s_usize..e_usize].to_vec())
+        }
+        JsonValue::String(s) => {
+            let chars = s.chars().collect::<Vec<_>>();
+            let n = chars.len() as i64;
+            let st = normalize_slice_bound(start.unwrap_or(0), n);
+            let en = normalize_slice_bound(end.unwrap_or(n), n);
+            if en <= st {
+                return JsonValue::String(String::new());
+            }
+            let out = chars[st as usize..en as usize].iter().collect::<String>();
+            JsonValue::String(out)
+        }
+        _ => JsonValue::Null,
+    }
+}
+
+fn normalize_slice_bound(v: i64, len: i64) -> i64 {
+    let mut out = if v < 0 { len + v } else { v };
+    if out < 0 {
+        out = 0;
+    }
+    if out > len {
+        out = len;
+    }
+    out
 }
 
 fn select_by_key(container: &JsonValue, key: &JsonValue) -> JsonValue {
@@ -1183,9 +1320,59 @@ a:
     }
 
     #[test]
+    fn run_query_supports_comma_operator() {
+        let out = run_json_query(".a, .b", r#"{"a":1,"b":2}"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(1), serde_json::json!(2)]);
+    }
+
+    #[test]
+    fn run_query_supports_alt_operator() {
+        let out = run_json_query(".a // .b", r#"{"a":null,"b":2}"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!(2)]);
+        let out_left = run_json_query(".a // .b", r#"{"a":3,"b":2}"#).expect("query");
+        assert_eq!(out_left, vec![serde_json::json!(3)]);
+    }
+
+    #[test]
+    fn run_query_supports_slice_operator() {
+        let out = run_json_query(".[1:3]", r#"[10,20,30,40]"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!([20, 30])]);
+        let out_neg = run_json_query(".[-2:]", r#"[10,20,30,40]"#).expect("query");
+        assert_eq!(out_neg, vec![serde_json::json!([30, 40])]);
+    }
+
+    #[test]
+    fn run_query_supports_field_slice_operator() {
+        let out = run_json_query(".arr[1:3]", r#"{"arr":[1,2,3,4]}"#).expect("query");
+        assert_eq!(out, vec![serde_json::json!([2, 3])]);
+    }
+
+    #[test]
+    fn run_query_supports_not_stage() {
+        let out = run_json_query(".[] | not", r#"[true,false,null,1,""]"#).expect("query");
+        assert_eq!(
+            out,
+            vec![
+                serde_json::json!(false),
+                serde_json::json!(true),
+                serde_json::json!(true),
+                serde_json::json!(false),
+                serde_json::json!(true)
+            ]
+        );
+    }
+
+    #[test]
+    fn run_query_supports_empty_stage() {
+        let out = run_json_query(".[] | empty", r#"[1,2,3]"#).expect("query");
+        assert!(out.is_empty());
+    }
+
+    #[test]
     fn scalar_path_detection() {
         assert!(is_scalar_path(&compile_dot_path(".a.b[0]").expect("path")));
         assert!(!is_scalar_path(&compile_dot_path(".a[]").expect("path")));
+        assert!(!is_scalar_path(&compile_dot_path(".a[1:3]").expect("path")));
     }
 
     #[test]
