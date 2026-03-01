@@ -762,17 +762,38 @@ const app = Vue.createApp({{
       return this.highlightJq(this.jqQuery || '');
     }},
     jqSuggestions() {{
-      const token = (this.currentJqToken() || '').toLowerCase();
-      if(!token) return this.jqCatalog.slice(0, 10);
-      return this.jqCatalog
-        .filter(x => x.label.toLowerCase().startsWith(token) || x.snippet.toLowerCase().startsWith(token))
+      const meta = this.currentJqTokenMeta();
+      const token = (meta.term || '').toLowerCase();
+      const fieldMode = meta.kind === 'field';
+      const out = [];
+      if(fieldMode) {{
+        const keyPrefix = token.includes('.') ? token.split('.').pop() : token;
+        for (const key of this.jqInputKeys) {{
+          if (!keyPrefix || key.toLowerCase().startsWith(keyPrefix)) {{
+            out.push({{
+              label: '.' + key,
+              snippet: '.' + key,
+              cursor: 0,
+              kind: 'field',
+              desc: 'Field name from current input'
+            }});
+          }}
+          if (out.length >= 20) break;
+        }}
+      }}
+      const fnSuggestions = (!fieldMode && !token ? this.jqCatalog : this.jqCatalog
+        .filter(x => x.label.toLowerCase().startsWith(token) || x.snippet.toLowerCase().startsWith(token)))
         .slice(0, 10);
+      return out.concat(fnSuggestions).slice(0, 20);
     }},
     jqActiveSuggestionHint() {{
       if(!this.jqSuggestions.length) return 'No suggestions';
       const idx = Math.min(this.jqSuggestIndex, this.jqSuggestions.length - 1);
       const s = this.jqSuggestions[idx];
       return s ? (s.label + ' — ' + s.desc) : 'No suggestions';
+    }},
+    jqInputKeys() {{
+      return this.extractInputKeys(this.jqInput || '');
     }}
   }},
   mounted() {{
@@ -980,17 +1001,37 @@ const app = Vue.createApp({{
     onJqInput() {{
       this.updateJqSuggestState();
     }},
-    currentJqToken() {{
+    currentJqTokenMeta() {{
       const ta = this.$refs.jqQueryInput;
       const src = this.jqQuery || '';
       const pos = ta && Number.isFinite(ta.selectionStart) ? ta.selectionStart : src.length;
       const left = src.slice(0, pos);
-      const m = left.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
-      return m ? m[1] : '';
+      const field = left.match(/(\.[A-Za-z0-9_.-]*)$/);
+      if (field) {{
+        return {{
+          kind: 'field',
+          raw: field[1],
+          term: field[1].slice(1),
+          start: pos - field[1].length,
+          end: pos,
+        }};
+      }}
+      const fn = left.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
+      if (fn) {{
+        return {{
+          kind: 'func',
+          raw: fn[1],
+          term: fn[1],
+          start: pos - fn[1].length,
+          end: pos,
+        }};
+      }}
+      return {{ kind: 'none', raw: '', term: '', start: pos, end: pos }};
     }},
     updateJqSuggestState() {{
-      const token = this.currentJqToken();
-      this.jqSuggestOpen = this.activeUtilityId === 'jq-playground' && (!!token || (this.jqQuery || '').trim() === '');
+      const meta = this.currentJqTokenMeta();
+      this.jqSuggestOpen = this.activeUtilityKey === 'jq-playground' &&
+        (!!meta.raw || (this.jqQuery || '').trim() === '');
       this.jqSuggestIndex = 0;
     }},
     closeJqSuggestSoon() {{
@@ -1002,11 +1043,10 @@ const app = Vue.createApp({{
       const ta = this.$refs.jqQueryInput;
       const src = this.jqQuery || '';
       const pos = ta && Number.isFinite(ta.selectionStart) ? ta.selectionStart : src.length;
-      const left = src.slice(0, pos);
-      const m = left.match(/([A-Za-z_][A-Za-z0-9_]*)$/);
-      const tokenLen = m ? m[1].length : 0;
-      const start = pos - tokenLen;
-      this.jqQuery = src.slice(0, start) + text + src.slice(pos);
+      const meta = this.currentJqTokenMeta();
+      const start = Math.max(0, meta.start || pos);
+      const end = Math.max(start, meta.end || pos);
+      this.jqQuery = src.slice(0, start) + text + src.slice(end);
       const base = start + text.length;
       const nextPos = Math.max(0, base + (cursorFromEnd || 0));
       this.$nextTick(() => {{
@@ -1016,6 +1056,26 @@ const app = Vue.createApp({{
         area.setSelectionRange(nextPos, nextPos);
         this.syncJqScroll();
       }});
+    }},
+    extractInputKeys(src) {{
+      const map = Object.create(null);
+      const add = (k) => {{
+        if(!k) return;
+        const s = String(k).trim();
+        if(!s) return;
+        map[s] = true;
+      }};
+      const yamlLines = src.split(/\r?\n/);
+      for (const line of yamlLines) {{
+        const m = line.match(/^\s*([A-Za-z0-9_.-]+)\s*:/);
+        if (m) add(m[1]);
+      }}
+      const jsonKey = /"([^"\\]+)"\s*:/g;
+      let m = null;
+      while ((m = jsonKey.exec(src)) !== null) {{
+        add(m[1]);
+      }}
+      return Object.keys(map).sort((a,b) => a.localeCompare(b)).slice(0, 300);
     }},
     pickJqSuggestion(idx) {{
       if(!this.jqSuggestions.length) return;
