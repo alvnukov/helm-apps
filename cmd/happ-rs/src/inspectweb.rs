@@ -106,7 +106,11 @@ fn handle_connection(
         let mode = payload.get("mode").and_then(|v| v.as_str()).unwrap_or_default();
         let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
         let doc_mode = payload.get("docMode").and_then(|v| v.as_str()).unwrap_or("all");
-        let (ok, output) = match convert_payload(mode, input, doc_mode) {
+        let doc_index = payload
+            .get("docIndex")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize);
+        let (ok, output) = match convert_payload(mode, input, doc_mode, doc_index) {
             Ok(v) => (true, v),
             Err(e) => (false, e),
         };
@@ -167,7 +171,7 @@ fn http_body(req: &str) -> &str {
     req.split_once("\r\n\r\n").map(|(_, b)| b).unwrap_or("")
 }
 
-fn convert_payload(mode: &str, input: &str, doc_mode: &str) -> Result<String, String> {
+fn convert_payload(mode: &str, input: &str, doc_mode: &str, doc_index: Option<usize>) -> Result<String, String> {
     match mode {
         "yaml-to-json" => {
             let docs = crate::yamlmerge::normalize_documents(input)
@@ -182,6 +186,17 @@ fn convert_payload(mode: &str, input: &str, doc_mode: &str) -> Result<String, St
                 "first" => {
                     let first = json_docs.into_iter().next().unwrap_or(serde_json::Value::Null);
                     serde_json::to_string_pretty(&first).map_err(|e| format!("JSON format error: {e}"))
+                }
+                "index" => {
+                    let idx = doc_index.ok_or_else(|| "doc index is required for doc mode 'index'".to_string())?;
+                    if idx >= json_docs.len() {
+                        return Err(format!(
+                            "doc index {} is out of range for {} document(s)",
+                            idx,
+                            json_docs.len()
+                        ));
+                    }
+                    serde_json::to_string_pretty(&json_docs[idx]).map_err(|e| format!("JSON format error: {e}"))
                 }
                 other => Err(format!("unsupported doc mode: {other}")),
             }
@@ -379,7 +394,15 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <select v-model='converterDocMode' :disabled='converterMode !== \"yaml-to-json\"'>
         <option value='all'>YAML docs: all</option>
         <option value='first'>YAML docs: first</option>
+        <option value='index'>YAML docs: index</option>
       </select>
+      <input v-if='converterMode === \"yaml-to-json\" && converterDocMode === \"index\"'
+             v-model.number='converterDocIndex'
+             type='number'
+             min='0'
+             step='1'
+             style='width:140px;'
+             placeholder='doc index' />
       <button class='secondary' @click='copyConverterOutput'>Copy output</button>
       <div class='muted'>Live conversion is enabled</div>
     </div>
@@ -398,7 +421,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 </div>
 <script>
 window.__HAPP_MODEL__ = {};
-const APP_STORE_KEY = 'happ.inspect.ui.v4';
+const APP_STORE_KEY = 'happ.inspect.ui.v5';
 const app = Vue.createApp({{
   data() {{
     const model = window.__HAPP_MODEL__ || {{ title: 'happ', utilities: [] }};
@@ -413,6 +436,7 @@ const app = Vue.createApp({{
       collapsedTitles: {{}},
       converterMode: 'yaml-to-json',
       converterDocMode: 'all',
+      converterDocIndex: 0,
       converterInput: '',
       converterOutput: '',
       converterError: '',
@@ -452,6 +476,7 @@ const app = Vue.createApp({{
         if(s.activeUtilityId) this.activeUtilityId = s.activeUtilityId;
         if(s.converterMode) this.converterMode = s.converterMode;
         if(s.converterDocMode) this.converterDocMode = s.converterDocMode;
+        this.converterDocIndex = Number.isFinite(s.converterDocIndex) ? Number(s.converterDocIndex) : 0;
         this.converterInput = s.converterInput || '';
       }}
     }} catch(_) {{}}
@@ -470,6 +495,10 @@ const app = Vue.createApp({{
       this.saveSettings();
       this.scheduleConvert();
     }},
+    converterDocIndex() {{
+      this.saveSettings();
+      this.scheduleConvert();
+    }},
     converterInput() {{
       this.saveSettings();
       this.scheduleConvert();
@@ -485,6 +514,7 @@ const app = Vue.createApp({{
           activeUtilityId: this.activeUtilityId,
           converterMode: this.converterMode,
           converterDocMode: this.converterDocMode,
+          converterDocIndex: this.converterDocIndex,
           converterInput: this.converterInput
         }}));
       }} catch(_) {{}}
@@ -545,6 +575,7 @@ const app = Vue.createApp({{
           body: JSON.stringify({{
             mode: this.converterMode,
             docMode: this.converterDocMode,
+            docIndex: this.converterDocMode === 'index' ? Number(this.converterDocIndex) : undefined,
             input: payload
           }})
         }});
@@ -659,9 +690,9 @@ mod tests {
 
     #[test]
     fn convert_payload_yaml_to_json_and_back() {
-        let j = convert_payload("yaml-to-json", "a: 1\nb:\n  - x\n", "all").expect("yaml->json");
+        let j = convert_payload("yaml-to-json", "a: 1\nb:\n  - x\n", "all", None).expect("yaml->json");
         assert!(j.contains("\"a\": 1"));
-        let y = convert_payload("json-to-yaml", r#"{"a":1,"b":["x"]}"#, "all").expect("json->yaml");
+        let y = convert_payload("json-to-yaml", r#"{"a":1,"b":["x"]}"#, "all", None).expect("json->yaml");
         assert!(y.contains("a: 1"));
         assert!(y.contains("- x"));
     }
@@ -675,7 +706,7 @@ obj:
   <<: { foo: 123, bar: 456 }
   baz: 999
 "#;
-        let j = convert_payload("yaml-to-json", input, "all").expect("yaml->json");
+        let j = convert_payload("yaml-to-json", input, "all", None).expect("yaml->json");
         assert!(j.contains("\"foo\": 123"));
         assert!(j.contains("\"bar\": 456"));
         assert!(j.contains("\"baz\": 999"));
@@ -692,7 +723,7 @@ folded: >-
   a
   b
 "#;
-        let j = convert_payload("yaml-to-json", src, "all").expect("yaml->json");
+        let j = convert_payload("yaml-to-json", src, "all", None).expect("yaml->json");
         let v: serde_json::Value = serde_json::from_str(&j).expect("json");
         assert_eq!(v[0]["literal"], "line1\nline2");
         assert_eq!(v[0]["folded"], "a b");
@@ -711,8 +742,8 @@ text: |-
   hello
   world
 "#;
-        let as_json = convert_payload("yaml-to-json", src, "first").expect("yaml->json");
-        let back_yaml = convert_payload("json-to-yaml", &as_json, "all").expect("json->yaml");
+        let as_json = convert_payload("yaml-to-json", src, "first", None).expect("yaml->json");
+        let back_yaml = convert_payload("json-to-yaml", &as_json, "all", None).expect("json->yaml");
 
         let left: serde_yaml::Value = serde_yaml::from_str(src).expect("src yaml");
         let right: serde_yaml::Value = serde_yaml::from_str(&back_yaml).expect("roundtrip yaml");
@@ -724,31 +755,53 @@ text: |-
     #[test]
     fn convert_payload_rejects_multi_document_yaml() {
         let src = "a: 1\n---\na: 2\n";
-        let all = convert_payload("yaml-to-json", src, "all").expect("ok");
+        let all = convert_payload("yaml-to-json", src, "all", None).expect("ok");
         let v: serde_json::Value = serde_json::from_str(&all).expect("json");
         assert_eq!(v.as_array().map(|x| x.len()), Some(2));
-        let first = convert_payload("yaml-to-json", src, "first").expect("ok");
+        let first = convert_payload("yaml-to-json", src, "first", None).expect("ok");
         let one: serde_json::Value = serde_json::from_str(&first).expect("json");
         assert_eq!(one["a"], 1);
     }
 
     #[test]
+    fn convert_payload_supports_index_doc_mode() {
+        let src = "a: 1\n---\na: 2\n---\na: 3\n";
+        let at_1 = convert_payload("yaml-to-json", src, "index", Some(1)).expect("ok");
+        let one: serde_json::Value = serde_json::from_str(&at_1).expect("json");
+        assert_eq!(one["a"], 2);
+    }
+
+    #[test]
+    fn convert_payload_rejects_missing_index_for_index_doc_mode() {
+        let src = "a: 1\n---\na: 2\n";
+        let err = convert_payload("yaml-to-json", src, "index", None).expect_err("error");
+        assert!(err.contains("doc index is required"));
+    }
+
+    #[test]
+    fn convert_payload_rejects_out_of_range_index_doc_mode() {
+        let src = "a: 1\n---\na: 2\n";
+        let err = convert_payload("yaml-to-json", src, "index", Some(5)).expect_err("error");
+        assert!(err.contains("out of range"));
+    }
+
+    #[test]
     fn convert_payload_rejects_duplicate_keys_yaml() {
         let src = "a: 1\na: 2\n";
-        let err = convert_payload("yaml-to-json", src, "all").expect_err("error");
+        let err = convert_payload("yaml-to-json", src, "all", None).expect_err("error");
         assert!(err.contains("YAML parse error"));
         assert!(err.to_lowercase().contains("duplicate"));
     }
 
     #[test]
     fn convert_payload_rejects_bad_mode() {
-        let err = convert_payload("bad", "a: 1", "all").expect_err("error");
+        let err = convert_payload("bad", "a: 1", "all", None).expect_err("error");
         assert!(err.contains("unsupported mode"));
     }
 
     #[test]
     fn convert_payload_rejects_bad_doc_mode() {
-        let err = convert_payload("yaml-to-json", "a: 1\n", "weird").expect_err("error");
+        let err = convert_payload("yaml-to-json", "a: 1\n", "weird", None).expect_err("error");
         assert!(err.contains("unsupported doc mode"));
     }
 }
