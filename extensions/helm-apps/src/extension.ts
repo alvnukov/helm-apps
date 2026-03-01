@@ -246,7 +246,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const def = await provideIncludeDefinition(editor.document, editor.selection.active);
       if (!def) {
-        void vscode.window.showWarningMessage("No include definition found under cursor");
+        void vscode.window.showWarningMessage(t("No include definition found under cursor", "Под курсором не найдено определение include"));
         return;
       }
       const location = Array.isArray(def) ? def[0] : def;
@@ -277,7 +277,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       if (!(await isHelmAppsValuesDocument(editor.document))) {
-        void vscode.window.showWarningMessage("Open helm-apps values.yaml to view dependency graph.");
+        void vscode.window.showWarningMessage(t("Open helm-apps values.yaml to view dependency graph.", "Откройте helm-apps values.yaml для просмотра графа зависимостей."));
         return;
       }
       await openDependencyGraphPanel(editor.document.getText());
@@ -319,7 +319,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const text = editor.document.getText();
       const scope = findAppScopeAtLine(text, editor.selection.active.line);
       if (!scope) {
-        void vscode.window.showWarningMessage("Place cursor inside <group>.<app> block");
+        void vscode.window.showWarningMessage(t("Place cursor inside <group>.<app> block", "Установите курсор внутри блока <group>.<app>"));
         return;
       }
 
@@ -404,7 +404,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       if (!(await isHelmAppsValuesDocument(editor.document))) {
-        void vscode.window.showWarningMessage("Open helm-apps values.yaml to edit library settings.");
+        void vscode.window.showWarningMessage(t("Open helm-apps values.yaml to edit library settings.", "Откройте helm-apps values.yaml для редактирования настроек библиотеки."));
         return;
       }
       await openLibrarySettingsPanel(editor);
@@ -417,7 +417,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
       if (!(await isHelmAppsValuesDocument(editor.document))) {
-        void vscode.window.showWarningMessage("Open helm-apps values.yaml to generate settings help.");
+        void vscode.window.showWarningMessage(t("Open helm-apps values.yaml to generate settings help.", "Откройте helm-apps values.yaml для генерации help по настройкам."));
         return;
       }
       const ru = vscode.env.language.toLowerCase().startsWith("ru");
@@ -3265,14 +3265,17 @@ async function refreshDiagnostics(document: vscode.TextDocument | undefined): Pr
     const range = new vscode.Range(new vscode.Position(0, 0), new vscode.Position(0, 1));
     const diag = new vscode.Diagnostic(
       range,
-      "Diagnostics paused for large file (>512KB). Reduce file size or split values for full checks.",
+      t(
+        "Diagnostics paused for large file (>512KB). Reduce file size or split values for full checks.",
+        "Диагностика приостановлена для большого файла (>512KB). Уменьшите размер файла или разделите values для полной проверки.",
+      ),
       vscode.DiagnosticSeverity.Information,
     );
     diag.source = "helm-apps";
     semanticDiagnostics.set(document.uri, [diag]);
     if (!largeDocWarnings.has(document.uri.toString())) {
       largeDocWarnings.add(document.uri.toString());
-      void vscode.window.showWarningMessage("helm-apps: diagnostics paused for large file (>512KB).");
+      void vscode.window.showWarningMessage(t("helm-apps: diagnostics paused for large file (>512KB).", "helm-apps: диагностика приостановлена для большого файла (>512KB)."));
     }
     return;
   }
