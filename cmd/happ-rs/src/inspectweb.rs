@@ -517,9 +517,11 @@ button.tab.active {{ background:#0f172a; box-shadow:inset 0 0 0 1px #64748b; }}
 input[type='text'] {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; }}
 select {{ border:1px solid #cbd5e1; border-radius:8px; padding:7px 10px; min-width:220px; background:#fff; color:#0f172a; }}
 textarea {{ border:1px solid #cbd5e1; border-radius:12px; padding:10px; min-height:240px; width:100%; font-family: ui-monospace, Menlo, monospace; font-size:14px; line-height:1.45; box-sizing:border-box; background:#fff; }}
+textarea {{ resize:vertical; max-height:720px; }}
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; }}
 .tabs {{ display:flex; flex-wrap:wrap; gap:8px; margin:0 0 12px 0; }}
 .util-head {{ margin:0 0 12px 0; }}
+.workspace {{ display:flex; flex-direction:column; gap:12px; }}
 .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:12px; }}
 .card {{ border:1px solid #d0dae8; border-radius:14px; padding:12px; background:#ffffffd9; box-shadow:0 8px 30px rgba(15,23,42,0.06); }}
 .cardhead {{ display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px; }}
@@ -531,6 +533,8 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .conv-grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(420px,1fr)); gap:12px; }}
 .converter-controls {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:10px; }}
 .converter-controls .muted {{ margin-left:auto; }}
+.result-meta {{ margin-top:8px; font-size:12px; color:#64748b; display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }}
+.panel-label {{ margin-bottom:6px; font-size:13px; color:#334155; font-weight:600; }}
 .jq-query-editor {{ position:relative; }}
 .jq-query-highlight {{
   position:absolute; inset:0;
@@ -622,10 +626,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
  .jq-suggest-label {{ color:#dbe7ff; }}
  .jq-suggest-desc {{ color:#9fb0ca; }}
  .jq-suggest-hint {{ border-color:#334155; background:#0b1220; color:#c7d6ef; }}
+ .result-meta {{ color:#93a6c7; }}
+ .panel-label {{ color:#c7d6ef; }}
  .chip {{ border-color:#334155; background:#1e293b; color:#dbe7ff; }}
  .chip:hover {{ background:#334155; }}
  .muted {{ color:#9fb0ca; }}
  .err {{ color:#fca5a5; }}
+}}
+@media (max-width: 960px) {{
+  .title {{ font-size:34px; }}
+  .toolbar {{ width:100%; justify-content:flex-start; }}
+  .conv-grid {{ grid-template-columns:1fr; }}
 }}
 </style>
 <script src='/assets/vue.global.prod.js'></script>
@@ -633,6 +644,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 </head>
 <body>
 <div id='app'>
+  <div class='workspace'>
   <div class='top'>
     <h2 class='title'>{{{{ model.title }}}}</h2>
     <div class='toolbar'>
@@ -679,6 +691,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <div class='cardbtns'>
         <button class='secondary' @click='swapConvertMode'>Swap</button>
         <button class='secondary' @click='clearConverter'>Clear</button>
+        <button class='secondary' @click='loadSampleConverter'>Sample</button>
       </div>
     </div>
     <div class='converter-controls'>
@@ -703,13 +716,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='conv-grid'>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>Input</div>
+        <div class='panel-label'>Input</div>
         <textarea v-model='converterInput' spellcheck='false'></textarea>
       </div>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>Output</div>
+        <div class='panel-label'>Output</div>
         <textarea :value='converterOutput' readonly spellcheck='false'></textarea>
       </div>
+    </div>
+    <div class='result-meta'>
+      <span>mode: {{{{ converterMode }}}}, docs: {{{{ converterDocMode }}}}</span>
+      <span>output chars: {{{{ (converterOutput || '').length }}}}</span>
     </div>
     <div class='err' v-if='converterError' style='margin-top:8px;'>{{{{ converterError }}}}</div>
   </div>
@@ -720,6 +737,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <div class='cardbtns'>
         <button class='secondary' @click='runJq'>Run</button>
         <button class='secondary' @click='clearJq'>Clear</button>
+        <button class='secondary' @click='loadSampleJq'>Sample</button>
       </div>
     </div>
     <div class='converter-controls'>
@@ -777,13 +795,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='conv-grid'>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>Input (JSON or YAML)</div>
+        <div class='panel-label'>Input (JSON or YAML)</div>
         <textarea v-model='jqInput' spellcheck='false'></textarea>
       </div>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>Output</div>
+        <div class='panel-label'>Output</div>
         <textarea :value='jqOutput' readonly spellcheck='false'></textarea>
       </div>
+    </div>
+    <div class='result-meta'>
+      <span>results: {{{{ jqResultCount }}}}, chars: {{{{ (jqOutput || '').length }}}}</span>
+      <span>compact: {{{{ jqCompact ? "on" : "off" }}}}, raw: {{{{ jqRawOutput ? "on" : "off" }}}}</span>
     </div>
     <div class='err' v-if='jqError' style='margin-top:8px;'>{{{{ jqError }}}}</div>
   </div>
@@ -794,6 +816,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <div class='cardbtns'>
         <button class='secondary' @click='runYq'>Run</button>
         <button class='secondary' @click='clearYq'>Clear</button>
+        <button class='secondary' @click='loadSampleYq'>Sample</button>
       </div>
     </div>
     <div class='converter-controls'>
@@ -823,13 +846,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='conv-grid'>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>Input (YAML or JSON)</div>
+        <div class='panel-label'>Input (YAML or JSON)</div>
         <textarea v-model='yqInput' spellcheck='false'></textarea>
       </div>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>Output</div>
+        <div class='panel-label'>Output</div>
         <textarea :value='yqOutput' readonly spellcheck='false'></textarea>
       </div>
+    </div>
+    <div class='result-meta'>
+      <span>results: {{{{ yqResultCount }}}}, chars: {{{{ (yqOutput || '').length }}}}</span>
+      <span>compact: {{{{ yqCompact ? "on" : "off" }}}}, raw: {{{{ yqRawOutput ? "on" : "off" }}}}</span>
     </div>
     <div class='err' v-if='yqError' style='margin-top:8px;'>{{{{ yqError }}}}</div>
   </div>
@@ -840,6 +867,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <div class='cardbtns'>
         <button class='secondary' @click='runDyff'>Run compare</button>
         <button class='secondary' @click='clearDyff'>Clear</button>
+        <button class='secondary' @click='loadSampleDyff'>Sample</button>
       </div>
     </div>
     <div class='converter-controls'>
@@ -850,21 +878,27 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div class='conv-grid'>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>From YAML</div>
+        <div class='panel-label'>From YAML</div>
         <textarea v-model='dyffFrom' spellcheck='false'></textarea>
       </div>
       <div>
-        <div class='muted' style='margin-bottom:6px;'>To YAML</div>
+        <div class='panel-label'>To YAML</div>
         <textarea v-model='dyffTo' spellcheck='false'></textarea>
       </div>
     </div>
     <div style='margin-top:10px;'>
-      <div class='muted' style='margin-bottom:6px;'>Diff result</div>
+      <div class='panel-label'>Diff result</div>
       <textarea :value='dyffOutput' readonly spellcheck='false'></textarea>
+    </div>
+    <div class='result-meta'>
+      <span>changed lines: {{{{ dyffChangedCount }}}}</span>
+      <span>ignore order: {{{{ dyffIgnoreOrder ? "on" : "off" }}}}</span>
+      <span>ignore whitespace: {{{{ dyffIgnoreWhitespace ? "on" : "off" }}}}</span>
     </div>
     <div class='err' v-if='dyffError' style='margin-top:8px;'>{{{{ dyffError }}}}</div>
   </div>
 </div>
+  </div>
 <script>
 (() => {{
   const raw = document.getElementById('happ-model')?.textContent || '{{}}';
@@ -1028,6 +1062,21 @@ const app = Vue.createApp({{
     }},
     jqInputKeys() {{
       return this.extractInputKeys(this.jqInput || '');
+    }},
+    jqResultCount() {{
+      const t = (this.jqOutput || '').trim();
+      if(!t) return 0;
+      return t.split(/\n+/).filter(Boolean).length;
+    }},
+    yqResultCount() {{
+      const t = (this.yqOutput || '').trim();
+      if(!t) return 0;
+      return t.split(/\n+/).filter(Boolean).length;
+    }},
+    dyffChangedCount() {{
+      const t = this.dyffOutput || '';
+      if(!t) return 0;
+      return t.split('\n').filter(l => /^changed: |^added: |^removed: /.test(l)).length;
     }}
   }},
   mounted() {{
@@ -1290,6 +1339,11 @@ const app = Vue.createApp({{
       this.converterOutput = '';
       this.converterError = '';
     }},
+    loadSampleConverter() {{
+      this.converterMode = 'yaml-to-json';
+      this.converterDocMode = 'all';
+      this.converterInput = "global:\n  env: dev\napps-stateless:\n  app-1:\n    enabled: true\n";
+    }},
     async copyConverterOutput() {{
       if(!this.converterOutput) return;
       try {{ await navigator.clipboard.writeText(this.converterOutput); }} catch(_) {{}}
@@ -1545,6 +1599,10 @@ const app = Vue.createApp({{
       this.yqError = '';
       this.yqQuery = '.';
     }},
+    loadSampleYq() {{
+      this.yqQuery = '.apps[] | select(.enabled == true) | .name';
+      this.yqInput = "apps:\n  - name: api\n    enabled: true\n  - name: worker\n    enabled: false\n  - name: web\n    enabled: true\n";
+    }},
     async copyYqOutput() {{
       if(!this.yqOutput) return;
       try {{ await navigator.clipboard.writeText(this.yqOutput); }} catch(_) {{}}
@@ -1606,6 +1664,10 @@ const app = Vue.createApp({{
       this.dyffOutput = '';
       this.dyffError = '';
     }},
+    loadSampleDyff() {{
+      this.dyffFrom = "apiVersion: v1\nkind: Service\nmetadata:\n  name: app\nspec:\n  ports:\n    - port: 80\n";
+      this.dyffTo = "apiVersion: v1\nkind: Service\nmetadata:\n  name: app\nspec:\n  ports:\n    - port: 8080\n";
+    }},
     async copyDyffOutput() {{
       if(!this.dyffOutput) return;
       try {{ await navigator.clipboard.writeText(this.dyffOutput); }} catch(_) {{}}
@@ -1624,6 +1686,10 @@ const app = Vue.createApp({{
       this.jqError = '';
       this.jqQuery = '.';
       this.jqSuggestOpen = false;
+    }},
+    loadSampleJq() {{
+      this.jqQuery = '.apps[] | select(.enabled == true) | .name';
+      this.jqInput = "apps:\n  - name: api\n    enabled: true\n  - name: worker\n    enabled: false\n  - name: web\n    enabled: true\n";
     }},
     async copyJqOutput() {{
       if(!this.jqOutput) return;
