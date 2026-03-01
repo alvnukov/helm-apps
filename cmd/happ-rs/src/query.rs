@@ -1912,6 +1912,20 @@ svc:
     }
 
     #[test]
+    fn yq_yaml_merge_sequence_preserves_first_source_priority() {
+        let input = r#"
+base1: &base1
+  x: first
+base2: &base2
+  x: second
+svc:
+  <<: [*base1, *base2]
+"#;
+        let out = run_yaml_query(".svc.x", input).expect("query");
+        assert_eq!(out, vec![serde_json::json!("first")]);
+    }
+
+    #[test]
     fn jq_yaml_fallback_resolves_yaml_merge_key() {
         let input = r#"
 base: &base
@@ -1921,6 +1935,16 @@ svc:
 "#;
         let out = run_json_query(".svc.name", input).expect("query");
         assert_eq!(out, vec![serde_json::json!("app")]);
+    }
+
+    #[test]
+    fn yaml_cycle_anchor_returns_yaml_error() {
+        let input = r#"
+a: &a
+  self: *a
+"#;
+        let err = run_yaml_query(".", input).expect_err("cycle must fail");
+        assert!(matches!(err, Error::Yaml(_)));
     }
 
     #[test]
