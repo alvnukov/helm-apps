@@ -1,14 +1,20 @@
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 const VUE_GLOBAL_PROD_JS: &str = include_str!("../assets/vue.global.prod.js");
+const CODEMIRROR_BUNDLE_JS: &str = include_str!("../assets/codemirror.bundle.js");
 const MAX_HTTP_REQUEST_BYTES: usize = 64 * 1024 * 1024;
 
-pub fn serve(addr: &str, open_browser: bool, source_yaml: String, generated_values_yaml: String) -> Result<(), String> {
+pub fn serve(
+    addr: &str,
+    open_browser: bool,
+    source_yaml: String,
+    generated_values_yaml: String,
+) -> Result<(), String> {
     serve_with_renderer(
         addr,
         open_browser,
@@ -18,12 +24,7 @@ pub fn serve(addr: &str, open_browser: bool, source_yaml: String, generated_valu
 }
 
 pub fn serve_tools(addr: &str, open_browser: bool) -> Result<(), String> {
-    serve_with_renderer(
-        addr,
-        open_browser,
-        Box::new(render_tools_page_html),
-        None,
-    )
+    serve_with_renderer(addr, open_browser, Box::new(render_tools_page_html), None)
 }
 
 pub fn serve_compose(
@@ -39,7 +40,13 @@ pub fn serve_compose(
     serve_with_renderer(
         addr,
         open_browser,
-        Box::new(move || render_compose_page_html(&source_compose_yaml, &compose_report_yaml, &generated_values_yaml)),
+        Box::new(move || {
+            render_compose_page_html(
+                &source_compose_yaml,
+                &compose_report_yaml,
+                &generated_values_yaml,
+            )
+        }),
         Some(Box::new(move || {
             serde_json::json!({
                 "source_compose": source_for_api,
@@ -72,7 +79,12 @@ fn serve_with_renderer(
         };
         let _ = stream.set_read_timeout(Some(Duration::from_millis(220)));
         let _ = stream.set_write_timeout(Some(Duration::from_secs(5)));
-        if let Err(e) = handle_connection(&mut stream, &running, &html_renderer, json_renderer.as_ref().map(|f| f.as_ref())) {
+        if let Err(e) = handle_connection(
+            &mut stream,
+            &running,
+            &html_renderer,
+            json_renderer.as_ref().map(|f| f.as_ref()),
+        ) {
             if e == "read timeout" || e == "request closed before headers" {
                 continue;
             }
@@ -93,30 +105,61 @@ fn handle_connection(
     let mut parts = first.split_whitespace();
     let method = parts.next().unwrap_or("GET");
     let path = parts.next().unwrap_or("/");
+    let route_path = path.split('?').next().unwrap_or(path);
     let body = http_body(&req);
 
-    if path == "/exit" {
+    if route_path == "/exit" {
         running.store(false, Ordering::SeqCst);
-        return write_response(stream, 200, "text/plain; charset=utf-8", b"shutting down").map_err(|e| e.to_string());
+        return write_response(stream, 200, "text/plain; charset=utf-8", b"shutting down")
+            .map_err(|e| e.to_string());
     }
 
-    if path == "/api/model" {
+    if route_path == "/api/model" {
         let body = match json_renderer {
             Some(render_json) => render_json(),
             None => serde_json::json!({}).to_string(),
         };
-        return write_response(stream, 200, "application/json; charset=utf-8", body.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            body.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/assets/vue.global.prod.js" {
-        return write_response(stream, 200, "application/javascript; charset=utf-8", VUE_GLOBAL_PROD_JS.as_bytes())
-            .map_err(|e| e.to_string());
+    if route_path == "/assets/vue.global.prod.js" {
+        return write_response(
+            stream,
+            200,
+            "application/javascript; charset=utf-8",
+            VUE_GLOBAL_PROD_JS.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/convert" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
-        let mode = payload.get("mode").and_then(|v| v.as_str()).unwrap_or_default();
-        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
-        let doc_mode = payload.get("docMode").and_then(|v| v.as_str()).unwrap_or("all");
+    if route_path == "/assets/codemirror.bundle.js" {
+        return write_response(
+            stream,
+            200,
+            "application/javascript; charset=utf-8",
+            CODEMIRROR_BUNDLE_JS.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
+    }
+    if route_path == "/api/convert" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let mode = payload
+            .get("mode")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let input = payload
+            .get("input")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let doc_mode = payload
+            .get("docMode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("all");
         let doc_index = payload
             .get("docIndex")
             .and_then(|v| v.as_u64())
@@ -126,65 +169,133 @@ fn handle_connection(
             Err(e) => (false, e),
         };
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/jq" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
+    if route_path == "/api/jq" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
         let query = payload.get("query").and_then(|v| v.as_str()).unwrap_or(".");
-        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
-        let doc_mode = payload.get("docMode").and_then(|v| v.as_str()).unwrap_or("first");
+        let input = payload
+            .get("input")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let doc_mode = payload
+            .get("docMode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("first");
         let doc_index = payload
             .get("docIndex")
             .and_then(|v| v.as_u64())
             .map(|x| x as usize);
-        let compact = payload.get("compact").and_then(|v| v.as_bool()).unwrap_or(false);
-        let raw_output = payload.get("rawOutput").and_then(|v| v.as_bool()).unwrap_or(false);
-        let (ok, output) = match jq_payload(query, input, doc_mode, doc_index, compact, raw_output) {
+        let compact = payload
+            .get("compact")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let raw_output = payload
+            .get("rawOutput")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let (ok, output) = match jq_payload(query, input, doc_mode, doc_index, compact, raw_output)
+        {
             Ok(v) => (true, v),
             Err(e) => (false, e),
         };
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/yq" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
+    if route_path == "/api/yq" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
         let query = payload.get("query").and_then(|v| v.as_str()).unwrap_or(".");
-        let input = payload.get("input").and_then(|v| v.as_str()).unwrap_or_default();
-        let doc_mode = payload.get("docMode").and_then(|v| v.as_str()).unwrap_or("first");
+        let input = payload
+            .get("input")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let doc_mode = payload
+            .get("docMode")
+            .and_then(|v| v.as_str())
+            .unwrap_or("first");
         let doc_index = payload
             .get("docIndex")
             .and_then(|v| v.as_u64())
             .map(|x| x as usize);
-        let compact = payload.get("compact").and_then(|v| v.as_bool()).unwrap_or(false);
-        let raw_output = payload.get("rawOutput").and_then(|v| v.as_bool()).unwrap_or(false);
-        let (ok, output) = match yq_payload(query, input, doc_mode, doc_index, compact, raw_output) {
+        let compact = payload
+            .get("compact")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let raw_output = payload
+            .get("rawOutput")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let (ok, output) = match yq_payload(query, input, doc_mode, doc_index, compact, raw_output)
+        {
             Ok(v) => (true, v),
             Err(e) => (false, e),
         };
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/dyff" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
-        let from = payload.get("from").and_then(|v| v.as_str()).unwrap_or_default();
-        let to = payload.get("to").and_then(|v| v.as_str()).unwrap_or_default();
-        let ignore_order = payload.get("ignoreOrder").and_then(|v| v.as_bool()).unwrap_or(false);
-        let ignore_whitespace = payload.get("ignoreWhitespace").and_then(|v| v.as_bool()).unwrap_or(false);
+    if route_path == "/api/dyff" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let from = payload
+            .get("from")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let to = payload
+            .get("to")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let ignore_order = payload
+            .get("ignoreOrder")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let ignore_whitespace = payload
+            .get("ignoreWhitespace")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
         let (ok, output) = match dyff_payload(from, to, ignore_order, ignore_whitespace) {
             Ok(v) => (true, v),
             Err(e) => (false, e),
         };
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/import" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
-        let source_type = payload.get("sourceType").and_then(|v| v.as_str()).unwrap_or("chart");
-        let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or_default();
+    if route_path == "/api/import" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source_type = payload
+            .get("sourceType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("chart");
+        let path = payload
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
         let env = payload.get("env").and_then(|v| v.as_str()).unwrap_or("dev");
         let group_name = payload
             .get("groupName")
@@ -267,11 +378,144 @@ fn handle_connection(
             "sourceCount": source_count,
         })
         .to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/save-chart" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
+    if route_path == "/api/compare-renders" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source_type = payload
+            .get("sourceType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("chart");
+        let path = payload
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let env = payload.get("env").and_then(|v| v.as_str()).unwrap_or("dev");
+        let group_name = payload
+            .get("groupName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("apps-k8s-manifests");
+        let group_type = payload
+            .get("groupType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("apps-k8s-manifests");
+        let import_strategy = payload
+            .get("importStrategy")
+            .and_then(|v| v.as_str())
+            .unwrap_or("helpers");
+        let release_name = payload
+            .get("releaseName")
+            .and_then(|v| v.as_str())
+            .unwrap_or("imported");
+        let namespace = payload
+            .get("namespace")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let min_include_bytes = payload
+            .get("minIncludeBytes")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize)
+            .unwrap_or(24);
+        let include_status = payload
+            .get("includeStatus")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let values_files = payload_string_list(&payload, "valuesFiles");
+        let set_values = payload_string_list(&payload, "setValues");
+        let set_string_values = payload_string_list(&payload, "setStringValues");
+        let set_file_values = payload_string_list(&payload, "setFileValues");
+        let set_json_values = payload_string_list(&payload, "setJsonValues");
+        let api_versions = payload_string_list(&payload, "apiVersions");
+        let kube_version = payload
+            .get("kubeVersion")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let include_crds = payload
+            .get("includeCrds")
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+        let chart_values_yaml = payload
+            .get("chartValuesYaml")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+        let generated_values_yaml = payload
+            .get("valuesYaml")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let library_chart_path = payload
+            .get("libraryChartPath")
+            .and_then(|v| v.as_str())
+            .map(str::to_string)
+            .filter(|x| !x.trim().is_empty());
+
+        let (ok, equal, summary, message, source_count, generated_count) =
+            match compare_render_payload(
+                source_type,
+                path,
+                env,
+                group_name,
+                group_type,
+                import_strategy,
+                release_name,
+                namespace,
+                min_include_bytes,
+                include_status,
+                values_files,
+                set_values,
+                set_string_values,
+                set_file_values,
+                set_json_values,
+                kube_version,
+                api_versions,
+                include_crds,
+                chart_values_yaml,
+                generated_values_yaml,
+                library_chart_path.as_deref(),
+            ) {
+                Ok((eq, sum, src_cnt, gen_cnt)) => (
+                    true,
+                    eq,
+                    sum.clone(),
+                    if eq {
+                        format!("Render compare OK: {sum}")
+                    } else {
+                        format!("Render compare mismatch: {sum}")
+                    },
+                    src_cnt,
+                    gen_cnt,
+                ),
+                Err(e) => (false, false, String::new(), e, 0usize, 0usize),
+            };
+        let resp = serde_json::json!({
+            "ok": ok,
+            "equal": equal,
+            "summary": summary,
+            "message": message,
+            "sourceCount": source_count,
+            "generatedCount": generated_count,
+        })
+        .to_string();
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
+    }
+    if route_path == "/api/save-chart" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
         let source_type = payload
             .get("sourceType")
             .and_then(|v| v.as_str())
@@ -315,12 +559,21 @@ fn handle_connection(
             "message": message,
         })
         .to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/chart-values" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
-        let chart_path = payload.get("path").and_then(|v| v.as_str()).unwrap_or_default();
+    if route_path == "/api/chart-values" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let chart_path = payload
+            .get("path")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
         let (ok, values_yaml, message) = match load_chart_values_from_path(chart_path) {
             Ok(v) => (true, v, String::new()),
             Err(e) => (false, String::new(), e),
@@ -331,12 +584,21 @@ fn handle_connection(
             "message": message
         })
         .to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/import-upload" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
-        let source_type = payload.get("sourceType").and_then(|v| v.as_str()).unwrap_or("chart");
+    if route_path == "/api/import-upload" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source_type = payload
+            .get("sourceType")
+            .and_then(|v| v.as_str())
+            .unwrap_or("chart");
         let env = payload.get("env").and_then(|v| v.as_str()).unwrap_or("dev");
         let group_name = payload
             .get("groupName")
@@ -435,11 +697,17 @@ fn handle_connection(
             "sourceCount": source_count,
         })
         .to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
-    if path == "/api/fs-list" && method == "POST" {
-        let payload: serde_json::Value = serde_json::from_str(body)
-            .map_err(|e| format!("invalid JSON request: {e}"))?;
+    if route_path == "/api/fs-list" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
         let path = payload.get("path").and_then(|v| v.as_str()).unwrap_or("");
         let (ok, current, parent, entries, message) = match list_fs_entries(path) {
             Ok((current, parent, entries)) => (true, current, parent, entries, String::new()),
@@ -453,11 +721,18 @@ fn handle_connection(
             "message": message
         })
         .to_string();
-        return write_response(stream, 200, "application/json; charset=utf-8", resp.as_bytes()).map_err(|e| e.to_string());
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
     }
 
     let html = html_renderer();
-    write_response(stream, 200, "text/html; charset=utf-8", html.as_bytes()).map_err(|e| e.to_string())
+    write_response(stream, 200, "text/html; charset=utf-8", html.as_bytes())
+        .map_err(|e| e.to_string())
 }
 
 fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
@@ -469,7 +744,10 @@ fn read_http_request(stream: &mut TcpStream) -> Result<String, String> {
     loop {
         let n = match stream.read(&mut buf) {
             Ok(n) => n,
-            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock || e.kind() == std::io::ErrorKind::TimedOut => {
+            Err(e)
+                if e.kind() == std::io::ErrorKind::WouldBlock
+                    || e.kind() == std::io::ErrorKind::TimedOut =>
+            {
                 if header_end.is_some() {
                     break;
                 }
@@ -513,7 +791,10 @@ fn find_header_end(data: &[u8]) -> Option<usize> {
 
 fn parse_content_length(header: &str) -> usize {
     for line in header.lines() {
-        if let Some(v) = line.strip_prefix("Content-Length:").or_else(|| line.strip_prefix("content-length:")) {
+        if let Some(v) = line
+            .strip_prefix("Content-Length:")
+            .or_else(|| line.strip_prefix("content-length:"))
+        {
             return v.trim().parse::<usize>().unwrap_or(0);
         }
     }
@@ -590,7 +871,9 @@ fn list_fs_entries(input_path: &str) -> Result<(String, String, Vec<serde_json::
         .map(|p| p.to_string_lossy().to_string())
         .unwrap_or_default();
     let mut entries = Vec::new();
-    for ent in std::fs::read_dir(&current).map_err(|e| format!("read_dir '{}': {e}", current.display()))? {
+    for ent in
+        std::fs::read_dir(&current).map_err(|e| format!("read_dir '{}': {e}", current.display()))?
+    {
         let ent = ent.map_err(|e| format!("read_dir entry '{}': {e}", current.display()))?;
         let path = ent.path();
         let name = ent.file_name().to_string_lossy().to_string();
@@ -624,7 +907,10 @@ fn load_chart_values_from_path(chart_path: &str) -> Result<String, String> {
         .canonicalize()
         .map_err(|e| format!("resolve chart path '{}': {e}", chart_path))?;
     if !root.is_dir() {
-        return Err(format!("chart path '{}' is not a directory", root.display()));
+        return Err(format!(
+            "chart path '{}' is not a directory",
+            root.display()
+        ));
     }
     let values_path = root.join("values.yaml");
     let content = std::fs::read_to_string(&values_path)
@@ -632,7 +918,11 @@ fn load_chart_values_from_path(chart_path: &str) -> Result<String, String> {
     Ok(content)
 }
 
-fn write_uploaded_files(tmp_root: &Path, source_type: &str, files: &[serde_json::Value]) -> Result<PathBuf, String> {
+fn write_uploaded_files(
+    tmp_root: &Path,
+    source_type: &str,
+    files: &[serde_json::Value],
+) -> Result<PathBuf, String> {
     if files.is_empty() {
         return Err("no files selected".to_string());
     }
@@ -649,7 +939,8 @@ fn write_uploaded_files(tmp_root: &Path, source_type: &str, files: &[serde_json:
         let safe_rel = sanitize_relative_path(rel)?;
         let full = tmp_root.join(&safe_rel);
         if let Some(parent) = full.parent() {
-            std::fs::create_dir_all(parent).map_err(|e| format!("create upload parent dir: {e}"))?;
+            std::fs::create_dir_all(parent)
+                .map_err(|e| format!("create upload parent dir: {e}"))?;
         }
         let bytes = base64::Engine::decode(&base64::engine::general_purpose::STANDARD, b64)
             .map_err(|e| format!("base64 decode for '{rel}': {e}"))?;
@@ -664,7 +955,8 @@ fn write_uploaded_files(tmp_root: &Path, source_type: &str, files: &[serde_json:
         }
     }
     if source_type.eq_ignore_ascii_case("compose") {
-        compose_file.ok_or_else(|| "compose upload requires at least one .yml/.yaml file".to_string())
+        compose_file
+            .ok_or_else(|| "compose upload requires at least one .yml/.yaml file".to_string())
     } else {
         Ok(tmp_root.to_path_buf())
     }
@@ -716,6 +1008,7 @@ fn import_payload(
         chart_name: None,
         library_chart_path: None,
         import_strategy: import_strategy.to_string(),
+        verify_equivalence: false,
         release_name: release_name.to_string(),
         namespace,
         values_files,
@@ -736,7 +1029,11 @@ fn import_payload(
                 .map_err(|e| format!("convert error: {e}"))?;
             let out = crate::output::values_yaml(&values)
                 .map_err(|e| format!("values encode error: {e}"))?;
-            Ok((out, format!("Imported {} rendered document(s) from chart.", docs.len()), docs.len()))
+            Ok((
+                out,
+                format!("Imported {} rendered document(s) from chart.", docs.len()),
+                docs.len(),
+            ))
         }
         "manifests" => {
             let docs = crate::source::load_documents_for_manifests(&args.path)
@@ -745,7 +1042,11 @@ fn import_payload(
                 .map_err(|e| format!("convert error: {e}"))?;
             let out = crate::output::values_yaml(&values)
                 .map_err(|e| format!("values encode error: {e}"))?;
-            Ok((out, format!("Imported {} document(s) from manifests.", docs.len()), docs.len()))
+            Ok((
+                out,
+                format!("Imported {} document(s) from manifests.", docs.len()),
+                docs.len(),
+            ))
         }
         "compose" => {
             let rep = crate::composeinspect::load(&args.path)
@@ -754,7 +1055,11 @@ fn import_payload(
             let out = crate::output::values_yaml(&values)
                 .map_err(|e| format!("values encode error: {e}"))?;
             let count = rep.services.len();
-            Ok((out, format!("Imported {} compose service(s).", count), count))
+            Ok((
+                out,
+                format!("Imported {} compose service(s).", count),
+                count,
+            ))
         }
         other => Err(format!(
             "unsupported sourceType '{}' (expected chart|manifests|compose)",
@@ -797,24 +1102,145 @@ fn save_chart_payload(
     }
 }
 
-fn convert_payload(mode: &str, input: &str, doc_mode: &str, doc_index: Option<usize>) -> Result<String, String> {
+#[allow(clippy::too_many_arguments)]
+fn compare_render_payload(
+    source_type: &str,
+    path: &str,
+    env: &str,
+    group_name: &str,
+    group_type: &str,
+    import_strategy: &str,
+    release_name: &str,
+    namespace: Option<String>,
+    min_include_bytes: usize,
+    include_status: bool,
+    values_files: Vec<String>,
+    set_values: Vec<String>,
+    set_string_values: Vec<String>,
+    set_file_values: Vec<String>,
+    set_json_values: Vec<String>,
+    kube_version: Option<String>,
+    api_versions: Vec<String>,
+    include_crds: bool,
+    chart_values_yaml: Option<String>,
+    generated_values_yaml: &str,
+    library_chart_path: Option<&str>,
+) -> Result<(bool, String, usize, usize), String> {
+    if !source_type.trim().eq_ignore_ascii_case("chart") {
+        return Err("render compare is supported only for sourceType=chart".to_string());
+    }
+    if path.trim().is_empty() {
+        return Err("path is required".to_string());
+    }
+    if generated_values_yaml.trim().is_empty() {
+        return Err("generated values are empty, run import first".to_string());
+    }
+    let mut values_files = values_files;
+    let mut inline_chart_values_temp: Option<PathBuf> = None;
+    if let Some(inline) = chart_values_yaml {
+        let tmp_root = create_upload_temp_dir()?;
+        let fp = tmp_root.join("chart-inline-values.yaml");
+        std::fs::write(&fp, inline).map_err(|e| format!("write inline chart values: {e}"))?;
+        values_files.insert(0, fp.to_string_lossy().to_string());
+        inline_chart_values_temp = Some(tmp_root);
+    }
+    let mut args = crate::cli::ImportArgs {
+        path: path.to_string(),
+        env: env.to_string(),
+        group_name: group_name.to_string(),
+        group_type: group_type.to_string(),
+        min_include_bytes,
+        include_status,
+        output: None,
+        out_chart_dir: None,
+        chart_name: None,
+        library_chart_path: None,
+        import_strategy: import_strategy.to_string(),
+        verify_equivalence: false,
+        release_name: release_name.to_string(),
+        namespace,
+        values_files,
+        set_values,
+        set_string_values,
+        set_file_values,
+        set_json_values,
+        kube_version,
+        api_versions,
+        include_crds,
+        write_rendered_output: None,
+    };
+    let source_docs = crate::source::load_documents_for_chart(&args)
+        .map_err(|e| format!("source chart render error: {e}"))?;
+
+    let generated_values: serde_yaml::Value = serde_yaml::from_str(generated_values_yaml)
+        .map_err(|e| format!("generated values parse error: {e}"))?;
+    let tmp_chart_root = tempfile::Builder::new()
+        .prefix("happ-compare-renders-")
+        .tempdir()
+        .map_err(|e| format!("create compare temp dir: {e}"))?;
+    let generated_chart_dir = tmp_chart_root.path().join("generated-chart");
+    let generated_chart_dir_text = generated_chart_dir.to_string_lossy().to_string();
+    crate::output::generate_consumer_chart(
+        &generated_chart_dir_text,
+        Some("imported-chart"),
+        &generated_values,
+        library_chart_path,
+    )
+    .map_err(|e| format!("generate chart for compare error: {e}"))?;
+    let _ = crate::output::copy_chart_crds_if_any(path, &generated_chart_dir_text)
+        .map_err(|e| format!("copy CRDs for compare error: {e}"))?;
+
+    args.path = generated_chart_dir_text;
+    args.values_files.clear();
+    args.set_values.clear();
+    args.set_string_values.clear();
+    args.set_file_values.clear();
+    args.set_json_values.clear();
+    let generated_docs = crate::source::load_documents_for_chart(&args)
+        .map_err(|e| format!("generated chart render error: {e}"))?;
+
+    if let Some(tmp) = inline_chart_values_temp {
+        let _ = std::fs::remove_dir_all(tmp);
+    }
+    let result = crate::verify::equivalent(&source_docs, &generated_docs);
+    Ok((
+        result.equal,
+        result.summary,
+        source_docs.len(),
+        generated_docs.len(),
+    ))
+}
+
+fn convert_payload(
+    mode: &str,
+    input: &str,
+    doc_mode: &str,
+    doc_index: Option<usize>,
+) -> Result<String, String> {
     match mode {
         "yaml-to-json" => {
             let docs = crate::yamlmerge::normalize_documents(input)
                 .map_err(|e| format!("YAML parse error: {e}"))?;
             let json_docs: Vec<serde_json::Value> = docs
                 .into_iter()
-                .map(|y| serde_json::to_value(y).map_err(|e| format!("YAML->JSON conversion error: {e}")))
+                .map(|y| {
+                    serde_json::to_value(y).map_err(|e| format!("YAML->JSON conversion error: {e}"))
+                })
                 .collect::<Result<_, _>>()?;
             match doc_mode.trim().to_ascii_lowercase().as_str() {
                 "all" | "" => serde_json::to_string_pretty(&serde_json::Value::Array(json_docs))
                     .map_err(|e| format!("JSON format error: {e}")),
                 "first" => {
-                    let first = json_docs.into_iter().next().unwrap_or(serde_json::Value::Null);
-                    serde_json::to_string_pretty(&first).map_err(|e| format!("JSON format error: {e}"))
+                    let first = json_docs
+                        .into_iter()
+                        .next()
+                        .unwrap_or(serde_json::Value::Null);
+                    serde_json::to_string_pretty(&first)
+                        .map_err(|e| format!("JSON format error: {e}"))
                 }
                 "index" => {
-                    let idx = doc_index.ok_or_else(|| "doc index is required for doc mode 'index'".to_string())?;
+                    let idx = doc_index
+                        .ok_or_else(|| "doc index is required for doc mode 'index'".to_string())?;
                     if idx >= json_docs.len() {
                         return Err(format!(
                             "doc index {} is out of range for {} document(s)",
@@ -822,13 +1248,15 @@ fn convert_payload(mode: &str, input: &str, doc_mode: &str, doc_index: Option<us
                             json_docs.len()
                         ));
                     }
-                    serde_json::to_string_pretty(&json_docs[idx]).map_err(|e| format!("JSON format error: {e}"))
+                    serde_json::to_string_pretty(&json_docs[idx])
+                        .map_err(|e| format!("JSON format error: {e}"))
                 }
                 other => Err(format!("unsupported doc mode: {other}")),
             }
         }
         "json-to-yaml" => {
-            let j: serde_json::Value = serde_json::from_str(input).map_err(|e| format!("JSON parse error: {e}"))?;
+            let j: serde_json::Value =
+                serde_json::from_str(input).map_err(|e| format!("JSON parse error: {e}"))?;
             serde_yaml::to_string(&j).map_err(|e| format!("JSON->YAML conversion error: {e}"))
         }
         _ => Err("unsupported mode".to_string()),
@@ -843,9 +1271,11 @@ fn jq_payload(
     compact: bool,
     raw_output: bool,
 ) -> Result<String, String> {
-    let docs = crate::query::parse_input_docs_prefer_json(input).map_err(|e| format!("jq parse error: {e}"))?;
+    let docs = crate::query::parse_input_docs_prefer_json(input)
+        .map_err(|e| format!("jq parse error: {e}"))?;
     let selected = select_docs_for_web(docs, doc_mode, doc_index, "jq")?;
-    let out = crate::query::run_query_stream(query, selected).map_err(|e| format!("jq query error: {e}"))?;
+    let out = crate::query::run_query_stream(query, selected)
+        .map_err(|e| format!("jq query error: {e}"))?;
     let mut lines = Vec::with_capacity(out.len());
     for v in out {
         if raw_output {
@@ -872,9 +1302,11 @@ fn yq_payload(
     compact: bool,
     raw_output: bool,
 ) -> Result<String, String> {
-    let docs = crate::query::parse_input_docs_prefer_yaml(input).map_err(|e| format!("yq parse error: {e}"))?;
+    let docs = crate::query::parse_input_docs_prefer_yaml(input)
+        .map_err(|e| format!("yq parse error: {e}"))?;
     let selected = select_docs_for_web(docs, doc_mode, doc_index, "yq")?;
-    let out = crate::query::run_query_stream(query, selected).map_err(|e| format!("yq query error: {e}"))?;
+    let out = crate::query::run_query_stream(query, selected)
+        .map_err(|e| format!("yq query error: {e}"))?;
     let mut lines = Vec::with_capacity(out.len());
     for v in out {
         if raw_output {
@@ -893,7 +1325,12 @@ fn yq_payload(
     Ok(lines.join("\n"))
 }
 
-fn dyff_payload(from: &str, to: &str, ignore_order: bool, ignore_whitespace: bool) -> Result<String, String> {
+fn dyff_payload(
+    from: &str,
+    to: &str,
+    ignore_order: bool,
+    ignore_whitespace: bool,
+) -> Result<String, String> {
     let diff = crate::dyfflike::between_yaml(
         from,
         to,
@@ -919,7 +1356,8 @@ fn select_docs_for_web(
         "" | "first" => Ok(docs.into_iter().next().into_iter().collect()),
         "all" => Ok(docs),
         "index" => {
-            let idx = doc_index.ok_or_else(|| format!("{tool}: doc index is required for doc mode 'index'"))?;
+            let idx = doc_index
+                .ok_or_else(|| format!("{tool}: doc index is required for doc mode 'index'"))?;
             if idx >= docs.len() {
                 return Err(format!(
                     "{tool}: doc index {} is out of range for {} document(s)",
@@ -935,7 +1373,12 @@ fn select_docs_for_web(
     }
 }
 
-fn write_response(stream: &mut TcpStream, code: u16, content_type: &str, body: &[u8]) -> std::io::Result<()> {
+fn write_response(
+    stream: &mut TcpStream,
+    code: u16,
+    content_type: &str,
+    body: &[u8],
+) -> std::io::Result<()> {
     let reason = match code {
         200 => "OK",
         400 => "Bad Request",
@@ -994,7 +1437,11 @@ pub fn render_page_html(source_yaml: &str, generated_values_yaml: &str) -> Strin
     render_vue_page_html("happ inspect", &model.to_string())
 }
 
-pub fn render_compose_page_html(source_compose_yaml: &str, compose_report_yaml: &str, generated_values_yaml: &str) -> String {
+pub fn render_compose_page_html(
+    source_compose_yaml: &str,
+    compose_report_yaml: &str,
+    generated_values_yaml: &str,
+) -> String {
     let model = serde_json::json!({
         "title": "happ compose-inspect",
         "utilities": [
@@ -1075,6 +1522,7 @@ fn json_html_escape(s: &str) -> String {
 
 fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
     let model_json = json_html_escape(model_json);
+    let cm_bundle_version = CODEMIRROR_BUNDLE_JS.len();
     format!(
         r#"<!doctype html>
 <html>
@@ -1087,6 +1535,7 @@ fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
   --surface:#1a1d22;
   --surface-2:#20242a;
   --surface-3:#171b20;
+  --surface-4:#1f2530;
   --text:#e7e9ee;
   --muted:#9aa1ad;
   --accent:#7aa2ff;
@@ -1120,7 +1569,7 @@ body {{
 .top-actions {{ display:flex; align-items:center; gap:10px; }}
 button {{
   border:1px solid var(--border);
-  background:var(--surface);
+  background:linear-gradient(180deg,#252a33 0%, #20252d 100%);
   color:#e2e5eb;
   padding:8px 13px;
   border-radius:10px;
@@ -1140,16 +1589,27 @@ button.primary:hover {{
   box-shadow:0 6px 18px rgba(80,119,216,.28);
   transform: translateY(-1px);
 }}
-button:hover {{ border-color:#4f5c70; background:#2a313b; transform: translateY(-1px); }}
+button:hover {{ border-color:#566783; background:linear-gradient(180deg,#2d3542 0%, #272e39 100%); transform: translateY(-1px); }}
 button:active {{ transform: translateY(0); }}
+button:disabled {{
+  opacity:.55;
+  cursor:not-allowed;
+  transform:none;
+  box-shadow:none;
+}}
 button:focus-visible {{
   outline:none;
   border-color:#89a7ea;
   box-shadow:0 0 0 2px rgba(126,156,233,.35);
 }}
-button.secondary {{ background:#22272f; }}
+button.secondary {{ background:linear-gradient(180deg,#242a33 0%, #1f252e 100%); }}
 button.tab {{ background:#20242b; border-color:#353c48; color:#cdd3dd; }}
-button.tab.active {{ background:#2a313b; border-color:#5b6880; color:#f4f5f8; }}
+button.tab.active {{
+  background:linear-gradient(180deg,#303844 0%, #28303b 100%);
+  border-color:#6b7d9b;
+  color:#f4f5f8;
+  box-shadow:0 8px 20px rgba(76,98,141,.22);
+}}
 .tabs-row {{
   display:flex;
   flex-direction:column;
@@ -1162,7 +1622,14 @@ button.tab.active {{ background:#2a313b; border-color:#5b6880; color:#f4f5f8; }}
   box-shadow:0 10px 26px rgba(0, 0, 0, 0.35);
 }}
 .tabs {{ display:flex; flex-wrap:wrap; gap:8px; }}
-.view-controls {{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }}
+.view-controls {{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  align-items:center;
+  padding-top:2px;
+  border-top:1px solid rgba(255,255,255,.04);
+}}
 input[type='text'], select {{
   border:1px solid var(--border);
   border-radius:10px;
@@ -1194,6 +1661,7 @@ textarea {{
   color:#e7e9ee;
   resize:vertical;
   max-height:760px;
+  transition:border-color .16s ease, box-shadow .16s ease, background-color .16s ease;
 }}
 .code-output {{
   border:1px solid var(--border);
@@ -1214,6 +1682,15 @@ textarea {{
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; color:var(--muted); }}
 .util-head {{ margin:0; padding:2px 4px 0 4px; }}
 .muted {{ color:var(--muted); font-size:14px; }}
+.muted code {{
+  font-family:ui-monospace, Menlo, monospace;
+  font-size:12px;
+  padding:1px 4px;
+  border:1px solid #3b4659;
+  border-radius:6px;
+  color:#c9d6eb;
+  background:#202734;
+}}
 .grid {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(380px,1fr)); gap:12px; }}
 .card {{
   border:1px solid var(--border);
@@ -1234,8 +1711,20 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .form-field {{ display:flex; flex-direction:column; gap:6px; }}
 .form-field > label {{ font-size:12px; color:var(--muted); font-weight:600; }}
 .import-shell {{ display:flex; flex-direction:column; gap:12px; }}
-.import-layout {{ display:grid; grid-template-columns:minmax(560px, 1.25fr) minmax(360px, 0.9fr); gap:12px; align-items:start; }}
+.import-layout {{ display:grid; grid-template-columns:minmax(520px, 1fr) minmax(520px, 1fr); gap:12px; align-items:start; }}
 .import-config {{ display:flex; flex-direction:column; gap:12px; }}
+.import-config.compact {{
+  max-height:calc(82vh - 56px);
+  overflow:auto;
+  padding-right:4px;
+}}
+.import-config.compact .conv-grid {{
+  grid-template-columns:repeat(auto-fit,minmax(320px,1fr));
+}}
+.import-config.compact textarea {{
+  min-height:110px;
+  max-height:300px;
+}}
 .import-output {{
   border:1px solid var(--border);
   border-radius:12px;
@@ -1245,6 +1734,26 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   top:12px;
 }}
 .import-output .code-output {{ min-height:520px; max-height:72vh; }}
+.import-title {{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+  padding-bottom:8px;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}}
+.import-title h3 {{
+  margin:0;
+  font-size:26px;
+  letter-spacing:-0.02em;
+  color:#f3f5fb;
+}}
+.import-subtitle {{
+  margin:2px 0 0 0;
+  font-size:14px;
+  color:#9ba6ba;
+}}
 .import-section {{
   border:1px solid var(--border);
   border-radius:12px;
@@ -1258,26 +1767,167 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   letter-spacing:0.01em;
 }}
 .import-fields {{ display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }}
+.field-hint {{
+  margin-top:2px;
+  font-size:11px;
+  color:#8f9cb4;
+  line-height:1.35;
+}}
+.field-hint code {{
+  font-family:ui-monospace, Menlo, monospace;
+  font-size:11px;
+  padding:1px 4px;
+  border:1px solid #3b4659;
+  border-radius:6px;
+  color:#c9d6eb;
+  background:#202734;
+}}
+.checks-inline {{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  flex-wrap:wrap;
+  margin-top:2px;
+}}
 .path-field {{ grid-column: 1 / -1; }}
 .path-row {{ display:flex; gap:8px; align-items:center; }}
 .path-row input[type='text'] {{ flex:1; min-width:260px; }}
 .path-meta {{ font-size:12px; color:var(--muted); }}
+.segmented {{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  padding:3px;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:linear-gradient(180deg,#232934 0%, #1d232c 100%);
+}}
+.segmented button {{
+  border:1px solid transparent;
+  background:transparent;
+  color:#b8c2d5;
+  padding:7px 12px;
+  border-radius:8px;
+  font-size:12px;
+  font-weight:700;
+  min-height:30px;
+}}
+.segmented button:hover {{
+  background:#2d3440;
+  border-color:#47556d;
+}}
+.segmented button.active {{
+  background:linear-gradient(180deg,#3a4558 0%, #313b4b 100%);
+  border-color:#7387aa;
+  color:#f3f6fd;
+  box-shadow:0 6px 16px rgba(78,101,145,.24);
+}}
+.advanced-details {{
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:rgba(255,255,255,0.015);
+  padding:8px;
+}}
+.advanced-details > summary {{
+  cursor:pointer;
+  font-size:13px;
+  font-weight:700;
+  color:#d4dbea;
+  user-select:none;
+  list-style:none;
+}}
+.advanced-details > summary::-webkit-details-marker {{
+  display:none;
+}}
+.advanced-details > summary::before {{
+  content:'▸';
+  display:inline-block;
+  margin-right:6px;
+  color:#8ea4cf;
+}}
+.advanced-details[open] > summary::before {{
+  content:'▾';
+}}
+.advanced-body {{
+  margin-top:10px;
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+}}
 .import-toolbar {{
   display:flex;
   justify-content:space-between;
   align-items:center;
   gap:10px;
-  margin-bottom:10px;
+  margin-bottom:8px;
 }}
 .import-toolbar .left,
 .import-toolbar .right {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
+.import-meta-line {{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+  margin:-4px 0 8px 0;
+}}
+.path-chip {{
+  display:inline-block;
+  max-width:100%;
+  font-size:12px;
+  color:#bcc7da;
+  border:1px solid var(--border);
+  border-radius:8px;
+  padding:6px 8px;
+  background:rgba(255,255,255,0.03);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}}
+.generated-toolbar {{
+  display:grid;
+  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  gap:8px;
+  align-items:start;
+  flex-wrap:wrap;
+  margin:6px 0 10px 0;
+}}
+.generated-toolbar button {{
+  padding:6px 10px;
+  border-radius:8px;
+  font-size:13px;
+  min-height:30px;
+}}
+.toolbar-group {{
+  display:flex;
+  align-items:center;
+  gap:6px;
+  flex-wrap:wrap;
+  border:1px solid var(--border);
+  border-radius:10px;
+  background:linear-gradient(180deg,#232934 0%, #1d232c 100%);
+  padding:6px;
+}}
+.toolbar-group-title {{
+  font-size:11px;
+  letter-spacing:.06em;
+  text-transform:uppercase;
+  color:#91a0ba;
+  margin-right:2px;
+  padding:0 4px;
+}}
+.toolbar-sep {{
+  width:1px;
+  align-self:stretch;
+  background:var(--border);
+  margin:0 2px;
+}}
 .import-status {{
   border:1px solid var(--border);
   border-radius:8px;
-  background:rgba(255,255,255,0.02);
+  background:linear-gradient(180deg,#252c36 0%, #212832 100%);
   padding:6px 8px;
   font-size:12px;
-  color:var(--muted);
+  color:#c2ccdd;
 }}
 .editor-shell {{
   border:1px solid var(--border);
@@ -1320,6 +1970,8 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .editor-host {{
   min-height:260px;
   height:45vh;
+  border:0;
+  background:#101317;
 }}
 .editor-host.generated {{
   min-height:420px;
@@ -1418,12 +2070,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 }}
 .fs-head {{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; }}
 .fs-head input[type='text'] {{ flex:1; min-width:260px; }}
+.fs-head strong {{
+  font-size:20px;
+  letter-spacing:-0.01em;
+  margin-right:auto;
+}}
 .fs-list {{
   border:1px solid var(--border);
   border-radius:10px;
   overflow:auto;
   background:var(--surface-3);
-  max-height:56vh;
+  max-height:52vh;
 }}
 .fs-subpath {{
   font-size:11px;
@@ -1453,18 +2110,20 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   top:0;
   z-index:1;
   text-align:left;
-  background:#1d2128;
+  background:#202630;
   color:#c9d2e0;
   border-bottom:1px solid var(--border);
-  padding:8px 10px;
+  padding:9px 10px;
+  font-size:12px;
+  letter-spacing:.02em;
 }}
 .fs-table td {{
-  border-bottom:1px solid #252c36;
-  padding:8px 10px;
+  border-bottom:1px solid #293240;
+  padding:9px 10px;
   vertical-align:top;
 }}
 .fs-row:hover {{
-  background:#202630;
+  background:#252e3a;
 }}
 .fs-row.clickable {{
   cursor:pointer;
@@ -1491,6 +2150,14 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 }}
 .result-meta {{ margin-top:8px; font-size:12px; color:var(--muted); display:flex; justify-content:space-between; gap:8px; flex-wrap:wrap; }}
 .panel-label {{ margin-bottom:6px; font-size:13px; color:#c0c7d3; font-weight:600; }}
+.helper-note {{
+  font-size:12px;
+  color:#a5b3cb;
+  border:1px dashed #354152;
+  border-radius:8px;
+  padding:6px 8px;
+  background:rgba(122,162,255,0.08);
+}}
 .jq-query-editor {{ position:relative; }}
 .jq-query-highlight {{
   position:absolute; inset:0;
@@ -1580,9 +2247,29 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   .conv-grid {{ grid-template-columns:1fr; }}
   .import-layout {{ grid-template-columns:1fr; }}
   .import-output {{ position:static; top:auto; }}
+  .import-title h3 {{ font-size:30px; }}
+  .segmented {{ width:100%; }}
+  .segmented button {{ flex:1; text-align:center; }}
 }}
 </style>
+<script>
+window.__happScriptErrors = [];
+window.addEventListener('error', function(e) {{
+  try {{
+    window.__happScriptErrors.push({{
+      message: String(e && e.message || ''),
+      file: String(e && e.filename || ''),
+      line: Number((e && e.lineno) || 0),
+      col: Number((e && e.colno) || 0)
+    }});
+  }} catch (_) {{}}
+}});
+</script>
 <script src='/assets/vue.global.prod.js'></script>
+<script src='/assets/codemirror.bundle.js?v={}'
+        onload='window.__happCmScriptLoaded = true'
+        onerror='window.__happCmScriptError = "load-error"'></script>
+<script>window.__happCmAfterScript = !!(window.HappCodeMirror && window.HappCodeMirror.createYamlEditor);</script>
 <script id='happ-model' type='application/json'>{}</script>
 </head>
 <body>
@@ -1605,7 +2292,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
               :key='u.id'
               @click='selectUtility(u.id)'>{{{{ u.title }}}}</button>
     </div>
-    <div class='view-controls'>
+    <div v-if='activeHasPanes' class='view-controls'>
       <input v-if='activeHasPanes' type='text' v-model='query' placeholder='Search pane content'/>
       <label class='chk'><input type='checkbox' v-model='wrapLines'/> Wrap lines</label>
       <label class='chk'>Font
@@ -1615,11 +2302,11 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <button v-if='activeHasPanes' class='secondary' @click='collapseAll'>Collapse all</button>
     </div>
   </div>
-  <div class='util-head'>
+  <div v-if='activeUtilityKey !== "main-import"' class='util-head'>
     <div><strong>{{{{ currentUtility.title }}}}</strong></div>
     <div class='muted'>{{{{ currentUtility.description || "" }}}}</div>
   </div>
-  <div class='muted' style='margin:0 0 8px 0;'>Settings are persisted in localStorage.</div>
+  <div v-if='activeUtilityKey !== "main-import"' class='muted' style='margin:0 0 8px 0;'>Settings are persisted in localStorage.</div>
 
   <div v-if='activeHasPanes' class='grid'>
     <div class='card' v-for='(pane, idx) in filteredPanes' :key='pane.title'>
@@ -1636,8 +2323,12 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   </div>
 
   <div v-else-if='activeUtilityKey === "main-import"' class='card'>
-    <div class='cardhead'>
-      <h3>Main Import</h3>
+    <div class='import-title'>
+      <div>
+        <h3>Main Import</h3>
+        <div class='import-subtitle'>Import chart/manifests/compose into helm-apps values.yaml.</div>
+      </div>
+      <div class='helper-note'>Settings are persisted in localStorage.</div>
     </div>
     <div class='import-toolbar'>
       <div class='left'>
@@ -1646,11 +2337,14 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
         <button class='secondary' @click='clearMainImport'>Clear output</button>
       </div>
       <div class='right'>
-        <span class='import-status'>source: {{{{ mainImportSourceType }}}}</span>
-        <span class='import-status'>path: {{{{ mainImportPath || "-" }}}}</span>
         <span class='import-status'>{{{{ mainImportMessage || "Ready" }}}}</span>
         <span class='import-status'>docs/services: {{{{ mainImportSourceCount }}}}</span>
+        <span class='import-status' :title='cmProbeReason || ""'>editor: {{{{ cmAvailable ? "cm6" : "fallback" }}}}</span>
       </div>
+    </div>
+    <div class='import-meta-line'>
+      <span class='import-status'>source: {{{{ mainImportSourceType }}}}</span>
+      <span class='path-chip' :title='mainImportPath || "-"'>path: {{{{ mainImportPath || "-" }}}}</span>
     </div>
     <div class='import-layout'>
       <div class='import-section'>
@@ -1667,7 +2361,8 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
             </div>
           </div>
           <div class='editor-shell'>
-            <div class='yaml-editor'>
+            <div v-if='cmAvailable' class='editor-host' ref='mainImportSourceCmHost'></div>
+            <div v-else class='yaml-editor'>
               <pre class='yaml-editor-highlight' aria-hidden='true' v-html='mainImportSourceHighlighted'></pre>
               <textarea
                 class='yaml-editor-input'
@@ -1683,29 +2378,55 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
         </div>
       </div>
       <div class='import-output'>
-        <div class='import-toolbar' style='margin-bottom:6px;'>
-          <div class='left'>
-            <div class='panel-label' style='margin:0;'>Generated values.yaml</div>
+        <div class='panel-label' style='margin:0;'>Generated values.yaml</div>
+        <div class='generated-toolbar'>
+          <div class='toolbar-group'>
+            <span class='toolbar-group-title'>Analyze</span>
+            <button class='primary' @click='runMainImport'>Render + Analyze</button>
+            <button
+              class='secondary'
+              @click='runMainImportCompare'
+              :disabled='mainImportCompareRunning || !mainImportOutput || mainImportSourceType !== "chart"'>
+              {{{{ mainImportCompareRunning ? 'Comparing…' : 'Compare renders' }}}}
+            </button>
           </div>
-          <div class='right'>
-            <button class='secondary' @click='runMainImport'>Render + Analyze</button>
+          <div class='toolbar-group'>
+            <span class='toolbar-group-title'>Values</span>
             <button class='secondary' @click='copyMainImportOutput' :disabled='!mainImportOutput'>Copy values</button>
             <button class='secondary' @click='openMainImportSaveChart' :disabled='!mainImportOutput'>Save as chart</button>
-            <button class='secondary' @click='foldMainImportLevel(1)'>Fold L1</button>
-            <button class='secondary' @click='foldMainImportLevel(2)'>Fold L2</button>
-            <button class='secondary' @click='foldMainImportLevel(3)'>Fold L3</button>
-            <button class='secondary' @click='collapseAllMainImportSections'>Collapse all</button>
-            <button class='secondary' @click='expandAllMainImportSections'>Expand all</button>
+          </div>
+          <div class='toolbar-group'>
+            <span class='toolbar-group-title'>Folding</span>
+            <button class='secondary' @click='foldMainImportLevel(1)'>L1</button>
+            <button class='secondary' @click='foldMainImportLevel(2)'>L2</button>
+            <button class='secondary' @click='foldMainImportLevel(3)'>L3</button>
+            <button class='secondary' @click='collapseAllMainImportSections'>Collapse</button>
+            <button class='secondary' @click='expandAllMainImportSections'>Expand</button>
           </div>
         </div>
         <div class='editor-shell'>
-          <div class='fallback-fold' @click='onMainImportFoldClick'>
+          <div v-if='cmAvailable' class='editor-host generated' ref='mainImportGeneratedCmHost'></div>
+          <div v-else class='fallback-fold' @click='onMainImportFoldClick'>
             <pre class='code-output yaml-fold-view' v-html='mainImportPreviewHtml'></pre>
           </div>
         </div>
       </div>
     </div>
     <div class='err' v-if='mainImportError' style='margin-top:8px;'>{{{{ mainImportError }}}}</div>
+    <div class='muted' v-if='!cmAvailable && cmProbeReason' style='margin-top:6px;'>CodeMirror: {{{{ cmProbeReason }}}}</div>
+    <div class='err' v-if='mainImportCompareError' style='margin-top:8px;'>{{{{ mainImportCompareError }}}}</div>
+    <div class='muted' v-if='mainImportCompareMessage' style='margin-top:8px;'>{{{{ mainImportCompareMessage }}}}</div>
+    <div v-if='mainImportCompareSummary' class='card' style='margin-top:10px;'>
+      <div class='cardhead'>
+        <h3>Render compare</h3>
+      </div>
+      <div class='muted'>{{{{ mainImportCompareSummary }}}}</div>
+      <div class='stats-line' style='margin-top:8px;'>
+        <span>equal: {{{{ mainImportCompareEqual ? "yes" : "no" }}}}</span>
+        <span>source docs: {{{{ mainImportCompareSourceCount }}}}</span>
+        <span>generated docs: {{{{ mainImportCompareGeneratedCount }}}}</span>
+      </div>
+    </div>
     <div class='muted' v-if='mainImportSaveChartMessage' style='margin-top:8px;'>{{{{ mainImportSaveChartMessage }}}}</div>
   </div>
 
@@ -1714,24 +2435,26 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
       <div class='fs-head'>
         <strong>Import configuration</strong>
         <button class='secondary' @click='loadSampleMainImport'>Sample config</button>
+        <button class='secondary' @click='resetMainImportConfig'>Reset defaults</button>
         <button class='secondary' @click='closeMainImportConfig'>Close</button>
       </div>
-      <div class='import-config'>
+      <div class='import-config compact'>
         <div class='import-section'>
           <h4>Source</h4>
           <div class='import-fields'>
-            <div class='form-field'>
+            <div class='form-field path-field'>
               <label>Source type</label>
-              <select v-model='mainImportSourceType'>
-                <option value='chart'>chart</option>
-                <option value='manifests'>manifests</option>
-                <option value='compose'>compose</option>
-              </select>
+              <div class='segmented'>
+                <button type='button' :class='{{ active: mainImportSourceType === "chart" }}' @click='mainImportSourceType = "chart"'>Chart</button>
+                <button type='button' :class='{{ active: mainImportSourceType === "manifests" }}' @click='mainImportSourceType = "manifests"'>Manifests</button>
+                <button type='button' :class='{{ active: mainImportSourceType === "compose" }}' @click='mainImportSourceType = "compose"'>Compose</button>
+              </div>
+              <div class='field-hint'>Select what you import. Path picker on this server adapts to selected source type.</div>
             </div>
             <div class='form-field path-field'>
               <label>Path on server</label>
               <div class='path-row'>
-                <input type='text' v-model='mainImportPath' placeholder='Path to chart dir / manifests dir / compose file'/>
+                <input type='text' v-model='mainImportPath' :placeholder='mainImportPathPlaceholder'/>
                 <button class='secondary' @click='openMainImportPicker'>Choose…</button>
                 <button class='secondary' @click='clearMainImportSelection'>Clear</button>
               </div>
@@ -1746,75 +2469,84 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
             <div class='form-field'>
               <label>Environment</label>
               <input type='text' v-model='mainImportEnv' placeholder='dev'/>
+              <div class='field-hint'>Mapped to <code>global.env</code> for env-map resolution.</div>
             </div>
             <div class='form-field'>
               <label>Release name</label>
               <input type='text' v-model='mainImportReleaseName' placeholder='imported'/>
+              <div class='field-hint'>Used for rendering chart and generated chart validation.</div>
             </div>
             <div class='form-field'>
               <label>Namespace (optional)</label>
               <input type='text' v-model='mainImportNamespace' placeholder='default'/>
+              <div class='field-hint'>Set this if source chart relies on release namespace.</div>
             </div>
             <div class='form-field'>
               <label>Kubernetes version (optional)</label>
               <input type='text' v-model='mainImportKubeVersion' placeholder='1.29.0'/>
+              <div class='field-hint'>Example: <code>1.29.0</code>. Empty means default Helm capabilities.</div>
             </div>
-            <div class='form-field'>
-              <label>Include status</label>
-              <label class='chk'><input type='checkbox' v-model='mainImportIncludeStatus'/> enabled</label>
-            </div>
-            <div class='form-field'>
-              <label>Include CRDs</label>
-              <label class='chk'><input type='checkbox' v-model='mainImportIncludeCrds'/> enabled</label>
-            </div>
-          </div>
-        </div>
-
-        <div class='import-section'>
-          <h4>Mapping</h4>
-          <div class='import-fields'>
-            <div class='form-field'>
-              <label>Group name</label>
-              <input type='text' v-model='mainImportGroupName' placeholder='apps-k8s-manifests'/>
-            </div>
-            <div class='form-field'>
-              <label>Group type</label>
-              <input type='text' v-model='mainImportGroupType' placeholder='apps-k8s-manifests'/>
-            </div>
-            <div class='form-field'>
-              <label>Import strategy</label>
-              <select v-model='mainImportImportStrategy'>
-                <option value='helpers'>helpers (default)</option>
-                <option value='raw'>raw</option>
-              </select>
-            </div>
-            <div class='form-field'>
-              <label>Min include bytes</label>
-              <input type='number' min='0' step='1' v-model.number='mainImportMinIncludeBytes'/>
+            <div class='form-field path-field'>
+              <label>Include options</label>
+              <div class='checks-inline'>
+                <label class='chk'><input type='checkbox' v-model='mainImportIncludeStatus'/> include status</label>
+                <label class='chk'><input type='checkbox' v-model='mainImportIncludeCrds'/> include CRDs</label>
+              </div>
+              <div class='field-hint'>Use CRDs when you want generated chart to include source chart CRDs.</div>
             </div>
           </div>
         </div>
 
         <div class='import-section'>
-          <h4>Helm Flags</h4>
-          <div class='conv-grid'>
-            <div>
-              <div class='panel-label'>values files (--values), one per line</div>
-              <textarea v-model='mainImportValuesFilesText' spellcheck='false' style='min-height:120px;'></textarea>
+          <h4>Advanced</h4>
+          <details class='advanced-details'>
+            <summary>Mapping and Helm flags</summary>
+            <div class='advanced-body'>
+              <div class='import-fields'>
+                <div class='form-field'>
+                  <label>Group name</label>
+                  <input type='text' v-model='mainImportGroupName' placeholder='apps-k8s-manifests'/>
+                  <div class='field-hint'>Top-level section in generated values.yaml.</div>
+                </div>
+                <div class='form-field'>
+                  <label>Group type</label>
+                  <input type='text' v-model='mainImportGroupType' placeholder='apps-k8s-manifests'/>
+                  <div class='field-hint'>Stored in <code>__GroupVars__.type</code> when custom group type is needed.</div>
+                </div>
+                <div class='form-field'>
+                  <label>Import strategy</label>
+                  <select v-model='mainImportImportStrategy'>
+                    <option value='helpers'>helpers (default)</option>
+                    <option value='raw'>raw</option>
+                  </select>
+                  <div class='field-hint'><code>helpers</code> maps into supported library entities. <code>raw</code> keeps generic manifests.</div>
+                </div>
+                <div class='form-field'>
+                  <label>Min include bytes</label>
+                  <input type='number' min='0' step='1' v-model.number='mainImportMinIncludeBytes'/>
+                  <div class='field-hint'>Dedup threshold for include profile extraction.</div>
+                </div>
+              </div>
+              <div class='conv-grid'>
+                <div>
+                  <div class='panel-label'>values files (--values), one per line</div>
+                  <textarea v-model='mainImportValuesFilesText' spellcheck='false' style='min-height:120px;'></textarea>
+                </div>
+                <div>
+                  <div class='panel-label'>set flags (--set), one per line</div>
+                  <textarea v-model='mainImportSetText' spellcheck='false' style='min-height:120px;'></textarea>
+                </div>
+                <div>
+                  <div class='panel-label'>set-string / set-file / set-json, one per line</div>
+                  <textarea v-model='mainImportExtraSetText' spellcheck='false' style='min-height:120px;'></textarea>
+                </div>
+                <div>
+                  <div class='panel-label'>api versions (--api-version), one per line</div>
+                  <textarea v-model='mainImportApiVersionsText' spellcheck='false' style='min-height:120px;'></textarea>
+                </div>
+              </div>
             </div>
-            <div>
-              <div class='panel-label'>set flags (--set), one per line</div>
-              <textarea v-model='mainImportSetText' spellcheck='false' style='min-height:120px;'></textarea>
-            </div>
-            <div>
-              <div class='panel-label'>set-string / set-file / set-json, one per line</div>
-              <textarea v-model='mainImportExtraSetText' spellcheck='false' style='min-height:120px;'></textarea>
-            </div>
-            <div>
-              <div class='panel-label'>api versions (--api-version), one per line</div>
-              <textarea v-model='mainImportApiVersionsText' spellcheck='false' style='min-height:120px;'></textarea>
-            </div>
-          </div>
+          </details>
         </div>
       </div>
     </div>
@@ -1932,6 +2664,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
     </div>
     <div style='margin-bottom:10px;'>
       <div class='muted' style='margin-bottom:6px;'>jq query (syntax highlighted)</div>
+      <div class='muted' style='margin-bottom:6px; font-size:12px;'>Hints: <code>Ctrl/Cmd+Space</code> open suggestions, <code>Tab</code> apply, <code>Ctrl/Cmd+Enter</code> apply selected.</div>
       <div class='chip-row'>
         <button class='chip' v-for='p in jqPresets' :key='p.label' @click='applyJqPreset(p.query)'>{{{{ p.label }}}}</button>
       </div>
@@ -2223,6 +2956,19 @@ const app = Vue.createApp({{
       mainImportSaveChartMessage: '',
       mainImportSaveChartError: '',
       mainImportSaveChartRunning: false,
+      mainImportCompareRunning: false,
+      mainImportCompareError: '',
+      mainImportCompareMessage: '',
+      mainImportCompareSummary: '',
+      mainImportCompareEqual: false,
+      mainImportCompareSourceCount: 0,
+      mainImportCompareGeneratedCount: 0,
+      cmAvailable: false,
+      cmProbeReason: '',
+      cmLoadAttempted: false,
+      mainImportSourceCm: null,
+      mainImportGeneratedCm: null,
+      mainImportSourceCmUpdating: false,
       fsPickerOpen: false,
       fsPickerTarget: 'source-path',
       fsPickerPath: '',
@@ -2357,8 +3103,8 @@ const app = Vue.createApp({{
         for (const key of this.jqInputKeys) {{
           if (!keyPrefix || key.toLowerCase().startsWith(keyPrefix)) {{
             out.push({{
-              label: '.' + key,
-              snippet: '.' + key,
+              label: this.jqFieldSnippet(key),
+              snippet: this.jqFieldSnippet(key),
               cursor: 0,
               kind: 'field',
               desc: 'Field name from current input'
@@ -2395,6 +3141,15 @@ const app = Vue.createApp({{
       const t = this.dyffOutput || '';
       if(!t) return 0;
       return t.split('\n').filter(l => /^changed: |^added: |^removed: /.test(l)).length;
+    }},
+    mainImportPathPlaceholder() {{
+      if (this.mainImportSourceType === 'compose') {{
+        return 'Path to docker-compose.yaml on server';
+      }}
+      if (this.mainImportSourceType === 'manifests') {{
+        return 'Path to manifests file or directory on server';
+      }}
+      return 'Path to Helm chart directory on server';
     }}
   }},
   mounted() {{
@@ -2464,18 +3219,37 @@ const app = Vue.createApp({{
     this.scheduleJqRun();
     this.scheduleYqRun();
     this.scheduleDyffRun();
-    this.$nextTick(() => this.syncMainImportSourceScroll());
+    this.refreshCodeMirrorAvailability();
+    this.$nextTick(() => {{
+      this.syncMainImportSourceScroll();
+      this.initMainImportCodeMirror();
+    }});
+    setTimeout(() => this.initMainImportCodeMirror(), 120);
+    setTimeout(() => this.initMainImportCodeMirror(), 500);
+    if (!this.cmAvailable) {{
+      this.ensureCodeMirrorScriptLoaded().then(() => {{
+        this.$nextTick(() => this.initMainImportCodeMirror());
+      }});
+    }}
+  }},
+  beforeUnmount() {{
+    this.destroyMainImportCodeMirror();
   }},
   watch: {{
     wrapLines() {{
       this.saveSettings();
+      if (this.mainImportSourceCm) this.mainImportSourceCm.setWrapLines(this.wrapLines);
+      if (this.mainImportGeneratedCm) this.mainImportGeneratedCm.setWrapLines(this.wrapLines);
     }},
     fontSize() {{
       this.saveSettings();
+      if (this.mainImportSourceCm) this.mainImportSourceCm.setFontSize(this.fontSize);
+      if (this.mainImportGeneratedCm) this.mainImportGeneratedCm.setFontSize(this.fontSize);
     }},
     collapsedTitles: {{ handler: 'saveSettings', deep: true }},
     activeUtilityId() {{
       this.saveSettings();
+      this.$nextTick(() => this.initMainImportCodeMirror());
     }},
     converterMode() {{
       this.saveSettings();
@@ -2576,9 +3350,17 @@ const app = Vue.createApp({{
     mainImportExtraSetText: 'saveSettings',
     mainImportApiVersionsText: 'saveSettings',
     mainImportConfigOpen: 'saveSettings',
-    mainImportOutput: 'saveSettings',
+    mainImportOutput() {{
+      this.saveSettings();
+      if (this.mainImportGeneratedCm) {{
+        this.mainImportGeneratedCm.setValue(this.mainImportOutput || '');
+      }}
+    }},
     mainImportChartValuesEditor() {{
       this.saveSettings();
+      if (this.mainImportSourceCm && !this.mainImportSourceCmUpdating) {{
+        this.mainImportSourceCm.setValue(this.mainImportChartValuesEditor || '');
+      }}
       this.$nextTick(() => this.syncMainImportSourceScroll());
     }},
     mainImportUseChartValuesEditor: 'saveSettings',
@@ -2592,6 +3374,140 @@ const app = Vue.createApp({{
     fsPickerOnlySelectable: 'saveSettings',
   }},
   methods: {{
+    getCodeMirrorApi() {{
+      try {{
+        if (typeof window === 'undefined') return null;
+        const fromWindow = window.HappCodeMirror;
+        if (fromWindow) return fromWindow;
+        if (window.globalThis && window.globalThis.HappCodeMirror) return window.globalThis.HappCodeMirror;
+        if (typeof globalThis !== 'undefined' && globalThis.HappCodeMirror) return globalThis.HappCodeMirror;
+      }} catch(_) {{}}
+      return null;
+    }},
+    refreshCodeMirrorAvailability() {{
+      const api = this.getCodeMirrorApi();
+      this.cmAvailable = !!(api && typeof api.createYamlEditor === 'function');
+      if (this.cmAvailable) {{
+        this.cmProbeReason = '';
+      }} else if (!api) {{
+        let jsErr = '';
+        let afterScript = '';
+        let scriptLoad = '';
+        try {{
+          const arr = window.__happScriptErrors || [];
+          if (arr.length) {{
+            const last = arr[arr.length - 1] || {{}};
+            const where = [last.file || '', last.line ? (':' + last.line) : '', last.col ? (':' + last.col) : ''].join('');
+            jsErr = (last.message || 'unknown script error') + (where ? (' @ ' + where) : '');
+          }}
+          if (typeof window.__happCmAfterScript !== 'undefined') {{
+            afterScript = ' after-script=' + String(window.__happCmAfterScript);
+          }}
+          const loaded = typeof window.__happCmScriptLoaded !== 'undefined'
+            ? String(window.__happCmScriptLoaded)
+            : 'undefined';
+          const loadErr = typeof window.__happCmScriptError !== 'undefined'
+            ? String(window.__happCmScriptError)
+            : 'none';
+          const entryReached = typeof window.__happCmEntryReached !== 'undefined'
+            ? String(window.__happCmEntryReached)
+            : 'false';
+          const beforeAssign = typeof window.__happCmBeforeAssign !== 'undefined'
+            ? String(window.__happCmBeforeAssign)
+            : 'false';
+          const afterAssign = typeof window.__happCmAfterAssign !== 'undefined'
+            ? String(window.__happCmAfterAssign)
+            : 'false';
+          scriptLoad = ' loaded=' + loaded + ' load-error=' + loadErr + ' entry=' + entryReached + ' before=' + beforeAssign + ' after=' + afterAssign;
+        }} catch(_) {{}}
+        this.cmProbeReason = jsErr
+          ? ('CodeMirror script error: ' + jsErr + afterScript + scriptLoad)
+          : ('CodeMirror API object is missing (window.HappCodeMirror)' + afterScript + scriptLoad);
+      }} else {{
+        this.cmProbeReason = 'CodeMirror API loaded without createYamlEditor()';
+      }}
+      return this.cmAvailable;
+    }},
+    ensureCodeMirrorScriptLoaded() {{
+      if (this.refreshCodeMirrorAvailability()) return Promise.resolve(true);
+      if (this.cmLoadAttempted) return Promise.resolve(false);
+      this.cmLoadAttempted = true;
+      return new Promise((resolve) => {{
+        try {{
+          const script = document.createElement('script');
+          script.src = '/assets/codemirror.bundle.js?reload=' + Date.now();
+          script.async = true;
+          script.onload = () => {{
+            const ok = this.refreshCodeMirrorAvailability();
+            if (!ok && !this.cmProbeReason) {{
+              this.cmProbeReason = 'CodeMirror script loaded but API is unavailable';
+            }}
+            resolve(ok);
+          }};
+          script.onerror = () => {{
+            this.cmProbeReason = 'Failed to load /assets/codemirror.bundle.js';
+            resolve(false);
+          }};
+          document.head.appendChild(script);
+        }} catch(e) {{
+          this.cmProbeReason = 'CodeMirror dynamic load error: ' + String(e);
+          resolve(false);
+        }}
+      }});
+    }},
+    destroyMainImportCodeMirror() {{
+      if (this.mainImportSourceCm) {{
+        try {{ this.mainImportSourceCm.destroy(); }} catch(_) {{}}
+        this.mainImportSourceCm = null;
+      }}
+      if (this.mainImportGeneratedCm) {{
+        try {{ this.mainImportGeneratedCm.destroy(); }} catch(_) {{}}
+        this.mainImportGeneratedCm = null;
+      }}
+    }},
+    initMainImportCodeMirror() {{
+      if (!this.refreshCodeMirrorAvailability()) return;
+      if (this.activeUtilityKey !== 'main-import') return;
+      const cmApi = this.getCodeMirrorApi();
+      if (!cmApi || typeof cmApi.createYamlEditor !== 'function') return;
+
+      try {{
+        if (!this.mainImportSourceCm) {{
+          const host = this.$refs.mainImportSourceCmHost;
+          if (host) {{
+            this.mainImportSourceCm = cmApi.createYamlEditor(host, {{
+              value: this.mainImportChartValuesEditor || '',
+              readOnly: false,
+              wrapLines: this.wrapLines,
+              fontSize: this.fontSize,
+              onChange: (next) => {{
+                this.mainImportSourceCmUpdating = true;
+                this.mainImportChartValuesEditor = next;
+                this.mainImportSourceCmUpdating = false;
+              }},
+            }});
+          }}
+        }}
+
+        if (!this.mainImportGeneratedCm) {{
+          const host = this.$refs.mainImportGeneratedCmHost;
+          if (host) {{
+            this.mainImportGeneratedCm = cmApi.createYamlEditor(host, {{
+              value: this.mainImportOutput || '',
+              readOnly: true,
+              wrapLines: this.wrapLines,
+              fontSize: this.fontSize,
+            }});
+          }}
+        }}
+      }} catch(e) {{
+        this.cmAvailable = false;
+        this.destroyMainImportCodeMirror();
+        if (!this.mainImportError) {{
+          this.mainImportError = 'CodeMirror initialization failed, switched to fallback editor: ' + String(e);
+        }}
+      }}
+    }},
     saveSettings() {{
       try {{
         localStorage.setItem(APP_STORE_KEY, JSON.stringify({{
@@ -2771,6 +3687,7 @@ const app = Vue.createApp({{
       return {{ meta, html }};
     }},
     onMainImportFoldClick(event) {{
+      if (this.mainImportGeneratedCm) return;
       const marker = event && event.target && event.target.closest
         ? event.target.closest('.foldmark[data-fold-line]')
         : null;
@@ -2803,12 +3720,24 @@ const app = Vue.createApp({{
       this.mainImportConfigOpen = false;
     }},
     foldMainImportLevel(level) {{
+      if (this.mainImportGeneratedCm) {{
+        this.mainImportGeneratedCm.foldLevel(level);
+        return;
+      }}
       this.setMainImportFoldLevel(level);
     }},
     expandAllMainImportSections() {{
+      if (this.mainImportGeneratedCm) {{
+        this.mainImportGeneratedCm.unfoldAll();
+        return;
+      }}
       this.mainImportSectionCollapsed = {{}};
     }},
     collapseAllMainImportSections() {{
+      if (this.mainImportGeneratedCm) {{
+        this.mainImportGeneratedCm.foldAll();
+        return;
+      }}
       const out = {{}};
       for (const m of (this.mainImportPreviewMeta || [])) {{
         if (m.collapsible) out[String(m.lineNo)] = true;
@@ -2980,6 +3909,12 @@ const app = Vue.createApp({{
     async runMainImport() {{
       this.mainImportError = '';
       this.mainImportMessage = '';
+      this.mainImportCompareError = '';
+      this.mainImportCompareMessage = '';
+      this.mainImportCompareSummary = '';
+      this.mainImportCompareEqual = false;
+      this.mainImportCompareSourceCount = 0;
+      this.mainImportCompareGeneratedCount = 0;
       this.mainImportRunning = true;
       try {{
         const extra = this.parseSetBlocks();
@@ -3036,11 +3971,87 @@ const app = Vue.createApp({{
         this.mainImportRunning = false;
       }}
     }},
+    async runMainImportCompare() {{
+      this.mainImportCompareError = '';
+      this.mainImportCompareMessage = '';
+      this.mainImportCompareSummary = '';
+      this.mainImportCompareEqual = false;
+      this.mainImportCompareSourceCount = 0;
+      this.mainImportCompareGeneratedCount = 0;
+      if (this.mainImportSourceType !== 'chart') {{
+        this.mainImportCompareError = 'render compare is available only for sourceType=chart';
+        return;
+      }}
+      if (!this.mainImportOutput || !String(this.mainImportOutput).trim()) {{
+        this.mainImportCompareError = 'Generated values are empty, run import first';
+        return;
+      }}
+      this.mainImportCompareRunning = true;
+      try {{
+        const extra = this.parseSetBlocks();
+        const res = await fetch('/api/compare-renders', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify({{
+            sourceType: this.mainImportSourceType,
+            path: this.mainImportPath,
+            env: this.mainImportEnv,
+            groupName: this.mainImportGroupName,
+            groupType: this.mainImportGroupType,
+            importStrategy: this.mainImportImportStrategy,
+            releaseName: this.mainImportReleaseName,
+            namespace: this.mainImportNamespace,
+            minIncludeBytes: Number(this.mainImportMinIncludeBytes || 24),
+            includeStatus: !!this.mainImportIncludeStatus,
+            includeCrds: !!this.mainImportIncludeCrds,
+            kubeVersion: this.mainImportKubeVersion,
+            valuesFiles: this.parseLines(this.mainImportValuesFilesText),
+            setValues: this.parseLines(this.mainImportSetText),
+            setStringValues: extra.setStringValues,
+            setFileValues: extra.setFileValues,
+            setJsonValues: extra.setJsonValues,
+            apiVersions: this.parseLines(this.mainImportApiVersionsText),
+            chartValuesYaml: this.mainImportUseChartValuesEditor ? (this.mainImportChartValuesEditor || '') : undefined,
+            valuesYaml: this.mainImportOutput,
+            libraryChartPath: this.mainImportLibraryChartPath || undefined,
+          }})
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('compare-renders API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if(!res.ok) {{
+          throw new Error(data.message || ('compare-renders API HTTP ' + res.status));
+        }}
+        if(!data.ok) {{
+          this.mainImportCompareError = data.message || 'Render compare failed';
+          return;
+        }}
+        this.mainImportCompareEqual = !!data.equal;
+        this.mainImportCompareSummary = data.summary || '';
+        this.mainImportCompareSourceCount = Number(data.sourceCount || 0);
+        this.mainImportCompareGeneratedCount = Number(data.generatedCount || 0);
+        this.mainImportCompareMessage = data.message || 'Render compare completed';
+      }} catch(e) {{
+        this.mainImportCompareError = String(e);
+      }} finally {{
+        this.mainImportCompareRunning = false;
+      }}
+    }},
     clearMainImport() {{
       this.mainImportOutput = '';
       this.mainImportError = '';
       this.mainImportMessage = '';
       this.mainImportSourceCount = 0;
+      this.mainImportCompareError = '';
+      this.mainImportCompareMessage = '';
+      this.mainImportCompareSummary = '';
+      this.mainImportCompareEqual = false;
+      this.mainImportCompareSourceCount = 0;
+      this.mainImportCompareGeneratedCount = 0;
     }},
     async saveMainImportAsChart() {{
       this.mainImportSaveChartError = '';
@@ -3106,6 +4117,26 @@ const app = Vue.createApp({{
       this.mainImportSetText = '';
       this.mainImportExtraSetText = '';
       this.mainImportApiVersionsText = '';
+    }},
+    resetMainImportConfig() {{
+      this.mainImportSourceType = 'chart';
+      this.mainImportPath = '';
+      this.mainImportPickedFilesLabel = '';
+      this.mainImportEnv = 'dev';
+      this.mainImportGroupName = 'apps-k8s-manifests';
+      this.mainImportGroupType = 'apps-k8s-manifests';
+      this.mainImportImportStrategy = 'helpers';
+      this.mainImportReleaseName = 'imported';
+      this.mainImportNamespace = '';
+      this.mainImportMinIncludeBytes = 24;
+      this.mainImportIncludeStatus = false;
+      this.mainImportIncludeCrds = false;
+      this.mainImportKubeVersion = '';
+      this.mainImportValuesFilesText = '';
+      this.mainImportSetText = '';
+      this.mainImportExtraSetText = '';
+      this.mainImportApiVersionsText = '';
+      this.mainImportLibraryChartPath = '';
     }},
     async runConvert(mode) {{
       this.converterMode = mode || this.converterMode;
@@ -3180,8 +4211,17 @@ const app = Vue.createApp({{
       if(!this.converterOutput) return;
       try {{ await navigator.clipboard.writeText(this.converterOutput); }} catch(_) {{}}
     }},
+    isJqSimpleIdent(s) {{
+      return /^[A-Za-z_][A-Za-z0-9_]*$/.test(String(s || ''));
+    }},
+    jqFieldSnippet(key) {{
+      const k = String(key || '');
+      if (!k) return '.';
+      if (this.isJqSimpleIdent(k)) return '.' + k;
+      return '.[' + JSON.stringify(k) + ']';
+    }},
     onJqInput() {{
-      this.updateJqSuggestState();
+      this.updateJqSuggestState(false);
     }},
     applyJqPreset(query) {{
       this.jqQuery = query || '.';
@@ -3199,6 +4239,16 @@ const app = Vue.createApp({{
       const src = this.jqQuery || '';
       const pos = ta && Number.isFinite(ta.selectionStart) ? ta.selectionStart : src.length;
       const left = src.slice(0, pos);
+      const bracketField = left.match(/(\.\[\s*"([^"]*))$/);
+      if (bracketField) {{
+        return {{
+          kind: 'field',
+          raw: bracketField[1],
+          term: bracketField[2],
+          start: pos - bracketField[1].length,
+          end: pos,
+        }};
+      }}
       const field = left.match(/(\.[A-Za-z0-9_.-]*)$/);
       if (field) {{
         return {{
@@ -3221,10 +4271,12 @@ const app = Vue.createApp({{
       }}
       return {{ kind: 'none', raw: '', term: '', start: pos, end: pos }};
     }},
-    updateJqSuggestState() {{
+    updateJqSuggestState(forceOpen) {{
       const meta = this.currentJqTokenMeta();
-      this.jqSuggestOpen = this.activeUtilityKey === 'jq-playground' &&
-        (!!meta.raw || (this.jqQuery || '').trim() === '');
+      const canOpen = this.activeUtilityKey === 'jq-playground' &&
+        (meta.kind === 'field' || meta.kind === 'func') &&
+        String(meta.raw || '').length > 0;
+      this.jqSuggestOpen = !!forceOpen ? this.activeUtilityKey === 'jq-playground' : canOpen;
       this.jqSuggestIndex = 0;
     }},
     closeJqSuggestSoon() {{
@@ -3281,8 +4333,7 @@ const app = Vue.createApp({{
       if(!this.jqSuggestOpen || !this.jqSuggestions.length) {{
         if((e.ctrlKey || e.metaKey) && e.key === ' ') {{
           e.preventDefault();
-          this.updateJqSuggestState();
-          this.jqSuggestOpen = true;
+          this.updateJqSuggestState(true);
         }}
         return;
       }}
@@ -3296,9 +4347,13 @@ const app = Vue.createApp({{
         this.jqSuggestIndex = (this.jqSuggestIndex - 1 + this.jqSuggestions.length) % this.jqSuggestions.length;
         return;
       }}
-      if(e.key === 'Tab' || e.key === 'Enter') {{
+      if(e.key === 'Tab' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {{
         e.preventDefault();
         this.pickJqSuggestion(this.jqSuggestIndex);
+        return;
+      }}
+      if(e.key === 'Enter') {{
+        this.jqSuggestOpen = false;
         return;
       }}
       if(e.key === 'Escape') {{
@@ -3307,6 +4362,7 @@ const app = Vue.createApp({{
       }}
     }},
     syncMainImportSourceScroll() {{
+      if (this.mainImportSourceCm) return;
       const ta = this.$refs.mainImportSourceInput;
       const pre = this.$el && this.$el.querySelector('.yaml-editor-highlight');
       if(!ta || !pre) return;
@@ -3573,8 +4629,7 @@ app.mount('#app');
 </script>
 </body>
 </html>"#,
-        page_title,
-        model_json
+        page_title, cm_bundle_version, model_json
     )
 }
 
@@ -3616,6 +4671,7 @@ mod tests {
         assert!(html.contains("Exit"));
         assert!(html.contains("/exit"));
         assert!(html.contains("/assets/vue.global.prod.js"));
+        assert!(html.contains("/assets/codemirror.bundle.js"));
         assert!(html.contains("id='app'"));
         assert!(html.contains("Wrap lines"));
         assert!(html.contains("Copy"));
@@ -3637,12 +4693,19 @@ mod tests {
         assert!(html.contains("Copy values"));
         assert!(html.contains("Save as chart"));
         assert!(html.contains("/api/save-chart"));
+        assert!(html.contains("Compare renders"));
+        assert!(html.contains("/api/compare-renders"));
     }
 
     #[test]
     fn compose_page_has_report_and_preview_sections() {
-        let html = render_compose_page_html("services:\n  web: {}", "services:\n- name: web", "apps-stateless:\n  web: {}");
+        let html = render_compose_page_html(
+            "services:\n  web: {}",
+            "services:\n- name: web",
+            "apps-stateless:\n  web: {}",
+        );
         assert!(html.contains("/assets/vue.global.prod.js"));
+        assert!(html.contains("/assets/codemirror.bundle.js"));
         assert!(html.contains("id='app'"));
         assert!(html.contains("window.__HAPP_MODEL__"));
         assert!(html.contains("Search"));
@@ -3652,9 +4715,11 @@ mod tests {
 
     #[test]
     fn convert_payload_yaml_to_json_and_back() {
-        let j = convert_payload("yaml-to-json", "a: 1\nb:\n  - x\n", "all", None).expect("yaml->json");
+        let j =
+            convert_payload("yaml-to-json", "a: 1\nb:\n  - x\n", "all", None).expect("yaml->json");
         assert!(j.contains("\"a\": 1"));
-        let y = convert_payload("json-to-yaml", r#"{"a":1,"b":["x"]}"#, "all", None).expect("json->yaml");
+        let y = convert_payload("json-to-yaml", r#"{"a":1,"b":["x"]}"#, "all", None)
+            .expect("json->yaml");
         assert!(y.contains("a: 1"));
         assert!(y.contains("- x"));
     }
@@ -3769,14 +4834,22 @@ text: |-
 
     #[test]
     fn jq_payload_runs_query_for_yaml_input() {
-        let out = jq_payload(".apps[] | .name", "apps:\n  - name: a\n  - name: b\n", "first", None, false, true)
-            .expect("jq");
+        let out = jq_payload(
+            ".apps[] | .name",
+            "apps:\n  - name: a\n  - name: b\n",
+            "first",
+            None,
+            false,
+            true,
+        )
+        .expect("jq");
         assert_eq!(out, "a\nb");
     }
 
     #[test]
     fn jq_payload_supports_doc_index_mode() {
-        let out = jq_payload(".a", "a: 1\n---\na: 2\n", "index", Some(1), false, false).expect("jq");
+        let out =
+            jq_payload(".a", "a: 1\n---\na: 2\n", "index", Some(1), false, false).expect("jq");
         assert_eq!(out.trim(), "2");
     }
 
@@ -3794,8 +4867,15 @@ text: |-
 
     #[test]
     fn yq_payload_runs_query_for_yaml_input() {
-        let out = yq_payload(".apps[] | .name", "apps:\n  - name: a\n  - name: b\n", "first", None, false, true)
-            .expect("yq");
+        let out = yq_payload(
+            ".apps[] | .name",
+            "apps:\n  - name: a\n  - name: b\n",
+            "first",
+            None,
+            false,
+            true,
+        )
+        .expect("yq");
         assert_eq!(out, "a\nb");
     }
 
@@ -3866,6 +4946,64 @@ text: |-
     }
 
     #[test]
+    fn compare_render_payload_rejects_non_chart_source_type() {
+        let err = compare_render_payload(
+            "manifests",
+            "/tmp/something",
+            "dev",
+            "apps-k8s-manifests",
+            "apps-k8s-manifests",
+            "helpers",
+            "imported",
+            None,
+            24,
+            false,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            Vec::new(),
+            false,
+            None,
+            "global:\n  env: dev\n",
+            None,
+        )
+        .expect_err("expected error");
+        assert!(err.contains("supported only for sourceType=chart"));
+    }
+
+    #[test]
+    fn compare_render_payload_rejects_empty_generated_values() {
+        let err = compare_render_payload(
+            "chart",
+            "/tmp/something",
+            "dev",
+            "apps-k8s-manifests",
+            "apps-k8s-manifests",
+            "helpers",
+            "imported",
+            None,
+            24,
+            false,
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            Vec::new(),
+            None,
+            Vec::new(),
+            false,
+            None,
+            "",
+            None,
+        )
+        .expect_err("expected error");
+        assert!(err.contains("generated values are empty"));
+    }
+
+    #[test]
     fn payload_string_list_skips_empty_values() {
         let payload = serde_json::json!({
             "valuesFiles": ["a.yaml", " ", "", "b.yaml"]
@@ -3876,7 +5014,15 @@ text: |-
 
     #[test]
     fn save_chart_payload_rejects_empty_output_dir() {
-        let err = save_chart_payload("chart", "/tmp/chart", "", None, None, "global:\n  env: dev\n").expect_err("error");
+        let err = save_chart_payload(
+            "chart",
+            "/tmp/chart",
+            "",
+            None,
+            None,
+            "global:\n  env: dev\n",
+        )
+        .expect_err("error");
         assert!(err.contains("outChartDir is required"));
     }
 

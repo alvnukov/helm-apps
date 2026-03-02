@@ -1,0 +1,17 @@
+{
+  "name": "happ-rs-web-assets",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:cm": "esbuild codemirror-entry.js --bundle --format=iife --target=es2017 --outfile=../assets/codemirror.bundle.js"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.8.1",
+    "@codemirror/lang-yaml": "^6.1.2",
+    "@codemirror/language": "^6.11.3",
+    "@codemirror/state": "^6.5.2",
+    "@codemirror/view": "^6.38.6",
+    "@lezer/highlight": "^1.2.3",
+    "esbuild": "^0.25.10"
+  }
+}
