@@ -1,30 +1,28 @@
 class Happ < Formula
   desc "Helm chart and manifest importer/converter for helm-apps"
   homepage "https://github.com/alvnukov/helm-apps"
-  version "1.8.1"
+  version "1.8.3"
   license "Apache-2.0"
 
   on_macos do
     if Hardware::CPU.arm?
       url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_darwin_arm64"
-      sha256 "adc51dad7f8287e519d6cdac988b6363a971858e5a070a147794b4407f4a9852"
+      sha256 "1cb57b8a68df97c377f2477d1bfe6f06906c324ab038a66574a4f61b406621df"
     else
       url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_darwin_amd64"
-      sha256 "8fbe16b2bd92519f0c10e3cc75058ec48d21bd01de1796ef4a903d676534e0ad"
+      sha256 "02f839ab5ebaceabe64b80dccbf0b92283d12ca43f49743dbc3a79875287750f"
     end
   end
 
   on_linux do
-    if Hardware::CPU.arm?
-      url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_arm64"
-      sha256 "61a457e3b27c39d2765af730c96ae678b46a206797d9871ff62f16ca7cf0de77"
-    else
-      url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_amd64"
-      sha256 "ac63f9e37e9b7ed5e065ceb93ce915eb792967ad26e09269f03471ccfec3827d"
-    end
+    url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_amd64"
+    sha256 "576c3e8753b6bd2c60d4e4ac28bf21b52f36a11472d3bc9cbd874e359278420e"
   end
 
   def install
+    if OS.linux? && Hardware::CPU.arm?
+      odie "happ: linux arm64 binary is temporarily unavailable in this release"
+    end
     bin.install Dir["happ_*"].first => "happ"
   end
 

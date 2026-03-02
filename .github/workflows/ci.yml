@@ -295,3 +295,40 @@ jobs:
         run: |
           set -euo pipefail
           kubectl apply --dry-run=server -f /tmp/contracts_k8s_129_server.yaml
+
+  happ-platform-build:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            asset_name: happ_linux_amd64
+          - runner: ubuntu-24.04-arm
+            asset_name: happ_linux_arm64
+          - runner: macos-13
+            asset_name: happ_darwin_amd64
+          - runner: macos-14
+            asset_name: happ_darwin_arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set lib version
+        run: |
+          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
+          sed -i.bak 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
+
+      - name: Setup Rust toolchain (for happ)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build happ binary
+        run: |
+          set -euo pipefail
+          cd cmd/happ-rs
+          cargo build --release --locked
+          mkdir -p dist
+          cp target/release/happ "dist/${{ matrix.asset_name }}"
+          test -s "dist/${{ matrix.asset_name }}"

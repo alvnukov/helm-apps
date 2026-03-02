@@ -7,7 +7,53 @@ on:
   workflow_dispatch:
 
 jobs:
+  build-happ-binaries:
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            asset_name: happ_linux_amd64
+          - runner: ubuntu-24.04-arm
+            asset_name: happ_linux_arm64
+          - runner: macos-13
+            asset_name: happ_darwin_amd64
+          - runner: macos-14
+            asset_name: happ_darwin_arm64
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 0
+
+      - name: Set lib version
+        run: |
+          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
+          sed -i.bak 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
+
+      - name: Setup Rust toolchain (for happ)
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build happ binary
+        run: |
+          set -euo pipefail
+          cd cmd/happ-rs
+          cargo build --release --locked
+          mkdir -p dist
+          cp target/release/happ "dist/${{ matrix.asset_name }}"
+
+      - name: Upload happ binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: cmd/happ-rs/dist/${{ matrix.asset_name }}
+          if-no-files-found: error
+          retention-days: 7
+
   release:
+    needs:
+      - build-happ-binaries
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -152,14 +198,13 @@ jobs:
           cd extensions/helm-apps
           npx --yes @vscode/vsce package --no-dependencies --out helm-apps.vsix
 
-      - name: Build happ binaries (Rust)
+      - name: Download happ binary artifacts
         if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          mkdir -p dist
-          cargo build --release --locked
-          cp target/release/happ dist/happ_linux_amd64
+        uses: actions/download-artifact@v4
+        with:
+          pattern: happ_*
+          path: cmd/happ-rs/dist
+          merge-multiple: true
 
       - name: Check chart release tag
         id: check_chart_release
@@ -259,6 +304,73 @@ jobs:
           gh release edit "${TAG}" \
             --title "helm-apps ${LIB_VERSION}" \
             --notes-file /tmp/release_notes.md
+
+      - name: Update Homebrew tap formula
+        if: ${{ github.ref == 'refs/heads/main' }}
+        env:
+          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+        run: |
+          set -euo pipefail
+
+          for f in \
+            cmd/happ-rs/dist/happ_darwin_amd64 \
+            cmd/happ-rs/dist/happ_darwin_arm64 \
+            cmd/happ-rs/dist/happ_linux_amd64 \
+            cmd/happ-rs/dist/happ_linux_arm64
+          do
+            test -f "${f}" || { echo "missing binary asset: ${f}"; exit 1; }
+          done
+
+          SHA_DARWIN_AMD64=$(shasum -a 256 cmd/happ-rs/dist/happ_darwin_amd64 | awk '{print $1}')
+          SHA_DARWIN_ARM64=$(shasum -a 256 cmd/happ-rs/dist/happ_darwin_arm64 | awk '{print $1}')
+          SHA_LINUX_AMD64=$(shasum -a 256 cmd/happ-rs/dist/happ_linux_amd64 | awk '{print $1}')
+          SHA_LINUX_ARM64=$(shasum -a 256 cmd/happ-rs/dist/happ_linux_arm64 | awk '{print $1}')
+
+          cat > Formula/happ.rb <<EOF
+          class Happ < Formula
+            desc "Helm chart and manifest importer/converter for helm-apps"
+            homepage "https://github.com/alvnukov/helm-apps"
+            version "${LIB_VERSION}"
+            license "Apache-2.0"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_darwin_arm64"
+                sha256 "${SHA_DARWIN_ARM64}"
+              else
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_darwin_amd64"
+                sha256 "${SHA_DARWIN_AMD64}"
+              end
+            end
+
+            on_linux do
+              if Hardware::CPU.arm?
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_linux_arm64"
+                sha256 "${SHA_LINUX_ARM64}"
+              else
+                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_linux_amd64"
+                sha256 "${SHA_LINUX_AMD64}"
+              end
+            end
+
+            def install
+              bin.install Dir["happ_*"].first => "happ"
+            end
+
+            test do
+              assert_match "happ", shell_output("\#{bin}/happ --help 2>&1")
+            end
+          end
+          EOF
+
+          if git diff --quiet -- Formula/happ.rb; then
+            echo "Formula/happ.rb already up to date"
+            exit 0
+          fi
+
+          git add Formula/happ.rb
+          git commit -m "chore(homebrew): update happ formula to ${LIB_VERSION} [skip ci]"
+          git push origin HEAD:main
 
 #    - name: Publish to CR
 #      env:
