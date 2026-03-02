@@ -40,6 +40,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set lib version
+        shell: bash
         run: |
           LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
           sed -i.bak 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
