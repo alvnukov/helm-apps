@@ -69,7 +69,10 @@ fn parity_help_contract() {
         "compose-inspect",
         "dyff",
     ] {
-        assert!(text.contains(token), "help must include subcommand: {token}");
+        assert!(
+            text.contains(token),
+            "help must include subcommand: {token}"
+        );
     }
 }
 
@@ -136,15 +139,7 @@ fn parity_dyff_contract() {
         "dyff text must show diff"
     );
 
-    let json = run_happ(&[
-        "dyff",
-        "--from",
-        &from_s,
-        "--to",
-        &to_s,
-        "--format",
-        "json",
-    ]);
+    let json = run_happ(&["dyff", "--from", &from_s, "--to", &to_s, "--format", "json"]);
     assert_ok(&json, "dyff json");
     assert!(
         stdout_text(&json).contains("\"summary\""),
@@ -185,7 +180,10 @@ fn parity_compose_import_contract() {
     ]);
     assert_ok(&out, "compose import");
     let text = stdout_text(&out);
-    assert!(text.contains("apps-stateless:"), "must include stateless apps");
+    assert!(
+        text.contains("apps-stateless:"),
+        "must include stateless apps"
+    );
     assert!(
         text.contains("apps-services:") || text.contains("apps-k8s-manifests:"),
         "must include service projection"

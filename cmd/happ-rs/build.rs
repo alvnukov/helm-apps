@@ -10,8 +10,9 @@ fn main() {
 }
 
 fn run() -> Result<(), String> {
-    let manifest_dir =
-        PathBuf::from(env::var("CARGO_MANIFEST_DIR").map_err(|e| format!("CARGO_MANIFEST_DIR: {e}"))?);
+    let manifest_dir = PathBuf::from(
+        env::var("CARGO_MANIFEST_DIR").map_err(|e| format!("CARGO_MANIFEST_DIR: {e}"))?,
+    );
     let src = manifest_dir.join("../../charts/helm-apps");
     let out_dir = PathBuf::from(env::var("OUT_DIR").map_err(|e| format!("OUT_DIR: {e}"))?);
     let dst = out_dir.join("helm-apps");
@@ -24,7 +25,8 @@ fn run() -> Result<(), String> {
     }
 
     emit_rerun_markers(&src).map_err(|e| format!("emit rerun markers: {e}"))?;
-    copy_dir_replace(&src, &dst).map_err(|e| format!("copy {} -> {}: {e}", src.display(), dst.display()))?;
+    copy_dir_replace(&src, &dst)
+        .map_err(|e| format!("copy {} -> {}: {e}", src.display(), dst.display()))?;
     Ok(())
 }
 
@@ -67,4 +69,3 @@ fn copy_dir_recursive(src: &Path, dst: &Path) -> io::Result<()> {
     }
     Ok(())
 }
-
