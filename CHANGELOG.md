@@ -10,6 +10,19 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+## [1.8.3] - 2026-03-03
+
+### Changed
+- Removed deprecated Go implementation of `happ` (`cmd/happ`), Rust `happ-rs` is now the single CLI implementation in repository.
+- Switched embedded library asset flow to build-time generation from актуальный `charts/helm-apps` via `build.rs` in `happ-rs`.
+
+### Added
+- Added CLI parity matrix integration tests (`tests/parity_cli.rs`) with fixed fixtures for:
+  - `help`, `validate`, `jq`, `yq`, `dyff`,
+  - `manifests`, `compose`, `completion`,
+  - embedded chart generation contract.
+- Added dedicated parity matrix steps in CI and release workflows.
+
 ## [1.7.6] - 2026-02-25
 
 ### Added
