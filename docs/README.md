@@ -62,6 +62,11 @@
 - Контрактные кейсы по сущностям: [../tests/contracts/values.yaml](../tests/contracts/values.yaml)
 - JSON schema values: [../tests/.helm/values.schema.json](../tests/.helm/values.schema.json)
 
+## Связанные репозитории
+
+- CLI `happ`: <https://github.com/alvnukov/happ>
+- IDE extensions (VS Code + JetBrains): <https://github.com/alvnukov/helm-apps-extensions>
+
 ## Минимальный локальный чек
 
 ```bash

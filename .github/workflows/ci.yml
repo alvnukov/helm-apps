@@ -25,14 +25,6 @@ jobs:
         with:
           version: v2.57.1
 
-      - name: Setup Rust toolchain (for happ)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Node.js (for VS Code extension)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - name: Install Dyff
         run: |
           curl --silent --location https://git.io/JYfAY | bash
@@ -112,57 +104,6 @@ jobs:
         run: |
           set -euo pipefail
           bash scripts/fuzz-contracts.sh --iterations 40 --seed 20260216
-
-      - name: Test happ (Rust)
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo fmt --check
-          cargo test --locked
-
-      - name: Parity matrix (happ CLI contracts)
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo test --locked --test parity_cli
-
-      - name: Install happ-rs web test dependencies
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs/web
-          npm ci
-          npx playwright install --with-deps chromium
-
-      - name: Build happ-rs for web UI tests
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo build --locked
-
-      - name: Run happ-rs web UI tests (e2e + visual + structure)
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs/web
-          npm run test:ui
-
-      - name: Install extension dependencies
-        run: |
-          set -euo pipefail
-          cd extensions/helm-apps
-          npm ci
-
-      - name: Build extension
-        run: |
-          set -euo pipefail
-          cd extensions/helm-apps
-          npm run build
-
-      - name: Test extension
-        run: |
-          set -euo pipefail
-          cd extensions/helm-apps
-          npm test
-          xvfb-run -a npm run test:e2e
 
   kube-compatibility-matrix:
     runs-on: ubuntu-latest
@@ -295,49 +236,3 @@ jobs:
         run: |
           set -euo pipefail
           kubectl apply --dry-run=server -f /tmp/contracts_k8s_129_server.yaml
-
-  happ-platform-build:
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            asset_name: happ_linux_amd64
-            binary_path: target/release/happ
-          - runner: ubuntu-24.04-arm
-            asset_name: happ_linux_arm64
-            binary_path: target/release/happ
-          - runner: macos-15-intel
-            asset_name: happ_darwin_amd64
-            binary_path: target/release/happ
-          - runner: macos-14
-            asset_name: happ_darwin_arm64
-            binary_path: target/release/happ
-          - runner: windows-latest
-            asset_name: happ_windows_amd64.exe
-            binary_path: target/release/happ.exe
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
-      - name: Set lib version
-        shell: bash
-        run: |
-          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
-          sed -i.bak 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
-
-      - name: Setup Rust toolchain (for happ)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build happ binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo build --release --locked
-          mkdir -p dist
-          cp "${{ matrix.binary_path }}" "dist/${{ matrix.asset_name }}"
-          test -s "dist/${{ matrix.asset_name }}"

@@ -7,127 +7,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-happ-binaries:
-    runs-on: ${{ matrix.runner }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            asset_name: happ_linux_amd64
-            binary_path: target/release/happ
-            package_arch: amd64
-          - runner: ubuntu-24.04-arm
-            asset_name: happ_linux_arm64
-            binary_path: target/release/happ
-            package_arch: arm64
-          - runner: macos-15-intel
-            asset_name: happ_darwin_amd64
-            binary_path: target/release/happ
-            package_arch: none
-          - runner: macos-14
-            asset_name: happ_darwin_arm64
-            binary_path: target/release/happ
-            package_arch: none
-          - runner: windows-latest
-            asset_name: happ_windows_amd64.exe
-            binary_path: target/release/happ.exe
-            package_arch: none
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-        with:
-          fetch-depth: 0
-
-      - name: Set lib version
-        shell: bash
-        run: |
-          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
-          sed -i.bak 's/_FLANT_APPS_LIBRARY_VERSION_/'${LIB_VERSION}'/' charts/helm-apps/templates/_apps-version.tpl
-
-      - name: Setup Rust toolchain (for happ)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Build happ binary
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo build --release --locked
-          mkdir -p dist
-          cp "${{ matrix.binary_path }}" "dist/${{ matrix.asset_name }}"
-
-      - name: Upload happ binary artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset_name }}
-          path: cmd/happ-rs/dist/${{ matrix.asset_name }}
-          if-no-files-found: error
-          retention-days: 7
-
-      - name: Build Linux DEB/RPM packages
-        if: ${{ startsWith(matrix.asset_name, 'happ_linux_') }}
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          case "${{ matrix.package_arch }}" in
-            amd64) NFPM_ARCH="x86_64" ;;
-            arm64) NFPM_ARCH="arm64" ;;
-            *) echo "unsupported package arch: ${{ matrix.package_arch }}"; exit 1 ;;
-          esac
-
-          NFPM_VERSION="2.41.3"
-          curl -sSL -o /tmp/nfpm.tar.gz \
-            "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_${NFPM_ARCH}.tar.gz"
-          tar -xzf /tmp/nfpm.tar.gz -C /tmp nfpm
-          sudo install -m 0755 /tmp/nfpm /usr/local/bin/nfpm
-
-          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
-
-          cd cmd/happ-rs
-          rm -rf pkgroot
-          mkdir -p pkgroot/usr/local/bin
-          cp "dist/${{ matrix.asset_name }}" pkgroot/usr/local/bin/happ
-          chmod 0755 pkgroot/usr/local/bin/happ
-
-          cat > nfpm.yaml <<EOF
-          name: happ
-          arch: ${{ matrix.package_arch }}
-          platform: linux
-          version: ${LIB_VERSION}
-          section: default
-          priority: optional
-          maintainer: helm-apps maintainers <maintainers@helm-apps.local>
-          description: Helm chart and manifest importer/converter for helm-apps
-          homepage: https://github.com/alvnukov/helm-apps
-          license: Apache-2.0
-          contents:
-            - src: ./pkgroot/usr/local/bin/happ
-              dst: /usr/local/bin/happ
-              file_info:
-                mode: 0755
-          EOF
-
-          nfpm package --config nfpm.yaml --packager deb --target "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.deb"
-          nfpm package --config nfpm.yaml --packager rpm --target "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.rpm"
-          test -s "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.deb"
-          test -s "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.rpm"
-
-      - name: Upload Linux package artifacts
-        if: ${{ startsWith(matrix.asset_name, 'happ_linux_') }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: happ_pkgs_${{ matrix.package_arch }}
-          path: |
-            cmd/happ-rs/dist/*.deb
-            cmd/happ-rs/dist/*.rpm
-          if-no-files-found: error
-          retention-days: 7
-
   release:
-    needs:
-      - build-happ-binaries
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -156,15 +36,6 @@ jobs:
         with:
           version: v3.15.4
 
-      - name: Setup Rust toolchain (for happ)
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Setup Node.js (for VS Code extension)
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-
       - name: Install Dyff
         run: |
           curl --silent --location https://git.io/JYfAY | bash
@@ -177,9 +48,10 @@ jobs:
           tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
           sudo install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform
 
-      - name: Update test chart dependencies
+      - name: Update chart dependencies
         run: |
           helm dependency update tests/.helm
+          helm dependency update tests/contracts
 
       - name: Validate values schema
         run: |
@@ -240,49 +112,8 @@ jobs:
           set -euo pipefail
           bash scripts/check-contracts.sh
 
-      - name: Test and lint happ (Rust)
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo fmt --check
-          cargo test --locked
-
-      - name: Parity matrix (happ CLI contracts)
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-          cd cmd/happ-rs
-          cargo test --locked --test parity_cli
-
-      - name: Build and test extension
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-          cd extensions/helm-apps
-          npm ci
-          npm run build
-          npm test
-          xvfb-run -a npm run test:e2e
-
-      - name: Package extension VSIX
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-          cd extensions/helm-apps
-          npx --yes @vscode/vsce package --no-dependencies --out helm-apps.vsix
-
-      - name: Download happ binary artifacts
-        if: ${{ github.ref == 'refs/heads/main' }}
-        uses: actions/download-artifact@v4
-        with:
-          pattern: happ_*
-          path: cmd/happ-rs/dist
-          merge-multiple: true
-
       - name: Check chart release tag
         id: check_chart_release
-        if: ${{ github.ref == 'refs/heads/main' }}
         env:
           GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         run: |
@@ -297,7 +128,7 @@ jobs:
           fi
 
       - name: Run chart-releaser
-        if: ${{ github.ref == 'refs/heads/main' && steps.check_chart_release.outputs.release_exists != 'true' }}
+        if: ${{ steps.check_chart_release.outputs.release_exists != 'true' }}
         uses: helm/chart-releaser-action@v1.6.0
         with:
           charts_dir: charts
@@ -305,40 +136,7 @@ jobs:
         env:
           CR_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
 
-      - name: Upload happ binaries to GitHub release
-        if: ${{ github.ref == 'refs/heads/main' }}
-        env:
-          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        run: |
-          set -euo pipefail
-
-          TAG="helm-apps-${LIB_VERSION}"
-
-          if ! gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "Release ${TAG} not found (nothing new to publish), skipping happ upload."
-            exit 0
-          fi
-
-          gh release upload "${TAG}" cmd/happ-rs/dist/* --clobber
-
-      - name: Upload extension VSIX to GitHub release
-        if: ${{ github.ref == 'refs/heads/main' }}
-        env:
-          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        run: |
-          set -euo pipefail
-
-          TAG="helm-apps-${LIB_VERSION}"
-
-          if ! gh release view "${TAG}" >/dev/null 2>&1; then
-            echo "Release ${TAG} not found (nothing new to publish), skipping extension upload."
-            exit 0
-          fi
-
-          gh release upload "${TAG}" extensions/helm-apps/helm-apps.vsix --clobber
-
       - name: Generate and update GitHub release notes
-        if: ${{ github.ref == 'refs/heads/main' }}
         env:
           GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
         run: |
@@ -378,100 +176,3 @@ jobs:
           gh release edit "${TAG}" \
             --title "helm-apps ${LIB_VERSION}" \
             --notes-file /tmp/release_notes.md
-
-      - name: Update Homebrew tap formula
-        if: ${{ github.ref == 'refs/heads/main' }}
-        env:
-          GH_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
-        run: |
-          set -euo pipefail
-
-          for f in \
-            cmd/happ-rs/dist/happ_darwin_amd64 \
-            cmd/happ-rs/dist/happ_darwin_arm64 \
-            cmd/happ-rs/dist/happ_linux_amd64 \
-            cmd/happ-rs/dist/happ_linux_arm64
-          do
-            test -f "${f}" || { echo "missing binary asset: ${f}"; exit 1; }
-          done
-
-          SHA_DARWIN_AMD64=$(shasum -a 256 cmd/happ-rs/dist/happ_darwin_amd64 | awk '{print $1}')
-          SHA_DARWIN_ARM64=$(shasum -a 256 cmd/happ-rs/dist/happ_darwin_arm64 | awk '{print $1}')
-          SHA_LINUX_AMD64=$(shasum -a 256 cmd/happ-rs/dist/happ_linux_amd64 | awk '{print $1}')
-          SHA_LINUX_ARM64=$(shasum -a 256 cmd/happ-rs/dist/happ_linux_arm64 | awk '{print $1}')
-
-          cat > Formula/happ.rb <<EOF
-          class Happ < Formula
-            desc "Helm chart and manifest importer/converter for helm-apps"
-            homepage "https://github.com/alvnukov/helm-apps"
-            version "${LIB_VERSION}"
-            license "Apache-2.0"
-
-            on_macos do
-              if Hardware::CPU.arm?
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_darwin_arm64"
-                sha256 "${SHA_DARWIN_ARM64}"
-              else
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_darwin_amd64"
-                sha256 "${SHA_DARWIN_AMD64}"
-              end
-            end
-
-            on_linux do
-              if Hardware::CPU.arm?
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_linux_arm64"
-                sha256 "${SHA_LINUX_ARM64}"
-              else
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-\#{version}/happ_linux_amd64"
-                sha256 "${SHA_LINUX_AMD64}"
-              end
-            end
-
-            def install
-              bin.install Dir["happ_*"].first => "happ"
-            end
-
-            test do
-              assert_match "happ", shell_output("\#{bin}/happ --help 2>&1")
-            end
-          end
-          EOF
-
-          if git diff --quiet -- Formula/happ.rb; then
-            echo "Formula/happ.rb already up to date"
-            exit 0
-          fi
-
-          BRANCH="automation/homebrew-formula-${LIB_VERSION}"
-          git checkout -B "${BRANCH}"
-          git add Formula/happ.rb
-          git commit -m "chore(homebrew): update happ formula to ${LIB_VERSION}"
-          git push -f origin "${BRANCH}"
-
-          PR_NUMBER=$(gh pr list \
-            --head "${BRANCH}" \
-            --base main \
-            --state open \
-            --json number \
-            --jq '.[0].number // empty')
-
-          if [ -n "${PR_NUMBER}" ]; then
-            gh pr edit "${PR_NUMBER}" \
-              --title "chore(homebrew): update happ formula to ${LIB_VERSION}" \
-              --body "Automated update of \`Formula/happ.rb\` with release asset checksums for \`${LIB_VERSION}\`."
-          else
-            gh pr create \
-              --base main \
-              --head "${BRANCH}" \
-              --title "chore(homebrew): update happ formula to ${LIB_VERSION}" \
-              --body "Automated update of \`Formula/happ.rb\` with release asset checksums for \`${LIB_VERSION}\`."
-          fi
-
-#    - name: Publish to CR
-#      env:
-#        CR_PAT: ${{ secrets.CR_PAT }}
-#      run: |
-#        echo $CR_PAT | helm registry login -u alvnukov  --password-stdin ghcr.io
-#        find .cr-release-packages -mindepth 1 -maxdepth 1 -type f -name '*.tgz' -exec sh -c 'basename "$0"' '{}' \; | while read PACKAGE; do
-#        helm push .cr-release-packages/$PACKAGE oci://ghcr.io/${GITHUB_REPOSITORY}
-#        done

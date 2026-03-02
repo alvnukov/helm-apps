@@ -10,6 +10,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
 
+### Changed
+- Repository scope narrowed to Helm library only:
+  - removed `cmd/happ-rs` and `extensions/helm-apps` from this repository;
+  - CI and release workflows now validate and publish only `helm-apps` chart artifacts.
+- Added cross-repo links in docs:
+  - CLI moved to `alvnukov/happ`;
+  - IDE extensions moved to `alvnukov/helm-apps-extensions`.
+
 ## [1.8.3] - 2026-03-03
 
 ### Changed

@@ -7,18 +7,6 @@
   <a href="https://github.com/alvnukov/helm-apps/releases">
     <img src="https://img.shields.io/github/v/tag/alvnukov/helm-apps?style=for-the-badge&label=Latest%20Release&color=0A84FF" alt="Latest release" />
   </a>
-  <a href="https://github.com/alvnukov/helm-apps/releases">
-    <img src="https://img.shields.io/badge/happ-CLI-111827?style=for-the-badge&logo=rust&logoColor=F97316" alt="happ CLI" />
-  </a>
-  <a href="https://github.com/alvnukov/helm-apps/releases">
-    <img src="https://img.shields.io/badge/VS%20Code-Extension-2563EB?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Code extension" />
-  </a>
-  <a href="https://github.com/alvnukov/helm-apps#установка-happ-cli">
-    <img src="https://img.shields.io/badge/Homebrew-supported-FBBF24?style=for-the-badge&logo=homebrew&logoColor=111827" alt="Homebrew supported" />
-  </a>
-  <a href="https://github.com/alvnukov/helm-apps/releases">
-    <img src="https://img.shields.io/badge/Linux-DEB%20%7C%20RPM-374151?style=for-the-badge&logo=linux&logoColor=white" alt="DEB RPM packages" />
-  </a>
   <a href="tests/contracts/values.yaml">
     <img src="https://img.shields.io/badge/Apps%20Entity%20Coverage-100%25-16A34A?style=for-the-badge" alt="Apps entity coverage" />
   </a>
@@ -44,8 +32,7 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 - Быстрый старт: [`docs/quickstart.md`](docs/quickstart.md)
 - Выбор подхода под задачу: [`docs/decision-guide.md`](docs/decision-guide.md)
 - Полный reference по параметрам: [`docs/reference-values.md`](docs/reference-values.md)
-- CLI `happ`: [`cmd/happ-rs/README.md`](cmd/happ-rs/README.md)
-- VS Code extension: [`extensions/helm-apps/README.md`](extensions/helm-apps/README.md)
+- Старт docs: [`docs/README.md`](docs/README.md)
 
 ## Практическая польза для команды
 
@@ -55,67 +42,11 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 | DevOps / Platform | Предсказуемый контракт рендера, schema+contract проверки, совместимость Kubernetes в CI |
 | Архитектура платформы | Переиспользование через `global._includes`, контролируемая эволюция без копипаста |
 
-## Инструменты экосистемы
+## Экосистема и репозитории
 
-- `helm-apps` library: контрактный рендер Kubernetes ресурсов из values.
-- `happ` CLI: импорт chart/manifests/compose, compare, inspect UI, `dyff`.
-- VS Code extension: подсказки, preview include/env-resolve, навигация и refactor-команды.
-
-## Установка happ CLI
-
-Homebrew:
-
-```bash
-brew tap alvnukov/helm-apps https://github.com/alvnukov/helm-apps
-brew install happ
-```
-
-Без tap (формула из репозитория):
-
-```bash
-brew install alvnukov/helm-apps/happ
-```
-
-Linux-пакеты (`deb`/`rpm`) публикуются в assets релизов:
-[`Releases`](https://github.com/alvnukov/helm-apps/releases)
-
-Быстрые команды установки:
-
-```bash
-# Debian/Ubuntu
-sudo dpkg -i happ_<version>_linux_amd64.deb
-
-# RHEL/CentOS/Fedora
-sudo rpm -i happ_<version>_linux_amd64.rpm
-```
-
-Важно: для режимов `happ chart` и `happ inspect` нужен установленный `helm` в `PATH`.
-
-## VS Code extension `helm-apps`
-
-Расширение ускоряет работу с `values.yaml` и снижает ошибки в рефакторинге конфигураций.
-
-Ключевые возможности:
-
-- Контекстные подсказки и hover-документация по ключам `helm-apps`.
-- Preview итоговой сущности с учетом `_include`, `_include_files` и env-resolve.
-- Переход к определению include-профилей и поиск использований.
-- Рефакторинг-команды в editor context menu.
-- Валидация значений через `happ`.
-
-Установка из релиза:
-
-1. Скачать `helm-apps.vsix` из [`Releases`](https://github.com/alvnukov/helm-apps/releases).
-2. Установить через VS Code: `Extensions` -> `...` -> `Install from VSIX...`.
-
-CLI-установка VSIX:
-
-```bash
-code --install-extension ./helm-apps.vsix
-```
-
-Подробно по extension:
-[`extensions/helm-apps/README.md`](extensions/helm-apps/README.md)
+- Library chart (`helm-apps`): текущий репозиторий.
+- CLI `happ`: [alvnukov/happ](https://github.com/alvnukov/happ)
+- IDE extensions (VS Code + JetBrains): [alvnukov/helm-apps-extensions](https://github.com/alvnukov/helm-apps-extensions)
 
 ## Старт здесь (самый короткий путь)
 
