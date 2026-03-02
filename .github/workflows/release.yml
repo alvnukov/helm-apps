@@ -15,12 +15,24 @@ jobs:
         include:
           - runner: ubuntu-latest
             asset_name: happ_linux_amd64
+            binary_path: target/release/happ
+            package_arch: amd64
           - runner: ubuntu-24.04-arm
             asset_name: happ_linux_arm64
+            binary_path: target/release/happ
+            package_arch: arm64
           - runner: macos-15-intel
             asset_name: happ_darwin_amd64
+            binary_path: target/release/happ
+            package_arch: none
           - runner: macos-14
             asset_name: happ_darwin_arm64
+            binary_path: target/release/happ
+            package_arch: none
+          - runner: windows-latest
+            asset_name: happ_windows_amd64.exe
+            binary_path: target/release/happ.exe
+            package_arch: none
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -36,18 +48,79 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build happ binary
+        shell: bash
         run: |
           set -euo pipefail
           cd cmd/happ-rs
           cargo build --release --locked
           mkdir -p dist
-          cp target/release/happ "dist/${{ matrix.asset_name }}"
+          cp "${{ matrix.binary_path }}" "dist/${{ matrix.asset_name }}"
 
       - name: Upload happ binary artifact
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.asset_name }}
           path: cmd/happ-rs/dist/${{ matrix.asset_name }}
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Build Linux DEB/RPM packages
+        if: ${{ startsWith(matrix.asset_name, 'happ_linux_') }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          case "${{ matrix.package_arch }}" in
+            amd64) NFPM_ARCH="x86_64" ;;
+            arm64) NFPM_ARCH="arm64" ;;
+            *) echo "unsupported package arch: ${{ matrix.package_arch }}"; exit 1 ;;
+          esac
+
+          NFPM_VERSION="2.41.3"
+          curl -sSL -o /tmp/nfpm.tar.gz \
+            "https://github.com/goreleaser/nfpm/releases/download/v${NFPM_VERSION}/nfpm_${NFPM_VERSION}_Linux_${NFPM_ARCH}.tar.gz"
+          tar -xzf /tmp/nfpm.tar.gz -C /tmp nfpm
+          sudo install -m 0755 /tmp/nfpm /usr/local/bin/nfpm
+
+          LIB_VERSION=$(sed -n '/version/{s/version: //;p;}' charts/helm-apps/Chart.yaml)
+
+          cd cmd/happ-rs
+          rm -rf pkgroot
+          mkdir -p pkgroot/usr/local/bin
+          cp "dist/${{ matrix.asset_name }}" pkgroot/usr/local/bin/happ
+          chmod 0755 pkgroot/usr/local/bin/happ
+
+          cat > nfpm.yaml <<EOF
+          name: happ
+          arch: ${{ matrix.package_arch }}
+          platform: linux
+          version: ${LIB_VERSION}
+          section: default
+          priority: optional
+          maintainer: helm-apps maintainers <maintainers@helm-apps.local>
+          description: Helm chart and manifest importer/converter for helm-apps
+          homepage: https://github.com/alvnukov/helm-apps
+          license: Apache-2.0
+          contents:
+            - src: ./pkgroot/usr/local/bin/happ
+              dst: /usr/local/bin/happ
+              file_info:
+                mode: 0755
+          EOF
+
+          nfpm package --config nfpm.yaml --packager deb --target "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.deb"
+          nfpm package --config nfpm.yaml --packager rpm --target "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.rpm"
+          test -s "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.deb"
+          test -s "dist/happ_${LIB_VERSION}_linux_${{ matrix.package_arch }}.rpm"
+
+      - name: Upload Linux package artifacts
+        if: ${{ startsWith(matrix.asset_name, 'happ_linux_') }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: happ_pkgs_${{ matrix.package_arch }}
+          path: |
+            cmd/happ-rs/dist/*.deb
+            cmd/happ-rs/dist/*.rpm
           if-no-files-found: error
           retention-days: 7
 
@@ -368,9 +441,30 @@ jobs:
             exit 0
           fi
 
+          BRANCH="automation/homebrew-formula-${LIB_VERSION}"
+          git checkout -B "${BRANCH}"
           git add Formula/happ.rb
-          git commit -m "chore(homebrew): update happ formula to ${LIB_VERSION} [skip ci]"
-          git push origin HEAD:main
+          git commit -m "chore(homebrew): update happ formula to ${LIB_VERSION}"
+          git push -f origin "${BRANCH}"
+
+          PR_NUMBER=$(gh pr list \
+            --head "${BRANCH}" \
+            --base main \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "${PR_NUMBER}" ]; then
+            gh pr edit "${PR_NUMBER}" \
+              --title "chore(homebrew): update happ formula to ${LIB_VERSION}" \
+              --body "Automated update of \`Formula/happ.rb\` with release asset checksums for \`${LIB_VERSION}\`."
+          else
+            gh pr create \
+              --base main \
+              --head "${BRANCH}" \
+              --title "chore(homebrew): update happ formula to ${LIB_VERSION}" \
+              --body "Automated update of \`Formula/happ.rb\` with release asset checksums for \`${LIB_VERSION}\`."
+          fi
 
 #    - name: Publish to CR
 #      env:

@@ -304,12 +304,19 @@ jobs:
         include:
           - runner: ubuntu-latest
             asset_name: happ_linux_amd64
+            binary_path: target/release/happ
           - runner: ubuntu-24.04-arm
             asset_name: happ_linux_arm64
+            binary_path: target/release/happ
           - runner: macos-15-intel
             asset_name: happ_darwin_amd64
+            binary_path: target/release/happ
           - runner: macos-14
             asset_name: happ_darwin_arm64
+            binary_path: target/release/happ
+          - runner: windows-latest
+            asset_name: happ_windows_amd64.exe
+            binary_path: target/release/happ.exe
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -325,10 +332,11 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build happ binary
+        shell: bash
         run: |
           set -euo pipefail
           cd cmd/happ-rs
           cargo build --release --locked
           mkdir -p dist
-          cp target/release/happ "dist/${{ matrix.asset_name }}"
+          cp "${{ matrix.binary_path }}" "dist/${{ matrix.asset_name }}"
           test -s "dist/${{ matrix.asset_name }}"
