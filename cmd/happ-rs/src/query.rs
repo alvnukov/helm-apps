@@ -36,7 +36,10 @@ pub fn run_yaml_query(query: &str, input: &str) -> Result<Vec<JsonValue>, Error>
     eval_query(query, vec![as_json])
 }
 
-pub fn run_query_stream(query: &str, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue>, Error> {
+pub fn run_query_stream(
+    query: &str,
+    input_stream: Vec<JsonValue>,
+) -> Result<Vec<JsonValue>, Error> {
     eval_query(query, input_stream)
 }
 
@@ -260,7 +263,9 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
         return Ok(CompiledStage::Map(Box::new(compile_query(inner)?)));
     }
     if let Some(inner) = parse_func_inner(s, "contains") {
-        return Ok(CompiledStage::Contains(Box::new(compile_query(inner.trim())?)));
+        return Ok(CompiledStage::Contains(Box::new(compile_query(
+            inner.trim(),
+        )?)));
     }
     if let Some(inner) = parse_func_inner(s, "split") {
         return Ok(CompiledStage::Split(Box::new(compile_query(inner.trim())?)));
@@ -272,13 +277,19 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
         return Ok(CompiledStage::Index(Box::new(compile_query(inner.trim())?)));
     }
     if let Some(inner) = parse_func_inner(s, "rindex") {
-        return Ok(CompiledStage::RIndex(Box::new(compile_query(inner.trim())?)));
+        return Ok(CompiledStage::RIndex(Box::new(compile_query(
+            inner.trim(),
+        )?)));
     }
     if let Some(inner) = parse_func_inner(s, "startswith") {
-        return Ok(CompiledStage::StartsWith(Box::new(compile_query(inner.trim())?)));
+        return Ok(CompiledStage::StartsWith(Box::new(compile_query(
+            inner.trim(),
+        )?)));
     }
     if let Some(inner) = parse_func_inner(s, "endswith") {
-        return Ok(CompiledStage::EndsWith(Box::new(compile_query(inner.trim())?)));
+        return Ok(CompiledStage::EndsWith(Box::new(compile_query(
+            inner.trim(),
+        )?)));
     }
     match s {
         "length" => return Ok(CompiledStage::Length),
@@ -298,7 +309,8 @@ fn compile_stage(stage: &str) -> Result<CompiledStage, Error> {
         _ => {}
     }
     if let Some(inner) = parse_func_inner(s, "has") {
-        let key = parse_string_literal(inner.trim()).ok_or_else(|| Error::Unsupported(s.to_string()))?;
+        let key =
+            parse_string_literal(inner.trim()).ok_or_else(|| Error::Unsupported(s.to_string()))?;
         return Ok(CompiledStage::Has(key));
     }
     if parse_if_then_else(s).is_some() {
@@ -549,10 +561,16 @@ fn parse_bracket_expr(query: &str, start: usize) -> Result<(BracketExpr, usize),
     Err(Error::Unsupported(query.to_string()))
 }
 
-fn eval_compiled_query(query: &CompiledQuery, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue>, Error> {
+fn eval_compiled_query(
+    query: &CompiledQuery,
+    input_stream: Vec<JsonValue>,
+) -> Result<Vec<JsonValue>, Error> {
     match query {
         CompiledQuery::Identity => Ok(input_stream),
-        CompiledQuery::Collect(inner) => Ok(vec![JsonValue::Array(eval_compiled_query(inner, input_stream)?)]),
+        CompiledQuery::Collect(inner) => Ok(vec![JsonValue::Array(eval_compiled_query(
+            inner,
+            input_stream,
+        )?)]),
         CompiledQuery::Comma(queries) => {
             let mut out = Vec::new();
             for q in queries {
@@ -576,7 +594,11 @@ fn eval_compiled_query(query: &CompiledQuery, input_stream: Vec<JsonValue>) -> R
         CompiledQuery::SubExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Sub),
         CompiledQuery::MulExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Mul),
         CompiledQuery::DivExpr(l, r) => eval_binary_expr(input_stream, l, r, BinaryOp::Div),
-        CompiledQuery::IfElse { cond, then_q, else_q } => {
+        CompiledQuery::IfElse {
+            cond,
+            then_q,
+            else_q,
+        } => {
             let mut out = Vec::new();
             for v in input_stream {
                 let cond_stream = eval_compiled_query(cond, vec![v.clone()])?;
@@ -605,7 +627,10 @@ fn eval_compiled_query(query: &CompiledQuery, input_stream: Vec<JsonValue>) -> R
     }
 }
 
-fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> Result<Vec<JsonValue>, Error> {
+fn eval_compiled_stage(
+    stage: &CompiledStage,
+    input_stream: Vec<JsonValue>,
+) -> Result<Vec<JsonValue>, Error> {
     match stage {
         CompiledStage::Identity => Ok(input_stream),
         CompiledStage::Select(pred) => {
@@ -638,7 +663,9 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
                 if let JsonValue::Array(arr) = v {
                     let mut mapped = Vec::with_capacity(arr.len());
                     for item in arr {
-                        let selected = eval_path_single_ref(&item, path).cloned().unwrap_or(JsonValue::Null);
+                        let selected = eval_path_single_ref(&item, path)
+                            .cloned()
+                            .unwrap_or(JsonValue::Null);
                         mapped.push(selected);
                     }
                     out.push(JsonValue::Array(mapped));
@@ -648,7 +675,10 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
             }
             Ok(out)
         }
-        CompiledStage::Length => Ok(input_stream.iter().map(|v| JsonValue::from(length_of(v))).collect()),
+        CompiledStage::Length => Ok(input_stream
+            .iter()
+            .map(|v| JsonValue::from(length_of(v)))
+            .collect()),
         CompiledStage::DotIter => {
             let mut out = Vec::with_capacity(input_stream.len());
             for v in input_stream {
@@ -820,7 +850,11 @@ fn eval_compiled_stage(stage: &CompiledStage, input_stream: Vec<JsonValue>) -> R
             let mut out = Vec::with_capacity(input_stream.len());
             if is_scalar_path(tokens) {
                 for v in input_stream {
-                    out.push(eval_path_single_ref(&v, tokens).cloned().unwrap_or(JsonValue::Null));
+                    out.push(
+                        eval_path_single_ref(&v, tokens)
+                            .cloned()
+                            .unwrap_or(JsonValue::Null),
+                    );
                 }
             } else {
                 for v in input_stream {
@@ -847,23 +881,43 @@ fn eval_compiled_predicate(pred: &CompiledPredicate, value: &JsonValue) -> Resul
             }
             eval_compiled_predicate(r, value)
         }
-        CompiledPredicate::EqPathLiteral(path, lit) => Ok(path_matches_literal(value, path, lit, true)),
-        CompiledPredicate::NePathLiteral(path, lit) => Ok(path_matches_literal(value, path, lit, false)),
+        CompiledPredicate::EqPathLiteral(path, lit) => {
+            Ok(path_matches_literal(value, path, lit, true))
+        }
+        CompiledPredicate::NePathLiteral(path, lit) => {
+            Ok(path_matches_literal(value, path, lit, false))
+        }
         CompiledPredicate::Eq(l, r) => {
             Ok(eval_predicate_side(l, value)? == eval_predicate_side(r, value)?)
         }
         CompiledPredicate::Ne(l, r) => {
             Ok(eval_predicate_side(l, value)? != eval_predicate_side(r, value)?)
         }
-        CompiledPredicate::Gt(l, r) => Ok(compare_predicate_side(l, r, value, std::cmp::Ordering::Greater)?),
-        CompiledPredicate::Ge(l, r) => Ok(compare_predicate_side(l, r, value, std::cmp::Ordering::Equal)?
-            || compare_predicate_side(l, r, value, std::cmp::Ordering::Greater)?),
-        CompiledPredicate::Lt(l, r) => Ok(compare_predicate_side(l, r, value, std::cmp::Ordering::Less)?),
-        CompiledPredicate::Le(l, r) => Ok(compare_predicate_side(l, r, value, std::cmp::Ordering::Equal)?
-            || compare_predicate_side(l, r, value, std::cmp::Ordering::Less)?),
-        CompiledPredicate::Truthy(q) => {
-            Ok(truthy(&eval_predicate_side(q, value)?))
+        CompiledPredicate::Gt(l, r) => Ok(compare_predicate_side(
+            l,
+            r,
+            value,
+            std::cmp::Ordering::Greater,
+        )?),
+        CompiledPredicate::Ge(l, r) => {
+            Ok(
+                compare_predicate_side(l, r, value, std::cmp::Ordering::Equal)?
+                    || compare_predicate_side(l, r, value, std::cmp::Ordering::Greater)?,
+            )
         }
+        CompiledPredicate::Lt(l, r) => Ok(compare_predicate_side(
+            l,
+            r,
+            value,
+            std::cmp::Ordering::Less,
+        )?),
+        CompiledPredicate::Le(l, r) => {
+            Ok(
+                compare_predicate_side(l, r, value, std::cmp::Ordering::Equal)?
+                    || compare_predicate_side(l, r, value, std::cmp::Ordering::Less)?,
+            )
+        }
+        CompiledPredicate::Truthy(q) => Ok(truthy(&eval_predicate_side(q, value)?)),
     }
 }
 
@@ -918,7 +972,9 @@ fn apply_binary_op(l: &JsonValue, r: &JsonValue, op: BinaryOp) -> Result<JsonVal
     match op {
         BinaryOp::Add => match (l, r) {
             (JsonValue::Number(ln), JsonValue::Number(rn)) => add_numbers(ln, rn),
-            (JsonValue::String(ls), JsonValue::String(rs)) => Ok(JsonValue::String(format!("{ls}{rs}"))),
+            (JsonValue::String(ls), JsonValue::String(rs)) => {
+                Ok(JsonValue::String(format!("{ls}{rs}")))
+            }
             (JsonValue::Array(la), JsonValue::Array(ra)) => {
                 let mut out = la.clone();
                 out.extend(ra.clone());
@@ -931,15 +987,17 @@ fn apply_binary_op(l: &JsonValue, r: &JsonValue, op: BinaryOp) -> Result<JsonVal
                 }
                 Ok(JsonValue::Object(out))
             }
-            _ => Err(Error::Unsupported("operator + is not supported for given operands".to_string())),
+            _ => Err(Error::Unsupported(
+                "operator + is not supported for given operands".to_string(),
+            )),
         },
         BinaryOp::Sub | BinaryOp::Mul | BinaryOp::Div => {
-            let ln = l
-                .as_f64()
-                .ok_or_else(|| Error::Unsupported("arithmetic operator requires number operands".to_string()))?;
-            let rn = r
-                .as_f64()
-                .ok_or_else(|| Error::Unsupported("arithmetic operator requires number operands".to_string()))?;
+            let ln = l.as_f64().ok_or_else(|| {
+                Error::Unsupported("arithmetic operator requires number operands".to_string())
+            })?;
+            let rn = r.as_f64().ok_or_else(|| {
+                Error::Unsupported("arithmetic operator requires number operands".to_string())
+            })?;
             let val = match op {
                 BinaryOp::Sub => ln - rn,
                 BinaryOp::Mul => ln * rn,
@@ -981,16 +1039,16 @@ fn eval_predicate_side(query: &CompiledQuery, value: &JsonValue) -> Result<JsonV
 fn eval_compiled_query_single_fast(query: &CompiledQuery, value: &JsonValue) -> Option<JsonValue> {
     match query {
         CompiledQuery::Identity => Some(value.clone()),
-        CompiledQuery::Pipeline(stages) if stages.len() == 1 => {
-            match &stages[0] {
-                CompiledStage::Identity => Some(value.clone()),
-                CompiledStage::DotPath(tokens) if is_scalar_path(tokens) => {
-                    Some(eval_path_single_ref(value, tokens).cloned().unwrap_or(JsonValue::Null))
-                }
-                CompiledStage::Literal(v) => Some(v.clone()),
-                _ => None,
-            }
-        }
+        CompiledQuery::Pipeline(stages) if stages.len() == 1 => match &stages[0] {
+            CompiledStage::Identity => Some(value.clone()),
+            CompiledStage::DotPath(tokens) if is_scalar_path(tokens) => Some(
+                eval_path_single_ref(value, tokens)
+                    .cloned()
+                    .unwrap_or(JsonValue::Null),
+            ),
+            CompiledStage::Literal(v) => Some(v.clone()),
+            _ => None,
+        },
         _ => None,
     }
 }
@@ -1049,17 +1107,23 @@ fn eval_dot_tokens(tokens: &[PathToken], input: &JsonValue) -> Vec<JsonValue> {
 }
 
 fn is_scalar_path(tokens: &[PathToken]) -> bool {
-    !tokens
-        .iter()
-        .any(|t| {
-            matches!(
-                t,
-                PathToken::Iter | PathToken::FieldIter(_) | PathToken::Slice(_, _) | PathToken::FieldSlice(_, _, _)
-            )
-        })
+    !tokens.iter().any(|t| {
+        matches!(
+            t,
+            PathToken::Iter
+                | PathToken::FieldIter(_)
+                | PathToken::Slice(_, _)
+                | PathToken::FieldSlice(_, _, _)
+        )
+    })
 }
 
-fn path_matches_literal(input: &JsonValue, tokens: &[PathToken], lit: &JsonValue, eq: bool) -> bool {
+fn path_matches_literal(
+    input: &JsonValue,
+    tokens: &[PathToken],
+    lit: &JsonValue,
+    eq: bool,
+) -> bool {
     let v = eval_path_single_ref(input, tokens).unwrap_or(&JsonValue::Null);
     if eq {
         v == lit
@@ -1107,7 +1171,10 @@ fn eval_path_single_ref<'a>(input: &'a JsonValue, tokens: &[PathToken]) -> Optio
                 }
                 _ => None,
             },
-            PathToken::Iter | PathToken::FieldIter(_) | PathToken::Slice(_, _) | PathToken::FieldSlice(_, _, _) => None,
+            PathToken::Iter
+            | PathToken::FieldIter(_)
+            | PathToken::Slice(_, _)
+            | PathToken::FieldSlice(_, _, _) => None,
         };
     }
     current
@@ -1155,7 +1222,10 @@ fn try_compile_scalar_path(s: &str) -> Result<Option<Vec<PathToken>>, Error> {
 }
 
 fn is_issue2593_pattern(query: &str) -> bool {
-    if let Some((var, rest)) = query.strip_prefix(". as $").and_then(|x| x.split_once(" | ")) {
+    if let Some((var, rest)) = query
+        .strip_prefix(". as $")
+        .and_then(|x| x.split_once(" | "))
+    {
         if rest == format!("keys[] | ${var}[.]") {
             return true;
         }
@@ -1549,7 +1619,9 @@ fn normalize_slice_bound(v: i64, len: i64) -> i64 {
 
 fn select_by_key(container: &JsonValue, key: &JsonValue) -> JsonValue {
     match (container, key) {
-        (JsonValue::Object(m), JsonValue::String(s)) => m.get(s).cloned().unwrap_or(JsonValue::Null),
+        (JsonValue::Object(m), JsonValue::String(s)) => {
+            m.get(s).cloned().unwrap_or(JsonValue::Null)
+        }
         (JsonValue::Array(_), JsonValue::Number(n)) => n
             .as_i64()
             .map(|i| select_index(container, i))
@@ -1606,7 +1678,9 @@ fn reverse_of(v: &JsonValue) -> Result<JsonValue, Error> {
             Ok(JsonValue::Array(out))
         }
         JsonValue::String(s) => Ok(JsonValue::String(s.chars().rev().collect())),
-        _ => Err(Error::Unsupported("reverse requires array or string input".to_string())),
+        _ => Err(Error::Unsupported(
+            "reverse requires array or string input".to_string(),
+        )),
     }
 }
 
@@ -1668,7 +1742,9 @@ fn add_of(v: &JsonValue) -> Result<JsonValue, Error> {
         }
         return Ok(JsonValue::String(out));
     }
-    Err(Error::Unsupported("add supports arrays of numbers or strings".to_string()))
+    Err(Error::Unsupported(
+        "add supports arrays of numbers or strings".to_string(),
+    ))
 }
 
 fn canonical(v: &JsonValue) -> String {
@@ -1720,9 +1796,11 @@ fn contains_value(haystack: &JsonValue, needle: &JsonValue) -> bool {
     match (haystack, needle) {
         (JsonValue::String(s), JsonValue::String(sub)) => s.contains(sub),
         (JsonValue::Array(arr), _) => arr.iter().any(|v| v == needle),
-        (JsonValue::Object(map), JsonValue::Object(sub)) => sub
-            .iter()
-            .all(|(k, v)| map.get(k).map(|hv| contains_value(hv, v) || hv == v).unwrap_or(false)),
+        (JsonValue::Object(map), JsonValue::Object(sub)) => sub.iter().all(|(k, v)| {
+            map.get(k)
+                .map(|hv| contains_value(hv, v) || hv == v)
+                .unwrap_or(false)
+        }),
         _ => haystack == needle,
     }
 }
@@ -1737,9 +1815,13 @@ fn to_number_value(v: JsonValue) -> Result<JsonValue, Error> {
             if let Ok(f) = s.parse::<f64>() {
                 return Ok(JsonValue::from(f));
             }
-            Err(Error::Unsupported("tonumber requires numeric string".to_string()))
+            Err(Error::Unsupported(
+                "tonumber requires numeric string".to_string(),
+            ))
         }
-        _ => Err(Error::Unsupported("tonumber supports number or string".to_string())),
+        _ => Err(Error::Unsupported(
+            "tonumber supports number or string".to_string(),
+        )),
     }
 }
 
@@ -1778,7 +1860,8 @@ fn index_value(v: &JsonValue, needle: &JsonValue, reverse: bool) -> JsonValue {
     match (v, needle) {
         (JsonValue::String(s), JsonValue::String(n)) => {
             let pos = if reverse { s.rfind(n) } else { s.find(n) };
-            pos.map(|p| JsonValue::from(p as i64)).unwrap_or(JsonValue::Null)
+            pos.map(|p| JsonValue::from(p as i64))
+                .unwrap_or(JsonValue::Null)
         }
         (JsonValue::Array(arr), _) => {
             let idx = if reverse {
@@ -1786,7 +1869,8 @@ fn index_value(v: &JsonValue, needle: &JsonValue, reverse: bool) -> JsonValue {
             } else {
                 arr.iter().position(|x| x == needle)
             };
-            idx.map(|p| JsonValue::from(p as i64)).unwrap_or(JsonValue::Null)
+            idx.map(|p| JsonValue::from(p as i64))
+                .unwrap_or(JsonValue::Null)
         }
         _ => JsonValue::Null,
     }
@@ -1820,21 +1904,23 @@ mod tests {
 
     #[test]
     fn jq_compat_subset() {
-        run_compat_file("jq-cases.yaml", run_json_query, |c| c.input_json.as_deref().expect("input_json"));
+        run_compat_file("jq-cases.yaml", run_json_query, |c| {
+            c.input_json.as_deref().expect("input_json")
+        });
     }
 
     #[test]
     fn yq_compat_subset() {
-        run_compat_file("yq-cases.yaml", run_yaml_query, |c| c.input_yaml.as_deref().expect("input_yaml"));
+        run_compat_file("yq-cases.yaml", run_yaml_query, |c| {
+            c.input_yaml.as_deref().expect("input_yaml")
+        });
     }
 
     #[test]
     fn yq_yaml_spec_and_issue_regressions() {
-        run_compat_file(
-            "yq-yaml-spec-issues.yaml",
-            run_yaml_query,
-            |c| c.input_yaml.as_deref().expect("input_yaml"),
-        );
+        run_compat_file("yq-yaml-spec-issues.yaml", run_yaml_query, |c| {
+            c.input_yaml.as_deref().expect("input_yaml")
+        });
     }
 
     fn run_compat_file<FRun, FInput>(file_name: &str, run: FRun, input_of: FInput)
@@ -2059,7 +2145,10 @@ a: &a
     #[test]
     fn compile_dot_path_supports_field_bracket_string_key() {
         let t = compile_dot_path(".root[\"a-b\"]").expect("compile");
-        assert!(matches!(t.as_slice(), [PathToken::Field(_), PathToken::Field(_)]));
+        assert!(matches!(
+            t.as_slice(),
+            [PathToken::Field(_), PathToken::Field(_)]
+        ));
     }
 
     #[test]
@@ -2323,7 +2412,14 @@ a: &a
     fn issue2593_fast_path_object_sorted_by_key() {
         let src = serde_json::json!({"b": 2, "a": 1, "c": 3});
         let out = issue2593_lookup(&src);
-        assert_eq!(out, vec![serde_json::json!(1), serde_json::json!(2), serde_json::json!(3)]);
+        assert_eq!(
+            out,
+            vec![
+                serde_json::json!(1),
+                serde_json::json!(2),
+                serde_json::json!(3)
+            ]
+        );
     }
 
     #[test]

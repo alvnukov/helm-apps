@@ -15,7 +15,10 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
     for svc in &report.services {
         let mut app = Mapping::new();
         app.insert(Value::String("enabled".into()), Value::Bool(true));
-        app.insert(Value::String("name".into()), Value::String(svc.name.clone()));
+        app.insert(
+            Value::String("name".into()),
+            Value::String(svc.name.clone()),
+        );
 
         let mut containers = Mapping::new();
         let mut c = Mapping::new();
@@ -24,7 +27,10 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
         image.insert(Value::String("name".into()), Value::String(image_name));
         c.insert(Value::String("image".into()), Value::Mapping(image));
         if !svc.entrypoint.is_empty() {
-            c.insert(Value::String("command".into()), yaml_block_string(Value::Sequence(string_seq(&svc.entrypoint))));
+            c.insert(
+                Value::String("command".into()),
+                yaml_block_string(Value::Sequence(string_seq(&svc.entrypoint))),
+            );
         } else if let Some(entrypoint_shell) = &svc.entrypoint_shell {
             c.insert(
                 Value::String("command".into()),
@@ -36,7 +42,10 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
             );
         }
         if !svc.command.is_empty() {
-            c.insert(Value::String("args".into()), yaml_block_string(Value::Sequence(string_seq(&svc.command))));
+            c.insert(
+                Value::String("args".into()),
+                yaml_block_string(Value::Sequence(string_seq(&svc.command))),
+            );
         } else if let Some(command_shell) = &svc.command_shell {
             c.insert(
                 Value::String("args".into()),
@@ -48,7 +57,10 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
             );
         }
         if let Some(working_dir) = &svc.working_dir {
-            c.insert(Value::String("workingDir".into()), Value::String(working_dir.clone()));
+            c.insert(
+                Value::String("workingDir".into()),
+                Value::String(working_dir.clone()),
+            );
         }
         if !svc.env.is_empty() {
             let mut env_vars = Mapping::new();
@@ -58,7 +70,10 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
             c.insert(Value::String("envVars".into()), Value::Mapping(env_vars));
         }
         if let Some(probe) = readiness_probe(svc) {
-            c.insert(Value::String("readinessProbe".into()), Value::Mapping(probe));
+            c.insert(
+                Value::String("readinessProbe".into()),
+                Value::Mapping(probe),
+            );
         }
         if !svc.ports.is_empty() {
             let ports_block = svc
@@ -85,7 +100,10 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
             }
         }
         containers.insert(Value::String(svc.name.clone()), Value::Mapping(c));
-        app.insert(Value::String("containers".into()), Value::Mapping(containers));
+        app.insert(
+            Value::String("containers".into()),
+            Value::Mapping(containers),
+        );
         apps_stateless.insert(Value::String(svc.name.clone()), Value::Mapping(app));
 
         if !svc.ports.is_empty() {
@@ -117,9 +135,15 @@ pub fn build_values(args: &ImportArgs, report: &Report) -> Value {
         }
     }
 
-    root.insert(Value::String("apps-stateless".into()), Value::Mapping(apps_stateless));
+    root.insert(
+        Value::String("apps-stateless".into()),
+        Value::Mapping(apps_stateless),
+    );
     if !apps_services.is_empty() {
-        root.insert(Value::String("apps-services".into()), Value::Mapping(apps_services));
+        root.insert(
+            Value::String("apps-services".into()),
+            Value::Mapping(apps_services),
+        );
     }
     Value::Mapping(root)
 }
@@ -164,10 +188,16 @@ fn readiness_probe(svc: &crate::composeinspect::ServiceNode) -> Option<Mapping> 
     exec.insert(Value::String("command".into()), cmd);
     probe.insert(Value::String("exec".into()), Value::Mapping(exec));
     if h.timeout_seconds > 0 {
-        probe.insert(Value::String("timeoutSeconds".into()), Value::Number(serde_yaml::Number::from(h.timeout_seconds)));
+        probe.insert(
+            Value::String("timeoutSeconds".into()),
+            Value::Number(serde_yaml::Number::from(h.timeout_seconds)),
+        );
     }
     if h.interval_seconds > 0 {
-        probe.insert(Value::String("periodSeconds".into()), Value::Number(serde_yaml::Number::from(h.interval_seconds)));
+        probe.insert(
+            Value::String("periodSeconds".into()),
+            Value::Number(serde_yaml::Number::from(h.interval_seconds)),
+        );
     }
     if h.start_period_seconds > 0 {
         probe.insert(
@@ -176,7 +206,10 @@ fn readiness_probe(svc: &crate::composeinspect::ServiceNode) -> Option<Mapping> 
         );
     }
     if h.retries > 0 {
-        probe.insert(Value::String("failureThreshold".into()), Value::Number(serde_yaml::Number::from(h.retries)));
+        probe.insert(
+            Value::String("failureThreshold".into()),
+            Value::Number(serde_yaml::Number::from(h.retries)),
+        );
     }
     Some(probe)
 }
@@ -201,6 +234,7 @@ mod tests {
             chart_name: None,
             library_chart_path: None,
             import_strategy: "raw".into(),
+            verify_equivalence: false,
             release_name: "imported".into(),
             namespace: None,
             values_files: vec![],
@@ -255,6 +289,7 @@ mod tests {
             chart_name: None,
             library_chart_path: None,
             import_strategy: "raw".into(),
+            verify_equivalence: false,
             release_name: "imported".into(),
             namespace: None,
             values_files: vec![],
@@ -284,7 +319,12 @@ mod tests {
                 env,
                 expose: vec!["8080".into()],
                 healthcheck: Some(crate::composeinspect::Healthcheck {
-                    test: vec!["CMD".into(), "curl".into(), "-f".into(), "http://127.0.0.1:8080/healthz".into()],
+                    test: vec![
+                        "CMD".into(),
+                        "curl".into(),
+                        "-f".into(),
+                        "http://127.0.0.1:8080/healthz".into(),
+                    ],
                     test_shell: None,
                     interval_seconds: 15,
                     timeout_seconds: 3,

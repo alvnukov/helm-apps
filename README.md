@@ -8,7 +8,7 @@
     <img src="https://img.shields.io/github/v/tag/alvnukov/helm-apps?style=for-the-badge&label=Latest%20Release&color=0A84FF" alt="Latest release" />
   </a>
   <a href="https://github.com/alvnukov/helm-apps/releases">
-    <img src="https://img.shields.io/badge/happ-CLI-111827?style=for-the-badge&logo=go&logoColor=00ADD8" alt="happ CLI" />
+    <img src="https://img.shields.io/badge/happ-CLI-111827?style=for-the-badge&logo=rust&logoColor=F97316" alt="happ CLI" />
   </a>
   <a href="https://github.com/alvnukov/helm-apps/releases">
     <img src="https://img.shields.io/badge/VS%20Code-Extension-2563EB?style=for-the-badge&logo=visualstudiocode&logoColor=white" alt="VS Code extension" />
@@ -44,7 +44,7 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 - Быстрый старт: [`docs/quickstart.md`](docs/quickstart.md)
 - Выбор подхода под задачу: [`docs/decision-guide.md`](docs/decision-guide.md)
 - Полный reference по параметрам: [`docs/reference-values.md`](docs/reference-values.md)
-- CLI `happ`: [`cmd/happ/README.md`](cmd/happ/README.md)
+- CLI `happ`: [`cmd/happ-rs/README.md`](cmd/happ-rs/README.md)
 - VS Code extension: [`extensions/helm-apps/README.md`](extensions/helm-apps/README.md)
 
 ## Практическая польза для команды

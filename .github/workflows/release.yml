@@ -36,24 +36,14 @@ jobs:
         with:
           version: v3.15.4
 
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: cmd/happ/go.mod
+      - name: Setup Rust toolchain (for happ)
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js (for VS Code extension)
         uses: actions/setup-node@v4
         with:
           node-version: "20"
 
-      - name: Setup golangci-lint (for happ)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
-          working-directory: cmd/happ
-          install-mode: binary
-          skip-cache: true
-          skip-save-cache: true
 
       - name: Install Dyff
         run: |
@@ -130,14 +120,20 @@ jobs:
           set -euo pipefail
           bash scripts/check-contracts.sh
 
-      - name: Test and lint happ
+      - name: Test and lint happ (Rust)
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           set -euo pipefail
-          cd cmd/happ
-          go generate ./assets
-          golangci-lint run
-          go test ./...
+          cd cmd/happ-rs
+          cargo fmt --check
+          cargo test --locked
+
+      - name: Parity matrix (happ CLI contracts)
+        if: ${{ github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+          cd cmd/happ-rs
+          cargo test --locked --test parity_cli
 
       - name: Build and test extension
         if: ${{ github.ref == 'refs/heads/main' }}
@@ -156,127 +152,14 @@ jobs:
           cd extensions/helm-apps
           npx --yes @vscode/vsce package --no-dependencies --out helm-apps.vsix
 
-      - name: Build happ binaries
+      - name: Build happ binaries (Rust)
         if: ${{ github.ref == 'refs/heads/main' }}
         run: |
           set -euo pipefail
-
-          cd cmd/happ
-
+          cd cmd/happ-rs
           mkdir -p dist
-
-          build_one() {
-            local goos="$1"
-            local goarch="$2"
-            local ext=""
-            if [ "$goos" = "windows" ]; then
-              ext=".exe"
-            fi
-            local bin="happ_${goos}_${goarch}${ext}"
-            GOOS="$goos" GOARCH="$goarch" CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o "dist/${bin}" .
-          }
-
-          build_one linux amd64
-          build_one linux arm64
-          build_one darwin amd64
-          build_one darwin arm64
-          build_one windows amd64
-          build_one windows arm64
-
-      - name: Update Homebrew formula
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-
-          SHA_DARWIN_ARM64="$(sha256sum cmd/happ/dist/happ_darwin_arm64 | awk '{print $1}')"
-          SHA_DARWIN_AMD64="$(sha256sum cmd/happ/dist/happ_darwin_amd64 | awk '{print $1}')"
-          SHA_LINUX_ARM64="$(sha256sum cmd/happ/dist/happ_linux_arm64 | awk '{print $1}')"
-          SHA_LINUX_AMD64="$(sha256sum cmd/happ/dist/happ_linux_amd64 | awk '{print $1}')"
-
-          cat > Formula/happ.rb <<EOF
-          class Happ < Formula
-            desc "Helm chart and manifest importer/converter for helm-apps"
-            homepage "https://github.com/alvnukov/helm-apps"
-            version "${LIB_VERSION}"
-            license "Apache-2.0"
-
-            on_macos do
-              if Hardware::CPU.arm?
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_darwin_arm64"
-                sha256 "${SHA_DARWIN_ARM64}"
-              else
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_darwin_amd64"
-                sha256 "${SHA_DARWIN_AMD64}"
-              end
-            end
-
-            on_linux do
-              if Hardware::CPU.arm?
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_arm64"
-                sha256 "${SHA_LINUX_ARM64}"
-              else
-                url "https://github.com/alvnukov/helm-apps/releases/download/helm-apps-#{version}/happ_linux_amd64"
-                sha256 "${SHA_LINUX_AMD64}"
-              end
-            end
-
-            def install
-              bin.install Dir["happ_*"].first => "happ"
-            end
-
-            test do
-              assert_match "happ", shell_output("#{bin}/happ --help 2>&1")
-            end
-          end
-          EOF
-
-          git add Formula/happ.rb
-          if git diff --cached --quiet; then
-            echo "Formula unchanged, skipping commit."
-            exit 0
-          fi
-
-          git commit -m "chore(formula): update happ ${LIB_VERSION} [skip ci]"
-          git pull --rebase origin main
-          git push origin HEAD:main
-
-      - name: Build happ linux DEB/RPM packages
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: |
-          set -euo pipefail
-
-          GOBIN="/tmp/bin" go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.41.3
-          export PATH="/tmp/bin:${PATH}"
-
-          cd cmd/happ
-
-          package_one() {
-            local arch="$1"
-            local format="$2"
-            local bin_path="dist/happ_linux_${arch}"
-            local target="dist/happ_${LIB_VERSION}_linux_${arch}.${format}"
-            local staging_dir="dist/.pkg-${arch}"
-            local config_path="dist/nfpm_${arch}.yaml"
-
-            mkdir -p "${staging_dir}"
-            cp "${bin_path}" "${staging_dir}/happ"
-
-            sed \
-              -e "s|__NFPM_ARCH__|${arch}|g" \
-              -e "s|__HAPP_VERSION__|${LIB_VERSION}|g" \
-              -e "s|__HAPP_BIN__|${staging_dir}/happ|g" \
-              packaging/nfpm.yaml > "${config_path}"
-
-            nfpm package \
-              --config "${config_path}" \
-              --packager "${format}" \
-              --target "${target}"
-          }
-
-          package_one amd64 deb
-          package_one arm64 deb
-          package_one amd64 rpm
-          package_one arm64 rpm
+          cargo build --release --locked
+          cp target/release/happ dist/happ_linux_amd64
 
       - name: Check chart release tag
         id: check_chart_release
@@ -317,7 +200,7 @@ jobs:
             exit 0
           fi
 
-          gh release upload "${TAG}" cmd/happ/dist/* --clobber
+          gh release upload "${TAG}" cmd/happ-rs/dist/* --clobber
 
       - name: Upload extension VSIX to GitHub release
         if: ${{ github.ref == 'refs/heads/main' }}

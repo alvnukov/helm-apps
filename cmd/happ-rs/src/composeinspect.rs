@@ -75,7 +75,9 @@ pub fn load(path: &str) -> Result<Report, Error> {
 
     let mut out = Vec::new();
     for (k, v) in services {
-        let Some(name) = k.as_str().map(ToString::to_string) else { continue; };
+        let Some(name) = k.as_str().map(ToString::to_string) else {
+            continue;
+        };
         let vm = v.as_mapping().cloned().unwrap_or_default();
         let image = vm
             .get(Value::String("image".into()))
@@ -115,7 +117,10 @@ pub fn load(path: &str) -> Result<Report, Error> {
 
 fn parse_string_vec(v: Option<&Value>) -> Vec<String> {
     match v {
-        Some(Value::Sequence(seq)) => seq.iter().filter_map(|x| x.as_str().map(ToString::to_string)).collect(),
+        Some(Value::Sequence(seq)) => seq
+            .iter()
+            .filter_map(|x| x.as_str().map(ToString::to_string))
+            .collect(),
         _ => Vec::new(),
     }
 }
@@ -131,7 +136,8 @@ pub fn resolve_and_write(path: &str, format: &str, out: Option<&str>) -> Result<
     let report = load(path)?;
     let body = match format.trim().to_ascii_lowercase().as_str() {
         "" | "yaml" | "yml" => serde_yaml::to_string(&report)?,
-        "json" => serde_json::to_string_pretty(&report).map_err(|e| Error::Io(io::Error::new(io::ErrorKind::Other, e)))?,
+        "json" => serde_json::to_string_pretty(&report)
+            .map_err(|e| Error::Io(io::Error::new(io::ErrorKind::Other, e)))?,
         other => return Err(Error::Format(other.to_string())),
     };
     if let Some(p) = out {
@@ -168,9 +174,15 @@ fn resolve_compose_path(path: &str) -> Result<PathBuf, Error> {
 
 fn parse_depends_on(v: Option<&Value>) -> Vec<String> {
     match v {
-        Some(Value::Sequence(seq)) => seq.iter().filter_map(|x| x.as_str().map(ToString::to_string)).collect(),
+        Some(Value::Sequence(seq)) => seq
+            .iter()
+            .filter_map(|x| x.as_str().map(ToString::to_string))
+            .collect(),
         Some(Value::Mapping(map)) => {
-            let mut keys: Vec<String> = map.keys().filter_map(|k| k.as_str().map(ToString::to_string)).collect();
+            let mut keys: Vec<String> = map
+                .keys()
+                .filter_map(|k| k.as_str().map(ToString::to_string))
+                .collect();
             keys.sort();
             keys
         }
@@ -182,7 +194,14 @@ fn parse_string_list(v: Option<&Value>) -> Vec<String> {
     match v {
         Some(Value::Sequence(seq)) => seq
             .iter()
-            .map(|x| x.as_str().map(ToString::to_string).unwrap_or_else(|| serde_yaml::to_string(x).unwrap_or_default().trim().to_string()))
+            .map(|x| {
+                x.as_str().map(ToString::to_string).unwrap_or_else(|| {
+                    serde_yaml::to_string(x)
+                        .unwrap_or_default()
+                        .trim()
+                        .to_string()
+                })
+            })
             .collect(),
         _ => Vec::new(),
     }
@@ -223,8 +242,7 @@ fn parse_environment(v: Option<&Value>) -> BTreeMap<String, String> {
 
 fn parse_healthcheck(v: Option<&Value>) -> Option<Healthcheck> {
     let Value::Mapping(m) = v? else { return None };
-    if m
-        .get(Value::String("disable".into()))
+    if m.get(Value::String("disable".into()))
         .and_then(Value::as_bool)
         .unwrap_or(false)
     {
@@ -278,7 +296,12 @@ fn parse_duration_literal(s: &str) -> u64 {
 
 #[allow(dead_code)]
 pub fn as_service_map(report: &Report) -> BTreeMap<String, ServiceNode> {
-    report.services.iter().cloned().map(|s| (s.name.clone(), s)).collect()
+    report
+        .services
+        .iter()
+        .cloned()
+        .map(|s| (s.name.clone(), s))
+        .collect()
 }
 
 #[cfg(test)]
@@ -343,7 +366,10 @@ services:
             .find(|s| s.name == "app")
             .expect("service");
         assert_eq!(app.command, vec!["nginx", "-g", "daemon off;"]);
-        assert_eq!(app.entrypoint_shell.as_deref(), Some("/docker-entrypoint.sh"));
+        assert_eq!(
+            app.entrypoint_shell.as_deref(),
+            Some("/docker-entrypoint.sh")
+        );
         assert_eq!(app.working_dir.as_deref(), Some("/work"));
         assert_eq!(app.env.get("LOG_LEVEL").map(String::as_str), Some("debug"));
         assert_eq!(app.expose, vec!["8080"]);

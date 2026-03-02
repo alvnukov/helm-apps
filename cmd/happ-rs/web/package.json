@@ -3,15 +3,21 @@
   "private": true,
   "version": "1.0.0",
   "scripts": {
-    "build:cm": "esbuild codemirror-entry.js --bundle --format=iife --target=es2017 --outfile=../assets/codemirror.bundle.js"
+    "build:cm": "esbuild codemirror-entry.js --bundle --format=iife --target=es2017 --outfile=../assets/codemirror.bundle.js",
+    "test:ui": "playwright test",
+    "test:ui:update": "playwright test --update-snapshots",
+    "test:ui:install": "playwright install chromium"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.11.0",
     "@codemirror/commands": "^6.8.1",
     "@codemirror/lang-yaml": "^6.1.2",
     "@codemirror/language": "^6.11.3",
     "@codemirror/state": "^6.5.2",
     "@codemirror/view": "^6.38.6",
     "@lezer/highlight": "^1.2.3",
+    "@playwright/test": "^1.54.2",
+    "axe-core": "^4.11.0",
     "esbuild": "^0.25.10"
   }
 }

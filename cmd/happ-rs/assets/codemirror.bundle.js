@@ -19535,24 +19535,45 @@
   function makeTheme(fontSizePx) {
     const px = Number.isFinite(Number(fontSizePx)) ? Number(fontSizePx) : 14;
     return EditorView.theme({
-      "&": { fontSize: `${px}px`, height: "100%", color: "#c8c8c8", backgroundColor: "#1f2128" },
-      ".cm-content": { caretColor: "#d0d0d0" },
+      "&": { fontSize: `${px}px`, height: "100%", color: "#bcbec4", backgroundColor: "#2b2d30" },
+      ".cm-content": { caretColor: "#ced0d6" },
       ".cm-scroller": { fontFamily: "JetBrains Mono, Menlo, Monaco, Consolas, monospace" },
       ".cm-gutters": {
-        backgroundColor: "#1c1e24",
-        color: "#5f6774",
-        borderRight: "1px solid #2b2f38"
+        backgroundColor: "#2b2d30",
+        color: "#606366",
+        borderRight: "1px solid #3c3f41"
       },
-      ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#252932" },
-      ".cm-selectionBackground, &.cm-focused .cm-selectionBackground, ::selection": {
-        backgroundColor: "#2f3f68"
+      ".cm-activeLine, .cm-activeLineGutter": { backgroundColor: "#313335" },
+      ".cm-selectionLayer .cm-selectionBackground": {
+        backgroundColor: "#365880 !important"
       },
-      ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#c8c8c8" },
-      ".cm-foldGutter .cm-gutterElement": { color: "#606978" },
+      "&.cm-focused .cm-selectionLayer .cm-selectionBackground": {
+        backgroundColor: "#365880 !important"
+      },
+      ".cm-content ::selection": {
+        backgroundColor: "#365880 !important"
+      },
+      ".cm-cursor, .cm-dropCursor": { borderLeftColor: "#ced0d6" },
+      ".cm-content .happ-virtual-cursor": {
+        display: "inline-block",
+        width: "0",
+        height: "1.25em",
+        marginLeft: "-1px",
+        borderLeft: "2px solid rgba(126, 174, 255, 0.96)",
+        boxShadow: "0 0 0 1px rgba(126, 174, 255, 0.2)",
+        verticalAlign: "text-bottom",
+        pointerEvents: "none",
+        animation: "happVirtualCursorBlink 1.1s steps(1, end) infinite"
+      },
+      "@keyframes happVirtualCursorBlink": {
+        "0%,48%": { opacity: "1" },
+        "49%,100%": { opacity: "0.2" }
+      },
+      ".cm-foldGutter .cm-gutterElement": { color: "#7b7f86" },
       ".cm-tooltip": {
-        backgroundColor: "#2b2f38",
-        color: "#c8c8c8",
-        border: "1px solid #3b4252"
+        backgroundColor: "#3c3f41",
+        color: "#d0d2d8",
+        border: "1px solid #4e5254"
       }
     });
   }
@@ -19567,18 +19588,58 @@
     { tag: [tags.atom, tags.labelName], color: "#e5c07b" },
     { tag: [tags.punctuation, tags.bracket], color: "#9aa5b1" }
   ]);
+  var setVirtualCursorEffect = StateEffect.define();
+  var VirtualCursorWidget = class extends WidgetType {
+    toDOM() {
+      const span = document.createElement("span");
+      span.className = "happ-virtual-cursor";
+      span.setAttribute("aria-hidden", "true");
+      return span;
+    }
+  };
+  var virtualCursorField = StateField.define({
+    create() {
+      return Decoration.none;
+    },
+    update(deco, tr) {
+      deco = deco.map(tr.changes);
+      for (const effect of tr.effects) {
+        if (!effect.is(setVirtualCursorEffect)) continue;
+        const value = effect.value;
+        if (value == null || Number.isNaN(Number(value))) {
+          return Decoration.none;
+        }
+        const pos = Math.max(0, Math.min(tr.state.doc.length, Number(value)));
+        return Decoration.set([
+          Decoration.widget({ widget: new VirtualCursorWidget(), side: 1 }).range(pos)
+        ]);
+      }
+      return deco;
+    },
+    provide: (field) => EditorView.decorations.from(field)
+  });
   function createYamlEditor(el, opts = {}) {
     const value = typeof opts.value === "string" ? opts.value : "";
     const readOnly2 = !!opts.readOnly;
     const onChange = typeof opts.onChange === "function" ? opts.onChange : null;
+    const onSelectionChange = typeof opts.onSelectionChange === "function" ? opts.onSelectionChange : null;
     const wrapLines = !!opts.wrapLines;
     const fontSize = Number(opts.fontSize || 14);
     const editableCompartment = new Compartment();
     const wrapCompartment = new Compartment();
     const fontCompartment = new Compartment();
     const updateListener2 = EditorView.updateListener.of((update) => {
-      if (!update.docChanged || !onChange) return;
-      onChange(update.state.doc.toString());
+      if (update.docChanged && onChange) {
+        onChange(update.state.doc.toString());
+      }
+      if (update.selectionSet && onSelectionChange) {
+        const main = update.state.selection.main;
+        onSelectionChange({
+          from: main.from,
+          to: main.to,
+          text: update.state.sliceDoc(main.from, main.to)
+        });
+      }
     });
     const state = EditorState.create({
       doc: value,
@@ -19588,6 +19649,7 @@
         keymap.of([...defaultKeymap, ...historyKeymap, ...foldKeymap]),
         yaml(),
         syntaxHighlighting(jetBrainsLikeHighlight),
+        virtualCursorField,
         foldGutter(),
         indentUnit.of("  "),
         updateListener2,
@@ -19622,6 +19684,43 @@
       },
       setFontSize(next) {
         view.dispatch({ effects: fontCompartment.reconfigure(makeTheme(next)) });
+      },
+      setSelection(from, to) {
+        const a = Math.max(0, Math.min(view.state.doc.length, Number(from) || 0));
+        const b = Math.max(0, Math.min(view.state.doc.length, Number(to) || a));
+        view.dispatch({
+          selection: EditorSelection.single(a, b),
+          scrollIntoView: true
+        });
+      },
+      setSelections(ranges) {
+        const docLen = view.state.doc.length;
+        const safeRanges = (Array.isArray(ranges) ? ranges : []).map((r) => {
+          const from = Math.max(0, Math.min(docLen, Number(r && r.from)));
+          const to = Math.max(0, Math.min(docLen, Number(r && r.to)));
+          if (!Number.isFinite(from) || !Number.isFinite(to)) return null;
+          return EditorSelection.range(Math.min(from, to), Math.max(from, to));
+        }).filter(Boolean);
+        if (!safeRanges.length) {
+          const pos = view.state.selection.main.head;
+          view.dispatch({ selection: EditorSelection.single(pos, pos) });
+          return;
+        }
+        view.dispatch({
+          selection: EditorSelection.create(safeRanges, 0),
+          scrollIntoView: true
+        });
+      },
+      clearSelections() {
+        const pos = view.state.selection.main.head;
+        view.dispatch({ selection: EditorSelection.single(pos, pos) });
+      },
+      setVirtualCursor(pos) {
+        const value2 = Number.isFinite(Number(pos)) ? Math.max(0, Math.min(view.state.doc.length, Number(pos))) : null;
+        view.dispatch({ effects: setVirtualCursorEffect.of(value2) });
+      },
+      clearVirtualCursor() {
+        view.dispatch({ effects: setVirtualCursorEffect.of(null) });
       },
       focus() {
         view.focus();

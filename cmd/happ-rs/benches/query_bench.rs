@@ -39,21 +39,25 @@ fn bench_query_engines(c: &mut Criterion) {
                 assert!(status.success(), "jq failed");
             })
         });
-        g.bench_with_input(BenchmarkId::new("happ-jq", scenario), &bench_file, |b, file| {
-            b.iter(|| {
-                let status = Command::new(&happ_bin)
-                    .arg("jq")
-                    .arg("--query")
-                    .arg(query)
-                    .arg("--input")
-                    .arg(file)
-                    .arg("--compact")
-                    .stdout(std::process::Stdio::null())
-                    .status()
-                    .expect("run happ jq");
-                assert!(status.success(), "happ jq failed");
-            })
-        });
+        g.bench_with_input(
+            BenchmarkId::new("happ-jq", scenario),
+            &bench_file,
+            |b, file| {
+                b.iter(|| {
+                    let status = Command::new(&happ_bin)
+                        .arg("jq")
+                        .arg("--query")
+                        .arg(query)
+                        .arg("--input")
+                        .arg(file)
+                        .arg("--compact")
+                        .stdout(std::process::Stdio::null())
+                        .status()
+                        .expect("run happ jq");
+                    assert!(status.success(), "happ jq failed");
+                })
+            },
+        );
     }
     g.finish();
 
@@ -64,23 +68,27 @@ fn bench_query_engines(c: &mut Criterion) {
         ("merge-read", "all", ".svc.v"),
     ];
     for (scenario, doc_mode, query) in yq_scenarios {
-        gy.bench_with_input(BenchmarkId::new("happ-yq", scenario), &bench_yaml, |b, file| {
-            b.iter(|| {
-                let status = Command::new(&happ_bin)
-                    .arg("yq")
-                    .arg("--query")
-                    .arg(query)
-                    .arg("--input")
-                    .arg(file)
-                    .arg("--doc-mode")
-                    .arg(doc_mode)
-                    .arg("--compact")
-                    .stdout(std::process::Stdio::null())
-                    .status()
-                    .expect("run happ yq");
-                assert!(status.success(), "happ yq failed");
-            })
-        });
+        gy.bench_with_input(
+            BenchmarkId::new("happ-yq", scenario),
+            &bench_yaml,
+            |b, file| {
+                b.iter(|| {
+                    let status = Command::new(&happ_bin)
+                        .arg("yq")
+                        .arg("--query")
+                        .arg(query)
+                        .arg("--input")
+                        .arg(file)
+                        .arg("--doc-mode")
+                        .arg(doc_mode)
+                        .arg("--compact")
+                        .stdout(std::process::Stdio::null())
+                        .status()
+                        .expect("run happ yq");
+                    assert!(status.success(), "happ yq failed");
+                })
+            },
+        );
     }
     gy.finish();
 }

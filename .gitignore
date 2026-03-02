@@ -10,3 +10,18 @@ cmd/happ/dist/
 
 # Internal planning
 .internal/
+
+# macOS / editor junk
+**/.DS_Store
+
+# Rust / web build artifacts
+cmd/happ-rs/target/
+cmd/happ-rs/web/node_modules/
+
+# local temp and test outputs
+test-results/
+tmp/
+tmp-*/
+cmd/happ-rs/web/test-results/
+cmd/happ-rs/web/playwright-report/
+cmd/happ-rs/web/test-artifacts/

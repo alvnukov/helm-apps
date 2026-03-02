@@ -9,13 +9,12 @@ pub enum Error {
     Io(#[from] io::Error),
     #[error("yaml: {0}")]
     Yaml(#[from] serde_yaml::Error),
+    #[error("library chart: {0}")]
+    Library(String),
 }
 
 pub fn values_yaml(values: &Value) -> Result<String, Error> {
-    let mut root = values
-        .as_mapping()
-        .cloned()
-        .unwrap_or_default();
+    let mut root = values.as_mapping().cloned().unwrap_or_default();
     let mut ordered = Mapping::new();
     if let Some(g) = root.remove(Value::String("global".into())) {
         ordered.insert(Value::String("global".into()), g);
@@ -70,13 +69,26 @@ pub fn generate_consumer_chart(
         chart_name
     );
     fs::write(Path::new(out_dir).join("Chart.yaml"), chart_yaml.as_bytes())?;
-    fs::write(Path::new(out_dir).join("templates/init-helm-apps-library.yaml"), b"{{- include \"apps-utils.init-library\" $ }}\n")?;
-    write_values(Some(&Path::new(out_dir).join("values.yaml").to_string_lossy()), values)?;
+    fs::write(
+        Path::new(out_dir).join("templates/init-helm-apps-library.yaml"),
+        b"{{- include \"apps-utils.init-library\" $ }}\n",
+    )?;
+    write_values(
+        Some(&Path::new(out_dir).join("values.yaml").to_string_lossy()),
+        values,
+    )?;
 
     let dst = Path::new(out_dir).join("charts/helm-apps");
-    let src = resolve_library_path(library_chart_path);
+    let src = resolve_library_path(library_chart_path)?;
     if let Some(src) = src {
         copy_dir(&src, &dst)?;
+    } else if crate::assets::has_helm_apps_chart() {
+        crate::assets::extract_helm_apps_chart(&dst)?;
+    } else {
+        return Err(Error::Library(
+            "embedded helm-apps chart is unavailable and no local library chart path was resolved"
+                .to_string(),
+        ));
     }
     Ok(())
 }
@@ -91,18 +103,22 @@ pub fn copy_chart_crds_if_any(source_chart_path: &str, out_dir: &str) -> Result<
     Ok(true)
 }
 
-fn resolve_library_path(explicit: Option<&str>) -> Option<PathBuf> {
+fn resolve_library_path(explicit: Option<&str>) -> Result<Option<PathBuf>, Error> {
     if let Some(p) = explicit {
         let pb = PathBuf::from(p);
         if pb.join("Chart.yaml").exists() {
-            return Some(pb);
+            return Ok(Some(pb));
         }
+        return Err(Error::Library(format!(
+            "explicit path '{}' does not contain Chart.yaml",
+            p
+        )));
     }
     let candidate = PathBuf::from("charts/helm-apps");
     if candidate.join("Chart.yaml").exists() {
-        return Some(candidate);
+        return Ok(Some(candidate));
     }
-    None
+    Ok(None)
 }
 
 fn copy_dir(src: &Path, dst: &Path) -> Result<(), Error> {
@@ -136,8 +152,14 @@ mod tests {
     #[test]
     fn puts_global_first_in_values_yaml() {
         let mut root = Mapping::new();
-        root.insert(Value::String("apps-k8s-manifests".into()), Value::Mapping(Mapping::new()));
-        root.insert(Value::String("global".into()), Value::Mapping(Mapping::new()));
+        root.insert(
+            Value::String("apps-k8s-manifests".into()),
+            Value::Mapping(Mapping::new()),
+        );
+        root.insert(
+            Value::String("global".into()),
+            Value::Mapping(Mapping::new()),
+        );
         let txt = values_yaml(&Value::Mapping(root)).expect("yaml");
         assert!(txt.starts_with("global:"));
     }
@@ -147,8 +169,14 @@ mod tests {
         let td = TempDir::new().expect("tmp");
         let out = td.path().join("chart");
         let mut root = Mapping::new();
-        root.insert(Value::String("global".into()), Value::Mapping(Mapping::new()));
-        root.insert(Value::String("apps-k8s-manifests".into()), Value::Mapping(Mapping::new()));
+        root.insert(
+            Value::String("global".into()),
+            Value::Mapping(Mapping::new()),
+        );
+        root.insert(
+            Value::String("apps-k8s-manifests".into()),
+            Value::Mapping(Mapping::new()),
+        );
         generate_consumer_chart(
             out.to_str().expect("path"),
             Some("demo"),
@@ -159,6 +187,26 @@ mod tests {
         assert!(out.join("Chart.yaml").exists());
         assert!(out.join("values.yaml").exists());
         assert!(out.join("templates/init-helm-apps-library.yaml").exists());
+        assert!(out.join("charts/helm-apps/Chart.yaml").exists());
+    }
+
+    #[test]
+    fn rejects_invalid_explicit_library_path() {
+        let td = TempDir::new().expect("tmp");
+        let out = td.path().join("chart");
+        let mut root = Mapping::new();
+        root.insert(
+            Value::String("global".into()),
+            Value::Mapping(Mapping::new()),
+        );
+        let err = generate_consumer_chart(
+            out.to_str().expect("path"),
+            Some("demo"),
+            &Value::Mapping(root),
+            Some("/definitely/not/exist"),
+        )
+        .expect_err("must fail");
+        assert!(matches!(err, Error::Library(_)), "{err:?}");
     }
 
     #[test]
@@ -167,13 +215,14 @@ mod tests {
         let src = td.path().join("src-chart");
         let out = td.path().join("out-chart");
         fs::create_dir_all(src.join("crds")).expect("mkdir");
-        fs::write(src.join("crds/demo.example.com.yaml"), "kind: CustomResourceDefinition\n").expect("write");
-
-        let copied = copy_chart_crds_if_any(
-            src.to_str().expect("src"),
-            out.to_str().expect("out"),
+        fs::write(
+            src.join("crds/demo.example.com.yaml"),
+            "kind: CustomResourceDefinition\n",
         )
-        .expect("copy");
+        .expect("write");
+
+        let copied = copy_chart_crds_if_any(src.to_str().expect("src"), out.to_str().expect("out"))
+            .expect("copy");
         assert!(copied);
         assert!(out.join("crds/demo.example.com.yaml").exists());
     }

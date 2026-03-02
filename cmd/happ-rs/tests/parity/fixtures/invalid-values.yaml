@@ -1,0 +1,4 @@
+global:
+  env: dev
+apps-stateless:
+  broken: [1, 2

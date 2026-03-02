@@ -1,12 +1,28 @@
 use clap::{ArgAction, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "happ", about = "happ imports Helm chart render output or raw manifests into a helm-apps-based consumer chart")]
+#[command(
+    name = "happ",
+    about = "happ imports Helm chart render output or raw manifests into a helm-apps-based consumer chart"
+)]
 pub struct Cli {
     #[arg(long, global = true, default_value_t = false, action = ArgAction::SetTrue, help = "Start web utilities UI")]
     pub web: bool,
-    #[arg(long = "web-addr", global = true, default_value = "127.0.0.1:8088", help = "Address for --web mode")]
+    #[arg(
+        long = "web-addr",
+        global = true,
+        default_value = "127.0.0.1:8088",
+        help = "Address for --web mode"
+    )]
     pub web_addr: String,
+    #[arg(
+        long = "web-open-browser",
+        global = true,
+        default_value_t = true,
+        action = ArgAction::Set,
+        help = "Open browser automatically in --web mode"
+    )]
+    pub web_open_browser: bool,
     #[command(subcommand)]
     pub command: Option<Command>,
 }
@@ -17,6 +33,7 @@ pub enum Command {
     Manifests(ImportArgs),
     Compose(ImportArgs),
     Validate(ValidateArgs),
+    Completion(CompletionArgs),
     #[command(
         about = "Run jq-like query syntax on JSON or YAML input",
         long_about = "Run jq-like query syntax on input data.\nInput may be JSON or YAML; parsing is automatic."
@@ -66,6 +83,18 @@ pub struct ValidateArgs {
     pub values: String,
 }
 
+#[derive(clap::Args, Debug, Clone)]
+pub struct CompletionArgs {
+    #[arg(
+        long,
+        value_parser = ["bash", "zsh", "fish", "powershell", "elvish"],
+        help = "Target shell"
+    )]
+    pub shell: String,
+    #[arg(long, help = "Write completion script to file (stdout by default)")]
+    pub output: Option<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -79,6 +108,36 @@ mod tests {
             Command::Validate(args) => assert_eq!(args.values, "/tmp/values.yaml"),
             other => panic!("unexpected command: {other:?}"),
         }
+    }
+
+    #[test]
+    fn parses_completion_subcommand() {
+        let cli = Cli::try_parse_from(["happ", "completion", "--shell", "zsh"])
+            .expect("parse completion");
+        match cli.command.expect("command") {
+            Command::Completion(args) => {
+                assert_eq!(args.shell, "zsh");
+                assert_eq!(args.output, None);
+            }
+            other => panic!("unexpected command: {other:?}"),
+        }
+    }
+
+    #[test]
+    fn completion_help_mentions_shells() {
+        let mut cmd = Cli::command();
+        let mut buf = Vec::new();
+        cmd.find_subcommand_mut("completion")
+            .expect("completion subcommand")
+            .write_long_help(&mut buf)
+            .expect("write help");
+        let help = String::from_utf8(buf).expect("utf8");
+        assert!(help.contains("Target shell"));
+        assert!(help.contains("bash"));
+        assert!(help.contains("zsh"));
+        assert!(help.contains("fish"));
+        assert!(help.contains("powershell"));
+        assert!(help.contains("elvish"));
     }
 
     #[test]
@@ -256,7 +315,40 @@ mod tests {
             .expect("parse web");
         assert!(cli.web);
         assert_eq!(cli.web_addr, "127.0.0.1:9999");
+        assert!(cli.web_open_browser);
         assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn parses_top_level_web_mode_without_open_browser() {
+        let cli = Cli::try_parse_from([
+            "happ",
+            "--web",
+            "--web-addr",
+            "127.0.0.1:9999",
+            "--web-open-browser=false",
+        ])
+        .expect("parse web no open");
+        assert!(cli.web);
+        assert_eq!(cli.web_addr, "127.0.0.1:9999");
+        assert!(!cli.web_open_browser);
+        assert!(cli.command.is_none());
+    }
+
+    #[test]
+    fn parses_chart_verify_equivalence_flag() {
+        let cli = Cli::try_parse_from([
+            "happ",
+            "chart",
+            "--path",
+            "/tmp/chart",
+            "--verify-equivalence",
+        ])
+        .expect("parse chart verify");
+        match cli.command.expect("command") {
+            Command::Chart(args) => assert!(args.verify_equivalence),
+            other => panic!("unexpected command: {other:?}"),
+        }
     }
 }
 
@@ -284,6 +376,12 @@ pub struct ImportArgs {
     pub library_chart_path: Option<String>,
     #[arg(long, default_value = "raw")]
     pub import_strategy: String,
+    #[arg(
+        long,
+        action = ArgAction::SetTrue,
+        help = "Verify source chart render against generated library chart render (chart source only)"
+    )]
+    pub verify_equivalence: bool,
 
     #[arg(long, default_value = "imported")]
     pub release_name: String,

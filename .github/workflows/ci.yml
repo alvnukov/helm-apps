@@ -25,24 +25,13 @@ jobs:
         with:
           version: v2.57.1
 
-      - name: Setup Go (for happ)
-        uses: actions/setup-go@v5
-        with:
-          go-version-file: cmd/happ/go.mod
+      - name: Setup Rust toolchain (for happ)
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Setup Node.js (for VS Code extension)
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-
-      - name: Setup golangci-lint (for happ)
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: v1.64.8
-          working-directory: cmd/happ
-          install-mode: binary
-          skip-cache: true
-          skip-save-cache: true
 
       - name: Install Dyff
         run: |
@@ -124,23 +113,37 @@ jobs:
           set -euo pipefail
           bash scripts/fuzz-contracts.sh --iterations 40 --seed 20260216
 
-      - name: Sync happ embedded library asset
+      - name: Test happ (Rust)
         run: |
           set -euo pipefail
-          cd cmd/happ
-          go generate ./assets
+          cd cmd/happ-rs
+          cargo fmt --check
+          cargo test --locked
 
-      - name: Lint happ
+      - name: Parity matrix (happ CLI contracts)
         run: |
           set -euo pipefail
-          cd cmd/happ
-          golangci-lint run
+          cd cmd/happ-rs
+          cargo test --locked --test parity_cli
 
-      - name: Test happ
+      - name: Install happ-rs web test dependencies
         run: |
           set -euo pipefail
-          cd cmd/happ
-          go test ./...
+          cd cmd/happ-rs/web
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Build happ-rs for web UI tests
+        run: |
+          set -euo pipefail
+          cd cmd/happ-rs
+          cargo build --locked
+
+      - name: Run happ-rs web UI tests (e2e + visual + structure)
+        run: |
+          set -euo pipefail
+          cd cmd/happ-rs/web
+          npm run test:ui
 
       - name: Install extension dependencies
         run: |

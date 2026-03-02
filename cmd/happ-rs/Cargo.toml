@@ -6,6 +6,7 @@ license = "Apache-2.0"
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }
+clap_complete = "4.5"
 serde = { version = "1", features = ["derive"] }
 serde_yaml = "0.9"
 serde_json = { version = "1", features = ["preserve_order"] }
@@ -14,10 +15,11 @@ indexmap = { version = "2", features = ["serde"] }
 regex = "1"
 unsafe-libyaml = "0.2"
 base64 = "0.22"
+tempfile = "3"
+include_dir = "0.7"
 
 [dev-dependencies]
 pretty_assertions = "1"
-tempfile = "3"
 criterion = { version = "0.5", features = ["html_reports"] }
 
 [[bench]]

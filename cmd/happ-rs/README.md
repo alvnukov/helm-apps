@@ -32,3 +32,53 @@ Output options:
 
 - `--compact`
 - `--raw-output` (prints raw string values without JSON quotes)
+
+## Shell completion
+
+`happ` can generate completion scripts for:
+
+- `bash`
+- `zsh`
+- `fish`
+- `powershell`
+- `elvish`
+
+Examples:
+
+```bash
+# print to stdout
+happ completion --shell zsh
+```
+
+```bash
+# write to file
+happ completion --shell bash --output /tmp/happ.bash
+```
+
+```bash
+# web mode for tests/CI without opening browser
+happ --web --web-open-browser=false
+```
+
+## Parity Matrix (CLI contracts)
+
+Core CLI behavior is pinned by integration parity tests.
+
+- test file: `tests/parity_cli.rs`
+- fixtures: `tests/parity/fixtures/*`
+- covered contracts:
+  - `help`
+  - `validate`
+  - `jq`
+  - `yq`
+  - `dyff`
+  - `manifests`
+  - `compose`
+  - `completion`
+  - embedded `charts/helm-apps` asset generation
+
+Run locally:
+
+```bash
+cargo test --test parity_cli
+```

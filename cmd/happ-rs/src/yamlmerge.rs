@@ -55,7 +55,9 @@ pub fn normalize_documents(input: &str) -> Result<Vec<Value>, serde_yaml::Error>
     Ok(docs
         .into_iter()
         .enumerate()
-        .map(|(i, doc)| normalize_value_with_hints(doc, hints.as_ref().and_then(|v| v.get(i)), &mut Vec::new()))
+        .map(|(i, doc)| {
+            normalize_value_with_hints(doc, hints.as_ref().and_then(|v| v.get(i)), &mut Vec::new())
+        })
         .filter(|v| !v.is_null())
         .collect())
 }
@@ -76,7 +78,11 @@ fn normalize_value_with_hints(v: Value, hints: Option<&MergeStyleHints>, path: &
     }
 }
 
-fn normalize_mapping_merge(map: Mapping, hints: Option<&MergeStyleHints>, path: &mut Path) -> Value {
+fn normalize_mapping_merge(
+    map: Mapping,
+    hints: Option<&MergeStyleHints>,
+    path: &mut Path,
+) -> Value {
     let merge_key = Value::String("<<".to_string());
     let has_merge_key = map.contains_key(&merge_key);
     let should_merge = has_merge_key && should_apply_merge(hints, path);
@@ -210,7 +216,9 @@ fn collect_merge_style_hints(input: &str) -> Result<Vec<MergeStyleHints>, String
                                     if style == YAML_PLAIN_SCALAR_STYLE {
                                         all_hints[doc_idx].plain_merge_paths.insert(path.clone());
                                     } else {
-                                        all_hints[doc_idx].nonplain_merge_paths.insert(path.clone());
+                                        all_hints[doc_idx]
+                                            .nonplain_merge_paths
+                                            .insert(path.clone());
                                     }
                                 }
                             }
@@ -282,7 +290,9 @@ fn begin_container(stack: &mut [Frame]) -> Result<Path, String> {
                 out.push(PathSegment::Key("<complex-key>".to_string()));
                 return Ok(out);
             }
-            let key = current_key.take().unwrap_or_else(|| "<complex-key>".to_string());
+            let key = current_key
+                .take()
+                .unwrap_or_else(|| "<complex-key>".to_string());
             *expecting_key = true;
             let mut out = path.clone();
             out.push(PathSegment::Key(key));
@@ -326,7 +336,9 @@ unsafe fn parser_error(parser: &yaml_parser_t) -> String {
     let problem = if parser.problem.is_null() {
         "yaml parse error".to_string()
     } else {
-        CStr::from_ptr(parser.problem).to_string_lossy().into_owned()
+        CStr::from_ptr(parser.problem)
+            .to_string_lossy()
+            .into_owned()
     };
     format!(
         "{} at line {} column {}",
@@ -434,7 +446,10 @@ obj:
             let j = serde_json::to_value(n).expect("json");
             assert_eq!(j["obj"]["x"], a, "x mismatch for source:\n{src}");
             assert_eq!(j["obj"]["y"], b, "y precedence mismatch for source:\n{src}");
-            assert_eq!(j["obj"]["z"], b, "local override mismatch for source:\n{src}");
+            assert_eq!(
+                j["obj"]["z"], b,
+                "local override mismatch for source:\n{src}"
+            );
         }
     }
 }

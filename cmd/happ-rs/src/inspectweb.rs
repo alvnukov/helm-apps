@@ -23,8 +23,17 @@ pub fn serve(
     )
 }
 
-pub fn serve_tools(addr: &str, open_browser: bool) -> Result<(), String> {
-    serve_with_renderer(addr, open_browser, Box::new(render_tools_page_html), None)
+pub fn serve_tools(
+    addr: &str,
+    open_browser: bool,
+    stdin_text: Option<String>,
+) -> Result<(), String> {
+    serve_with_renderer(
+        addr,
+        open_browser,
+        Box::new(move || render_tools_page_html(stdin_text.as_deref())),
+        None,
+    )
 }
 
 pub fn serve_compose(
@@ -277,6 +286,75 @@ fn handle_connection(
             Err(e) => (false, e),
         };
         let resp = serde_json::json!({ "ok": ok, "output": output }).to_string();
+        return write_response(
+            stream,
+            200,
+            "application/json; charset=utf-8",
+            resp.as_bytes(),
+        )
+        .map_err(|e| e.to_string());
+    }
+    if route_path == "/api/semantic-map" && method == "POST" {
+        let payload: serde_json::Value =
+            serde_json::from_str(body).map_err(|e| format!("invalid JSON request: {e}"))?;
+        let source = payload
+            .get("source")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let output = payload
+            .get("output")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let source_kind = payload
+            .get("sourceKind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("auto");
+        let output_kind = payload
+            .get("outputKind")
+            .and_then(|v| v.as_str())
+            .unwrap_or("auto");
+        let from_utf16 = payload
+            .get("from")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize)
+            .unwrap_or(0);
+        let to_utf16 = payload
+            .get("to")
+            .and_then(|v| v.as_u64())
+            .map(|x| x as usize)
+            .unwrap_or(from_utf16);
+        let selected_text = payload
+            .get("selectedText")
+            .and_then(|v| v.as_str())
+            .unwrap_or_default();
+        let path_hint: Vec<String> = payload
+            .get("pathHint")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|x| x.as_str().map(str::to_string))
+                    .collect()
+            })
+            .unwrap_or_default();
+        let (ok, ranges, message) = match semantic_map_payload(
+            source,
+            output,
+            source_kind,
+            output_kind,
+            from_utf16,
+            to_utf16,
+            selected_text,
+            &path_hint,
+        ) {
+            Ok(r) => (true, r, String::new()),
+            Err(e) => (false, Vec::<serde_json::Value>::new(), e),
+        };
+        let resp = serde_json::json!({
+            "ok": ok,
+            "ranges": ranges,
+            "message": message
+        })
+        .to_string();
         return write_response(
             stream,
             200,
@@ -1373,6 +1451,311 @@ fn select_docs_for_web(
     }
 }
 
+fn utf16_to_byte_idx(s: &str, utf16_idx: usize) -> usize {
+    let mut units = 0usize;
+    for (byte_idx, ch) in s.char_indices() {
+        if units >= utf16_idx {
+            return byte_idx;
+        }
+        units += ch.len_utf16();
+        if units > utf16_idx {
+            return byte_idx;
+        }
+    }
+    s.len()
+}
+
+fn byte_to_utf16_idx(s: &str, byte_idx: usize) -> usize {
+    let mut units = 0usize;
+    for (i, ch) in s.char_indices() {
+        if i >= byte_idx {
+            break;
+        }
+        units += ch.len_utf16();
+    }
+    units
+}
+
+fn is_token_char(ch: char) -> bool {
+    ch.is_ascii_alphanumeric() || matches!(ch, '_' | '.' | ':' | '@' | '/' | '-')
+}
+
+fn token_at_utf16_offset(s: &str, utf16_off: usize) -> String {
+    let byte_off = utf16_to_byte_idx(s, utf16_off);
+    let chars: Vec<(usize, char)> = s.char_indices().collect();
+    let mut idx = chars
+        .iter()
+        .position(|(b, _)| *b >= byte_off)
+        .unwrap_or(chars.len());
+    if idx > 0 && idx == chars.len() {
+        idx -= 1;
+    }
+    let mut l = idx;
+    while l > 0 && is_token_char(chars[l - 1].1) {
+        l -= 1;
+    }
+    let mut r = idx;
+    while r < chars.len() && is_token_char(chars[r].1) {
+        r += 1;
+    }
+    let from = if l < chars.len() { chars[l].0 } else { s.len() };
+    let to = if r < chars.len() { chars[r].0 } else { s.len() };
+    s[from..to].trim().to_string()
+}
+
+fn extract_yaml_path_at_utf16(s: &str, utf16_off: usize) -> Vec<String> {
+    let byte_off = utf16_to_byte_idx(s, utf16_off);
+    let lines: Vec<&str> = s.split('\n').collect();
+    let mut target_line = 0usize;
+    let mut acc = 0usize;
+    for (i, line) in lines.iter().enumerate() {
+        let len = line.len() + 1;
+        if byte_off < acc + len {
+            target_line = i;
+            break;
+        }
+        acc += len;
+    }
+    let mut stack: Vec<(usize, String)> = Vec::new();
+    for line in lines.iter().take(target_line + 1) {
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let indent = line.as_bytes().iter().take_while(|&&b| b == b' ').count();
+        let rest = &line[indent..];
+        if let Some(colon) = rest.find(':') {
+            let mut key = rest[..colon].trim().to_string();
+            if key.is_empty() {
+                continue;
+            }
+            if (key.starts_with('"') && key.ends_with('"'))
+                || (key.starts_with('\'') && key.ends_with('\''))
+            {
+                key = key[1..key.len().saturating_sub(1)].to_string();
+            }
+            while let Some((ind, _)) = stack.last() {
+                if *ind >= indent {
+                    stack.pop();
+                } else {
+                    break;
+                }
+            }
+            stack.push((indent, key));
+        }
+    }
+    stack.into_iter().map(|(_, k)| k).collect()
+}
+
+fn find_yaml_ranges_by_path_utf16(s: &str, path: &[String]) -> Vec<(usize, usize)> {
+    if path.is_empty() {
+        return Vec::new();
+    }
+    let lines: Vec<&str> = s.split('\n').collect();
+    let mut starts = Vec::with_capacity(lines.len());
+    let mut acc = 0usize;
+    for line in &lines {
+        starts.push(acc);
+        acc += line.len() + 1;
+    }
+    let mut stack: Vec<(usize, String)> = Vec::new();
+    let mut out = Vec::new();
+    for i in 0..lines.len() {
+        let line = lines[i];
+        if line.trim().is_empty() || line.trim_start().starts_with('#') {
+            continue;
+        }
+        let indent = line.as_bytes().iter().take_while(|&&b| b == b' ').count();
+        let rest = &line[indent..];
+        let Some(colon) = rest.find(':') else {
+            continue;
+        };
+        let mut key = rest[..colon].trim().to_string();
+        if key.is_empty() {
+            continue;
+        }
+        if (key.starts_with('"') && key.ends_with('"'))
+            || (key.starts_with('\'') && key.ends_with('\''))
+        {
+            key = key[1..key.len().saturating_sub(1)].to_string();
+        }
+        while let Some((ind, _)) = stack.last() {
+            if *ind >= indent {
+                stack.pop();
+            } else {
+                break;
+            }
+        }
+        let mut next_path: Vec<String> = stack.iter().map(|(_, k)| k.clone()).collect();
+        next_path.push(key.clone());
+        if next_path == path {
+            let mut j = i + 1;
+            while j < lines.len() {
+                let ln = lines[j];
+                if ln.trim().is_empty() {
+                    j += 1;
+                    continue;
+                }
+                let ind = ln.as_bytes().iter().take_while(|&&b| b == b' ').count();
+                if ind <= indent {
+                    break;
+                }
+                j += 1;
+            }
+            let from_b = starts[i];
+            let to_b = if j < lines.len() { starts[j] } else { s.len() };
+            if to_b > from_b {
+                out.push((byte_to_utf16_idx(s, from_b), byte_to_utf16_idx(s, to_b)));
+            }
+        }
+        stack.push((indent, key));
+    }
+    out
+}
+
+fn is_num_boundary(ch: Option<char>) -> bool {
+    match ch {
+        None => true,
+        Some(c) => !(c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '-')),
+    }
+}
+
+fn find_value_ranges_utf16(output: &str, needle: &str, kind: &str) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    if needle.is_empty() {
+        return out;
+    }
+    let add_match = |out: &mut Vec<(usize, usize)>, from_b: usize, to_b: usize| {
+        out.push((
+            byte_to_utf16_idx(output, from_b),
+            byte_to_utf16_idx(output, to_b),
+        ));
+    };
+    match kind {
+        "bool" | "null" => {
+            let mut pos = 0usize;
+            while let Some(found) = output[pos..].find(needle) {
+                let from_b = pos + found;
+                let to_b = from_b + needle.len();
+                let prev = output[..from_b].chars().next_back();
+                let next = output[to_b..].chars().next();
+                let ok = !prev
+                    .map(|c| c.is_ascii_alphanumeric() || c == '_')
+                    .unwrap_or(false)
+                    && !next
+                        .map(|c| c.is_ascii_alphanumeric() || c == '_')
+                        .unwrap_or(false);
+                if ok {
+                    add_match(&mut out, from_b, to_b);
+                }
+                pos = to_b.min(output.len());
+                if pos >= output.len() {
+                    break;
+                }
+            }
+        }
+        "num" => {
+            let mut pos = 0usize;
+            while let Some(found) = output[pos..].find(needle) {
+                let from_b = pos + found;
+                let to_b = from_b + needle.len();
+                let prev = output[..from_b].chars().next_back();
+                let next = output[to_b..].chars().next();
+                if is_num_boundary(prev) && is_num_boundary(next) {
+                    add_match(&mut out, from_b, to_b);
+                }
+                pos = to_b.min(output.len());
+                if pos >= output.len() {
+                    break;
+                }
+            }
+        }
+        _ => {
+            for candidate in [
+                format!("\"{needle}\""),
+                format!("'{needle}'"),
+                needle.to_string(),
+            ] {
+                let mut pos = 0usize;
+                while let Some(found) = output[pos..].find(&candidate) {
+                    let from_b = pos + found;
+                    let to_b = from_b + candidate.len();
+                    add_match(&mut out, from_b, to_b);
+                    pos = to_b.min(output.len());
+                    if pos >= output.len() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    out
+}
+
+fn semantic_map_payload(
+    source: &str,
+    output: &str,
+    source_kind: &str,
+    output_kind: &str,
+    from_utf16: usize,
+    to_utf16: usize,
+    selected_text: &str,
+    path_hint: &[String],
+) -> Result<Vec<serde_json::Value>, String> {
+    if output.is_empty() {
+        return Ok(Vec::new());
+    }
+    let mut ranges: Vec<(usize, usize)> = Vec::new();
+    let mut path: Vec<String> = if !path_hint.is_empty() {
+        path_hint.to_vec()
+    } else {
+        Vec::new()
+    };
+    let sk = source_kind.trim().to_ascii_lowercase();
+    let ok_yaml_source = sk.is_empty() || sk == "auto" || sk == "yaml";
+    if path.is_empty() && ok_yaml_source {
+        path = extract_yaml_path_at_utf16(source, from_utf16);
+    }
+    let ok_yaml_output = matches!(
+        output_kind.trim().to_ascii_lowercase().as_str(),
+        "" | "auto" | "yaml"
+    );
+    if ok_yaml_output && !path.is_empty() {
+        ranges.extend(find_yaml_ranges_by_path_utf16(output, &path));
+    }
+    let mut needle = selected_text.trim().to_string();
+    if needle.is_empty() {
+        needle = token_at_utf16_offset(source, from_utf16.min(to_utf16));
+    }
+    if !needle.is_empty() {
+        let (kind, val) =
+            if needle.eq_ignore_ascii_case("true") || needle.eq_ignore_ascii_case("false") {
+                ("bool", needle.to_ascii_lowercase())
+            } else if needle.eq_ignore_ascii_case("null") {
+                ("null", "null".to_string())
+            } else if needle.parse::<f64>().is_ok() {
+                let n = needle.parse::<f64>().unwrap_or(0.0);
+                ("num", format!("{n}").trim_end_matches(".0").to_string())
+            } else if (needle.starts_with('"') && needle.ends_with('"'))
+                || (needle.starts_with('\'') && needle.ends_with('\''))
+            {
+                ("str", needle[1..needle.len().saturating_sub(1)].to_string())
+            } else {
+                ("str", needle)
+            };
+        ranges.extend(find_value_ranges_utf16(output, &val, kind));
+    }
+    ranges.sort_unstable();
+    ranges.dedup();
+    if ranges.len() > 128 {
+        ranges.truncate(128);
+    }
+    Ok(ranges
+        .into_iter()
+        .filter(|(f, t)| t > f)
+        .map(|(f, t)| serde_json::json!({ "from": f, "to": t }))
+        .collect())
+}
+
 fn write_response(
     stream: &mut TcpStream,
     code: u16,
@@ -1414,8 +1797,8 @@ pub fn render_page_html(source_yaml: &str, generated_values_yaml: &str) -> Strin
             },
             {
                 "id": "converter",
-                "title": "YAML/JSON Converter",
-                "description": "Convert data between YAML and JSON formats."
+                "title": "Converters",
+                "description": "Useful developer converters: YAML/JSON, JWT, Base64, URL, time and hex."
             },
             {
                 "id": "jq-playground",
@@ -1457,8 +1840,8 @@ pub fn render_compose_page_html(
             },
             {
                 "id": "converter",
-                "title": "YAML/JSON Converter",
-                "description": "Convert data between YAML and JSON formats."
+                "title": "Converters",
+                "description": "Useful developer converters: YAML/JSON, JWT, Base64, URL, time and hex."
             },
             {
                 "id": "jq-playground",
@@ -1480,9 +1863,10 @@ pub fn render_compose_page_html(
     render_vue_page_html("happ compose-inspect", &model.to_string())
 }
 
-pub fn render_tools_page_html() -> String {
+pub fn render_tools_page_html(stdin_text: Option<&str>) -> String {
     let model = serde_json::json!({
         "title": "happ web",
+        "stdinText": stdin_text.unwrap_or(""),
         "utilities": [
             {
                 "id": "main-import",
@@ -1491,8 +1875,8 @@ pub fn render_tools_page_html() -> String {
             },
             {
                 "id": "converter",
-                "title": "YAML/JSON Converter",
-                "description": "Convert data between YAML and JSON formats."
+                "title": "Converters",
+                "description": "Useful developer converters: YAML/JSON, JWT, Base64, URL, time and hex."
             },
             {
                 "id": "jq-playground",
@@ -1529,18 +1913,19 @@ fn render_vue_page_html(page_title: &str, model_json: &str) -> String {
 <head>
 <meta charset='utf-8'/>
 <title>{}</title>
+<link rel='icon' type='image/svg+xml' href='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 64 64%22%3E%3Cdefs%3E%3ClinearGradient id=%22g%22 x1=%220%22 y1=%220%22 x2=%221%22 y2=%221%22%3E%3Cstop offset=%220%25%22 stop-color=%22%235a81e6%22/%3E%3Cstop offset=%22100%25%22 stop-color=%22%236ed1bb%22/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect x=%224%22 y=%224%22 width=%2256%22 height=%2256%22 rx=%2214%22 fill=%22%231a1d22%22 stroke=%22url(%23g)%22 stroke-width=%223%22/%3E%3Cpath d=%22M19 19h8v10h10V19h8v26h-8V35H27v10h-8z%22 fill=%22%23e9edf7%22/%3E%3C/svg%3E'/>
 <style>
 :root {{
-  --bg:#121417;
-  --surface:#1a1d22;
-  --surface-2:#20242a;
-  --surface-3:#171b20;
-  --surface-4:#1f2530;
-  --text:#e7e9ee;
-  --muted:#9aa1ad;
+  --bg:#1e1f22;
+  --surface:#2b2d30;
+  --surface-2:#323437;
+  --surface-3:#25272a;
+  --surface-4:#2f3238;
+  --text:#bcbec4;
+  --muted:#7e8288;
   --accent:#7aa2ff;
   --accent-2:#6ed1bb;
-  --border:#2c323c;
+  --border:#3c3f41;
   --danger:#ff8f8f;
   --ok:#7ad8ab;
 }}
@@ -1549,9 +1934,7 @@ body {{
   margin:0;
   padding:16px;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-  background:
-    radial-gradient(1200px 500px at 8% -20%, #20252d 0%, transparent 60%),
-    linear-gradient(180deg, #16191e 0%, var(--bg) 100%);
+  background: #1e1f22;
   color:var(--text);
 }}
 #app {{ max-width: 1380px; margin: 0 auto; }}
@@ -1569,7 +1952,7 @@ body {{
 .top-actions {{ display:flex; align-items:center; gap:10px; }}
 button {{
   border:1px solid var(--border);
-  background:linear-gradient(180deg,#252a33 0%, #20252d 100%);
+  background:#232833;
   color:#e2e5eb;
   padding:8px 13px;
   border-radius:10px;
@@ -1579,17 +1962,17 @@ button {{
   will-change: transform;
 }}
 button.primary {{
-  background:linear-gradient(180deg,#5f84e4 0%, #466dcf 100%);
+  background:#4e74d6;
   border-color:#6f90e8;
   color:#f7faff;
 }}
 button.primary:hover {{
-  background:linear-gradient(180deg,#6a8de8 0%, #5077d8 100%);
+  background:#5a81e6;
   border-color:#83a1f0;
   box-shadow:0 6px 18px rgba(80,119,216,.28);
   transform: translateY(-1px);
 }}
-button:hover {{ border-color:#566783; background:linear-gradient(180deg,#2d3542 0%, #272e39 100%); transform: translateY(-1px); }}
+button:hover {{ border-color:#6a7890; background:#2b3240; transform: translateY(-1px); }}
 button:active {{ transform: translateY(0); }}
 button:disabled {{
   opacity:.55;
@@ -1602,7 +1985,7 @@ button:focus-visible {{
   border-color:#89a7ea;
   box-shadow:0 0 0 2px rgba(126,156,233,.35);
 }}
-button.secondary {{ background:linear-gradient(180deg,#242a33 0%, #1f252e 100%); }}
+button.secondary {{ background:#242b36; }}
 button.tab {{ background:#20242b; border-color:#353c48; color:#cdd3dd; }}
 button.tab.active {{
   background:linear-gradient(180deg,#303844 0%, #28303b 100%);
@@ -1675,10 +2058,124 @@ textarea {{
   font-family: ui-monospace, Menlo, monospace;
   font-size:14px;
   line-height:1.45;
-  background:#101317;
-  color:#e7e9ee;
+  background:#2b2d30;
+  color:#bcbec4;
   margin:0;
 }}
+.sync-sel {{
+  background: #365880;
+  color: #f4f7ff;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1px rgba(186, 210, 255, 0.28);
+}}
+.sync-cursor {{
+  display:inline-block;
+  width:0;
+  height:1.2em;
+  margin-left:-1px;
+  border-left:2px solid rgba(126, 174, 255, 0.96);
+  box-shadow:0 0 0 1px rgba(126, 174, 255, 0.2);
+  vertical-align:text-bottom;
+  animation: happVirtualCursorBlink 1.1s steps(1, end) infinite;
+}}
+@keyframes happVirtualCursorBlink {{
+  0%,48% {{ opacity:1; }}
+  49%,100% {{ opacity:0.2; }}
+}}
+.hex-output {{
+  white-space:pre;
+  word-break:normal;
+  overflow-wrap:normal;
+  tab-size:2;
+}}
+.hexdump-view {{
+  min-height:240px;
+  max-height:760px;
+  overflow:auto;
+  font-family: ui-monospace, Menlo, monospace;
+  font-size:14px;
+  line-height:1.45;
+  user-select:none;
+  -webkit-user-select:none;
+  padding:10px;
+}}
+.hexdump-view * {{
+  user-select:none;
+  -webkit-user-select:none;
+}}
+.hexdump-row {{
+  display:grid;
+  grid-template-columns: 10ch max-content max-content max-content;
+  column-gap:12px;
+  align-items:flex-start;
+  margin-bottom:2px;
+  width:max-content;
+}}
+.hexdump-offset {{
+  color:#7b8aa3;
+  font-weight:700;
+  width:10ch;
+  min-width:10ch;
+}}
+.hexdump-hex, .hexdump-ascii {{
+  display:inline-flex;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+  font-size:0;
+  min-width:max-content;
+}}
+.hexdump-utf8 {{
+  color:#c8ceda;
+  display:inline-flex;
+  flex-wrap:nowrap;
+  white-space:nowrap;
+  font-size:0;
+  min-width:max-content;
+  padding-left:10px;
+  border-left:1px solid rgba(255,255,255,.08);
+}}
+.hexdump-byte, .hexdump-char, .hexdump-utf8-token {{
+  border-radius:4px;
+  padding:0;
+  cursor:default;
+  display:inline-block;
+  font-size:14px;
+  line-height:1.45;
+  vertical-align:top;
+}}
+.hexdump-byte {{ color:#d1a76f; }}
+.hexdump-hex {{
+  overflow:visible;
+}}
+.hexdump-byte {{
+  width:2ch;
+  min-width:2ch;
+  text-align:center;
+}}
+.hexdump-byte + .hexdump-byte {{ margin-left:1ch; }}
+.hexdump-byte.sep8 {{ margin-left:2ch; }}
+.hexdump-byte.pad {{
+  color:transparent;
+  pointer-events:none;
+}}
+.hexdump-char {{ color:#c8ceda; }}
+.hexdump-char + .hexdump-char {{ margin-left:0; }}
+.hexdump-byte.sel, .hexdump-char.sel, .hexdump-utf8-token.sel {{
+  background:rgba(78,108,151,.42);
+  color:#eaf0ff;
+}}
+.output-tools {{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
+  margin:0 0 8px 0;
+}}
+.hex-line .hex-offset {{ color:#7b8aa3; font-weight:700; }}
+.hex-line .hex-bytes {{ color:#d1a76f; }}
+.hex-line .hex-ascii {{ color:#c8ceda; }}
+.hex-line .hex-sep {{ color:#6f7787; }}
+.hex-plain {{ color:#d1a76f; }}
 label.chk {{ display:flex; gap:6px; align-items:center; font-size:13px; color:var(--muted); }}
 .util-head {{ margin:0; padding:2px 4px 0 4px; }}
 .muted {{ color:var(--muted); font-size:14px; }}
@@ -1711,7 +2208,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .form-field {{ display:flex; flex-direction:column; gap:6px; }}
 .form-field > label {{ font-size:12px; color:var(--muted); font-weight:600; }}
 .import-shell {{ display:flex; flex-direction:column; gap:12px; }}
-.import-layout {{ display:grid; grid-template-columns:minmax(520px, 1fr) minmax(520px, 1fr); gap:12px; align-items:start; }}
+.import-layout {{ display:grid; grid-template-columns:minmax(520px, 1fr) minmax(520px, 1fr); gap:12px; align-items:stretch; }}
 .import-config {{ display:flex; flex-direction:column; gap:12px; }}
 .import-config.compact {{
   max-height:calc(82vh - 56px);
@@ -1732,6 +2229,9 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   padding:10px;
   position:sticky;
   top:12px;
+  display:flex;
+  flex-direction:column;
+  min-height:70vh;
 }}
 .import-output .code-output {{ min-height:520px; max-height:72vh; }}
 .import-title {{
@@ -1759,6 +2259,9 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   border-radius:12px;
   background:var(--surface-3);
   padding:10px;
+  display:flex;
+  flex-direction:column;
+  min-height:70vh;
 }}
 .import-section h4 {{
   margin:0 0 10px 0;
@@ -1885,17 +2388,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 }}
 .generated-toolbar {{
   display:grid;
-  grid-template-columns:repeat(auto-fit,minmax(240px,1fr));
+  grid-template-columns:repeat(auto-fit,minmax(200px,1fr));
   gap:8px;
   align-items:start;
   flex-wrap:wrap;
   margin:6px 0 10px 0;
 }}
 .generated-toolbar button {{
-  padding:6px 10px;
+  padding:5px 9px;
   border-radius:8px;
-  font-size:13px;
-  min-height:30px;
+  font-size:12px;
+  min-height:28px;
 }}
 .toolbar-group {{
   display:flex;
@@ -1908,7 +2411,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   padding:6px;
 }}
 .toolbar-group-title {{
-  font-size:11px;
+  font-size:10px;
   letter-spacing:.06em;
   text-transform:uppercase;
   color:#91a0ba;
@@ -1935,9 +2438,24 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   overflow:hidden;
   background:#0f1318;
 }}
+.import-editor-shell {{
+  min-height:56vh;
+  display:flex;
+  flex:1 1 auto;
+}}
+.import-editor-shell > * {{
+  flex:1 1 auto;
+}}
+.source-editor-area {{
+  display:flex;
+  flex-direction:column;
+  flex:1 1 auto;
+  min-height:0;
+}}
 .yaml-editor {{
   position:relative;
   min-height:320px;
+  height:100%;
 }}
 .yaml-editor-highlight {{
   position:absolute;
@@ -1976,6 +2494,17 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .editor-host.generated {{
   min-height:420px;
   height:65vh;
+}}
+.import-layout .editor-host,
+.import-layout .editor-host.generated {{
+  min-height:0;
+  height:100%;
+}}
+.import-layout .yaml-editor,
+.import-layout .yaml-editor-highlight,
+.import-layout .yaml-editor-input {{
+  min-height:0;
+  height:100%;
 }}
 .fallback-fold {{
   padding:10px;
@@ -2162,6 +2691,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .jq-query-highlight {{
   position:absolute; inset:0;
   margin:0;
+  box-sizing:border-box;
   border:1px solid var(--border);
   border-radius:12px;
   background:#101317;
@@ -2169,18 +2699,31 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
   padding:10px;
   overflow:auto;
   min-height:72px;
-  white-space:pre-wrap;
-  word-break:break-word;
+  white-space:pre;
+  word-break:normal;
+  overflow-wrap:normal;
+  tab-size:2;
+  font-family:ui-monospace, Menlo, monospace;
   font-size:13px;
   line-height:1.45;
+  pointer-events:none;
   z-index:1;
 }}
 .jq-query-input {{
   position:relative;
   z-index:2;
+  box-sizing:border-box;
+  width:100%;
   background:transparent;
   color:transparent;
   caret-color:#f4f5f8;
+  white-space:pre;
+  word-break:normal;
+  overflow-wrap:normal;
+  tab-size:2;
+  font-family:ui-monospace, Menlo, monospace;
+  font-size:13px;
+  line-height:1.45;
   min-height:72px;
 }}
 .jq-token-keyword {{ color:#b69cff; font-weight:700; }}
@@ -2190,11 +2733,18 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .jq-token-op {{ color:#ef9db0; font-weight:700; }}
 .jq-token-field {{ color:#9db2e6; }}
 .jq-suggest {{
-  margin-top:6px;
+  position:absolute;
+  top:calc(100% + 6px);
+  left:0;
+  width:420px;
+  max-width:calc(100% - 12px);
   border:1px solid var(--border);
   border-radius:10px;
   background:#1d2127;
-  overflow:hidden;
+  overflow:auto;
+  max-height:220px;
+  z-index:40;
+  box-shadow:0 14px 30px rgba(0,0,0,.42);
 }}
 .jq-suggest-row {{
   display:flex;
@@ -2209,7 +2759,7 @@ pre.wrap {{ white-space:pre-wrap; word-break:break-word; }}
 .jq-suggest-label {{ font-weight:700; color:#eef0f4; }}
 .jq-suggest-desc {{ color:#a7adb9; font-size:12px; margin-top:2px; }}
 .jq-suggest-hint {{
-  margin-top:6px;
+  margin-top:10px;
   border:1px dashed var(--border);
   border-radius:10px;
   padding:8px 10px;
@@ -2350,17 +2900,18 @@ window.addEventListener('error', function(e) {{
       <div class='import-section'>
         <h4>Source chart values.yaml</h4>
         <div v-if='mainImportSourceType !== "chart"' class='muted'>Source type is {{{{ mainImportSourceType }}}}. Source values editor is available only for chart mode.</div>
-        <div v-else>
+        <div v-else class='source-editor-area'>
           <div class='import-toolbar' style='margin-bottom:6px;'>
             <div class='left'>
               <button class='secondary' @click='loadChartValuesFromPath'>Load values.yaml</button>
+              <button class='secondary' @click='pasteMainImportFromStdin' :disabled='!mainImportStdinText'>Paste stdin</button>
               <button class='secondary' @click='resetChartValuesEditor'>Reset</button>
             </div>
             <div class='right'>
               <label class='chk'><input type='checkbox' v-model='mainImportUseChartValuesEditor'/> use edited chart values</label>
             </div>
           </div>
-          <div class='editor-shell'>
+          <div class='editor-shell import-editor-shell'>
             <div v-if='cmAvailable' class='editor-host' ref='mainImportSourceCmHost'></div>
             <div v-else class='yaml-editor'>
               <pre class='yaml-editor-highlight' aria-hidden='true' v-html='mainImportSourceHighlighted'></pre>
@@ -2371,6 +2922,9 @@ window.addEventListener('error', function(e) {{
                 spellcheck='false'
                 @scroll='syncMainImportSourceScroll'
                 @input='syncMainImportSourceScroll'
+                @select='onMainImportTextareaSelect'
+                @keyup='onMainImportTextareaSelect'
+                @mouseup='onMainImportTextareaSelect'
                 style='min-height:320px;'
               ></textarea>
             </div>
@@ -2404,7 +2958,7 @@ window.addEventListener('error', function(e) {{
             <button class='secondary' @click='expandAllMainImportSections'>Expand</button>
           </div>
         </div>
-        <div class='editor-shell'>
+        <div class='editor-shell import-editor-shell'>
           <div v-if='cmAvailable' class='editor-host generated' ref='mainImportGeneratedCmHost'></div>
           <div v-else class='fallback-fold' @click='onMainImportFoldClick'>
             <pre class='code-output yaml-fold-view' v-html='mainImportPreviewHtml'></pre>
@@ -2591,7 +3145,7 @@ window.addEventListener('error', function(e) {{
 
   <div v-else-if='activeUtilityKey === "converter"' class='card'>
     <div class='cardhead'>
-      <h3>YAML ↔ JSON Converter</h3>
+      <h3>Converters</h3>
       <div class='cardbtns'>
         <button class='secondary' @click='swapConvertMode'>Swap</button>
         <button class='secondary' @click='clearConverter'>Clear</button>
@@ -2600,8 +3154,25 @@ window.addEventListener('error', function(e) {{
     </div>
     <div class='converter-controls'>
       <select v-model='converterMode'>
-        <option value='yaml-to-json'>YAML → JSON</option>
-        <option value='json-to-yaml'>JSON → YAML</option>
+        <optgroup label='YAML/JSON'>
+          <option value='yaml-to-json'>YAML → JSON</option>
+          <option value='json-to-yaml'>JSON → YAML</option>
+        </optgroup>
+        <optgroup label='Encoding'>
+          <option value='base64-encode'>Base64 encode</option>
+          <option value='base64-decode'>Base64 decode</option>
+          <option value='url-encode'>URL encode</option>
+          <option value='url-decode'>URL decode</option>
+          <option value='text-to-hex'>Text → HEX</option>
+          <option value='hex-to-text'>HEX → Text</option>
+        </optgroup>
+        <optgroup label='Time'>
+          <option value='unix-to-iso'>Unix → ISO8601</option>
+          <option value='iso-to-unix'>ISO8601 → Unix</option>
+        </optgroup>
+        <optgroup label='Security'>
+          <option value='jwt-inspect'>JWT inspect</option>
+        </optgroup>
       </select>
       <select v-model='converterDocMode' :disabled='converterMode !== "yaml-to-json"'>
         <option value='all'>YAML docs: all</option>
@@ -2615,21 +3186,86 @@ window.addEventListener('error', function(e) {{
              step='1'
              style='width:140px;'
              placeholder='doc index' />
-      <button class='secondary' @click='copyConverterOutput'>Copy output</button>
-      <div class='muted'>Live conversion is enabled</div>
+      <div class='muted'>{{{{ converterModeLabel }}}}</div>
     </div>
     <div class='conv-grid'>
       <div>
         <div class='panel-label'>Input</div>
-        <textarea v-model='converterInput' spellcheck='false'></textarea>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='converterInputCmHost' style='min-height:240px;height:38vh;'></div>
+          <textarea v-else v-model='converterInput' spellcheck='false' @select='onConverterTextareaSelect' @keyup='onConverterTextareaSelect' @mouseup='onConverterTextareaSelect'></textarea>
+        </div>
       </div>
       <div>
         <div class='panel-label'>Output</div>
-        <pre class='code-output' v-html='converterOutputHighlighted'></pre>
+        <div class='output-tools'>
+          <button class='secondary' @click='copyConverterOutput'>Copy output</button>
+          <template v-if='converterMode === "text-to-hex"'>
+            <div class='segmented'>
+              <button type='button' :class='{{ active: converterHexView === "plain" }}' @click='converterHexView = "plain"'>plain</button>
+              <button type='button' :class='{{ active: converterHexView === "0x" }}' @click='converterHexView = "0x"'>0x</button>
+              <button type='button' :class='{{ active: converterHexView === "escaped" }}' @click='converterHexView = "escaped"'>\\x</button>
+              <button type='button' :class='{{ active: converterHexView === "byte-array" }}' @click='converterHexView = "byte-array"'>byte[]</button>
+              <button type='button' :class='{{ active: converterHexView === "c-array" }}' @click='converterHexView = "c-array"'>c-array</button>
+              <button type='button' :class='{{ active: converterHexView === "dump" }}' @click='converterHexView = "dump"'>dump</button>
+            </div>
+            <label class='chk'><input type='checkbox' v-model='converterHexUppercase'/> upper</label>
+            <input type='text' v-model='converterHexSeparator' style='width:120px;' placeholder='separator'/>
+            <input type='number' min='4' max='64' step='1' v-model.number='converterHexBytesPerLine' style='width:120px;' placeholder='bytes/line'/>
+          </template>
+          <template v-if='converterMode === "hex-to-text"'>
+            <select v-model='converterHexInFormat'>
+              <option value='auto'>HEX in: auto</option>
+              <option value='plain'>HEX in: plain</option>
+              <option value='0x'>HEX in: 0xNN</option>
+              <option value='escaped'>HEX in: \\xNN</option>
+              <option value='byte-array'>HEX in: [72,101]</option>
+              <option value='c-array'>HEX in: {{0x48,0x65}}</option>
+              <option value='dump'>HEX in: dump</option>
+            </select>
+          </template>
+        </div>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable && converterOutputUseCm' class='editor-host' ref='converterOutputCmHost' style='min-height:240px;height:38vh;'></div>
+          <div v-else-if='converterHexDumpInteractive' class='hexdump-view' @mouseup='onHexDumpPointerUp' @mouseleave='onHexDumpPointerUp' @selectstart.prevent>
+            <div class='hexdump-row' v-for='row in converterHexDumpRows' :key='row.offset'>
+              <div class='hexdump-offset'>{{{{ row.offsetHex }}}}</div>
+              <div class='hexdump-hex'>
+                <span
+                  v-for='b in row.bytes'
+                  :key="'h'+b.key"
+                  class='hexdump-byte'
+                  :class='{{ sel: isHexByteSelected(b.idx), sep8: b.sep8, pad: !b.real }}'
+                  @mousedown.prevent='onHexByteDown(b.idx)'
+                  @mouseenter='onHexByteEnter(b.idx)'>{{{{ b.hex }}}}</span>
+              </div>
+              <div class='hexdump-ascii'>
+                <span
+                  v-for='c in row.ascii'
+                  :key="'a'+c.key"
+                  class='hexdump-char'
+                  :class='{{ sel: isHexByteSelected(c.idx), pad: !c.real }}'
+                  @mousedown.prevent='onHexByteDown(c.idx)'
+                  @mouseenter='onHexByteEnter(c.idx)'>{{{{ c.ch }}}}</span>
+              </div>
+              <div class='hexdump-utf8'>
+                <span
+                  v-for='t in row.utf8'
+                  :key="'u'+t.start+'-'+t.end"
+                  class='hexdump-utf8-token'
+                  :class='{{ sel: isHexRangeSelected(t.start, t.end) }}'
+                  @mousedown.prevent='onHexByteDown(t.start)'
+                  @mouseenter='onHexByteEnter(t.end)'>{{{{ t.text }}}}</span>
+              </div>
+            </div>
+          </div>
+          <pre v-else class='code-output hex-output' v-html='converterOutputRich'></pre>
+        </div>
       </div>
     </div>
     <div class='result-meta'>
-      <span>mode: {{{{ converterMode }}}}, docs: {{{{ converterDocMode }}}}</span>
+      <span>mode: {{{{ converterModeLabel }}}}</span>
+      <span v-if='converterMode === "yaml-to-json"'>docs: {{{{ converterDocMode }}}}</span>
       <span>output chars: {{{{ (converterOutput || '').length }}}}</span>
     </div>
     <div class='err' v-if='converterError' style='margin-top:8px;'>{{{{ converterError }}}}</div>
@@ -2662,7 +3298,7 @@ window.addEventListener('error', function(e) {{
       <button class='secondary' @click='copyJqOutput'>Copy output</button>
       <div class='muted'>Live query execution is enabled</div>
     </div>
-    <div style='margin-bottom:10px;'>
+    <div style='margin-bottom:10px; position:relative;'>
       <div class='muted' style='margin-bottom:6px;'>jq query (syntax highlighted)</div>
       <div class='muted' style='margin-bottom:6px; font-size:12px;'>Hints: <code>Ctrl/Cmd+Space</code> open suggestions, <code>Tab</code> apply, <code>Ctrl/Cmd+Enter</code> apply selected.</div>
       <div class='chip-row'>
@@ -2672,6 +3308,7 @@ window.addEventListener('error', function(e) {{
         <pre class='jq-query-highlight' aria-hidden='true' v-html='jqQueryHighlighted'></pre>
         <textarea class='jq-query-input'
                   v-model='jqQuery'
+                  wrap='off'
                   spellcheck='false'
                   @input='onJqInput'
                   @click='updateJqSuggestState'
@@ -2681,7 +3318,7 @@ window.addEventListener('error', function(e) {{
                   @scroll='syncJqScroll'
                   ref='jqQueryInput'></textarea>
       </div>
-      <div class='jq-suggest' v-if='jqSuggestOpen && jqSuggestions.length'>
+      <div class='jq-suggest' v-if='jqSuggestOpen && jqSuggestions.length' :style='jqSuggestPanelStyle'>
         <div class='jq-suggest-row'
              v-for='(s, idx) in jqSuggestions'
              :key='s.label'
@@ -2701,11 +3338,17 @@ window.addEventListener('error', function(e) {{
     <div class='conv-grid'>
       <div>
         <div class='panel-label'>Input (JSON or YAML)</div>
-        <textarea v-model='jqInput' spellcheck='false'></textarea>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='jqInputCmHost' style='min-height:240px;height:38vh;'></div>
+          <textarea v-else v-model='jqInput' spellcheck='false' @select='onJqTextareaSelect' @keyup='onJqTextareaSelect' @mouseup='onJqTextareaSelect'></textarea>
+        </div>
       </div>
       <div>
         <div class='panel-label'>Output</div>
-        <pre class='code-output' v-html='jqOutputHighlighted'></pre>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='jqOutputCmHost' style='min-height:240px;height:38vh;'></div>
+          <pre v-else class='code-output' v-html='jqOutputHighlighted'></pre>
+        </div>
       </div>
     </div>
     <div class='result-meta'>
@@ -2747,16 +3390,25 @@ window.addEventListener('error', function(e) {{
       <div class='chip-row'>
         <button class='chip' v-for='p in yqPresets' :key='p.label' @click='applyYqPreset(p.query)'>{{{{ p.label }}}}</button>
       </div>
-      <textarea v-model='yqQuery' spellcheck='false' style='min-height:72px;'></textarea>
+      <div class='editor-shell'>
+        <div v-if='cmAvailable' class='editor-host' ref='yqQueryCmHost' style='min-height:120px;height:22vh;'></div>
+        <textarea v-else v-model='yqQuery' spellcheck='false' style='min-height:72px;'></textarea>
+      </div>
     </div>
     <div class='conv-grid'>
       <div>
         <div class='panel-label'>Input (YAML or JSON)</div>
-        <textarea v-model='yqInput' spellcheck='false'></textarea>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='yqInputCmHost' style='min-height:240px;height:38vh;'></div>
+          <textarea v-else v-model='yqInput' spellcheck='false' @select='onYqTextareaSelect' @keyup='onYqTextareaSelect' @mouseup='onYqTextareaSelect'></textarea>
+        </div>
       </div>
       <div>
         <div class='panel-label'>Output</div>
-        <pre class='code-output' v-html='yqOutputHighlighted'></pre>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='yqOutputCmHost' style='min-height:240px;height:38vh;'></div>
+          <pre v-else class='code-output' v-html='yqOutputHighlighted'></pre>
+        </div>
       </div>
     </div>
     <div class='result-meta'>
@@ -2784,16 +3436,25 @@ window.addEventListener('error', function(e) {{
     <div class='conv-grid'>
       <div>
         <div class='panel-label'>From YAML</div>
-        <textarea v-model='dyffFrom' spellcheck='false'></textarea>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='dyffFromCmHost' style='min-height:240px;height:36vh;'></div>
+          <textarea v-else v-model='dyffFrom' spellcheck='false' @select='onDyffFromTextareaSelect' @keyup='onDyffFromTextareaSelect' @mouseup='onDyffFromTextareaSelect'></textarea>
+        </div>
       </div>
       <div>
         <div class='panel-label'>To YAML</div>
-        <textarea v-model='dyffTo' spellcheck='false'></textarea>
+        <div class='editor-shell'>
+          <div v-if='cmAvailable' class='editor-host' ref='dyffToCmHost' style='min-height:240px;height:36vh;'></div>
+          <textarea v-else v-model='dyffTo' spellcheck='false' @select='onDyffToTextareaSelect' @keyup='onDyffToTextareaSelect' @mouseup='onDyffToTextareaSelect'></textarea>
+        </div>
       </div>
     </div>
     <div style='margin-top:10px;'>
       <div class='panel-label'>Diff result</div>
-      <pre class='code-output' v-html='dyffOutputHighlighted'></pre>
+      <div class='editor-shell'>
+        <div v-if='cmAvailable' class='editor-host' ref='dyffOutputCmHost' style='min-height:260px;height:40vh;'></div>
+        <pre v-else class='code-output' v-html='dyffOutputHighlighted'></pre>
+      </div>
     </div>
     <div class='result-meta'>
       <span>changed lines: {{{{ dyffChangedCount }}}}</span>
@@ -2893,6 +3554,18 @@ const app = Vue.createApp({{
       converterError: '',
       converterRequestSeq: 0,
       converterTimer: null,
+      converterHexOutFormat: 'all',
+      converterHexView: 'dump',
+      converterHexInFormat: 'auto',
+      converterHexUppercase: false,
+      converterHexSeparator: '',
+      converterHexBytesPerLine: 16,
+      converterHexLastBytes: [],
+      converterHexSelStart: null,
+      converterHexSelEnd: null,
+      converterHexSelecting: false,
+      converterPlainRanges: [],
+      converterPlainCursor: null,
       jqQuery: '.',
       jqInput: '',
       jqOutput: '',
@@ -2946,6 +3619,7 @@ const app = Vue.createApp({{
       mainImportChartValuesEditor: '',
       mainImportLoadedChartValues: '',
       mainImportUseChartValuesEditor: false,
+      mainImportStdinText: (model && typeof model.stdinText === 'string') ? model.stdinText : '',
       mainImportSectionCollapsed: {{}},
       mainImportPickedFilesLabel: '',
       mainImportUploadedFiles: [],
@@ -2969,6 +3643,23 @@ const app = Vue.createApp({{
       mainImportSourceCm: null,
       mainImportGeneratedCm: null,
       mainImportSourceCmUpdating: false,
+      converterInputCm: null,
+      converterOutputCm: null,
+      jqInputCm: null,
+      jqOutputCm: null,
+      yqQueryCm: null,
+      yqInputCm: null,
+      yqOutputCm: null,
+      dyffFromCm: null,
+      dyffToCm: null,
+      dyffOutputCm: null,
+      mainImportSelection: null,
+      converterSelection: null,
+      jqSelection: null,
+      yqSelection: null,
+      dyffFromSelection: null,
+      dyffToSelection: null,
+      requestAbortControllers: {{}},
       fsPickerOpen: false,
       fsPickerTarget: 'source-path',
       fsPickerPath: '',
@@ -3063,13 +3754,104 @@ const app = Vue.createApp({{
       }});
     }},
     converterModeLabel() {{
-      return this.converterMode === 'yaml-to-json' ? 'YAML → JSON' : 'JSON → YAML';
+      const map = {{
+        'yaml-to-json': 'YAML → JSON',
+        'json-to-yaml': 'JSON → YAML',
+        'base64-encode': 'Base64 encode',
+        'base64-decode': 'Base64 decode',
+        'url-encode': 'URL encode',
+        'url-decode': 'URL decode',
+        'jwt-inspect': 'JWT inspect',
+        'unix-to-iso': 'Unix → ISO8601',
+        'iso-to-unix': 'ISO8601 → Unix',
+        'text-to-hex': 'Text → HEX',
+        'hex-to-text': 'HEX → Text',
+      }};
+      return map[this.converterMode] || this.converterMode;
+    }},
+    converterOutputUseCm() {{
+      return this.converterMode === 'yaml-to-json'
+        || this.converterMode === 'json-to-yaml'
+        || this.converterMode === 'jwt-inspect';
     }},
     jqQueryHighlighted() {{
       return this.highlightJq(this.jqQuery || '');
     }},
     converterOutputHighlighted() {{
       return this.highlightStructured(this.converterOutput || '');
+    }},
+    converterOutputRich() {{
+      if (this.converterMode === 'text-to-hex') {{
+        return this.highlightHexOutput(this.converterOutput || '', this.converterHexView || 'dump');
+      }}
+      if (!this.converterOutputUseCm) {{
+        return this.renderTextWithSyncOverlay(
+          this.converterOutput || '',
+          this.converterPlainRanges || [],
+          this.converterPlainCursor
+        );
+      }}
+      return this.highlightStructured(this.converterOutput || '');
+    }},
+    converterHexDumpInteractive() {{
+      return this.converterMode === 'text-to-hex' && this.converterHexView === 'dump';
+    }},
+    converterHexDumpRows() {{
+      if (!this.converterHexDumpInteractive) return [];
+      const src = Array.isArray(this.converterHexLastBytes) ? this.converterHexLastBytes : [];
+      const lineSize = Math.max(4, Math.min(64, Number(this.converterHexBytesPerLine || 16)));
+      const rows = [];
+      for (let offset = 0; offset < src.length; offset += lineSize) {{
+        const chunk = src.slice(offset, offset + lineSize);
+        const bytes = [];
+        const ascii = [];
+        for (let i = 0; i < lineSize; i += 1) {{
+          const sep8 = i > 0 && i % 8 === 0;
+          if (i < chunk.length) {{
+            const idx = offset + i;
+            const n = Number(chunk[i]) & 0xff;
+            const hex = n.toString(16).padStart(2, '0');
+            const asciiCh = (n >= 33 && n <= 126) ? String.fromCharCode(n) : '.';
+            bytes.push({{
+              key: String(idx),
+              idx,
+              real: true,
+              hex: this.converterHexUppercase ? hex.toUpperCase() : hex,
+              sep8,
+            }});
+            ascii.push({{
+              key: String(idx),
+              idx,
+              real: true,
+              ch: asciiCh,
+            }});
+          }} else {{
+            const padKey = String(offset + i) + '-pad';
+            bytes.push({{
+              key: padKey,
+              idx: null,
+              real: false,
+              hex: '00',
+              sep8,
+            }});
+            ascii.push({{
+              key: padKey,
+              idx: null,
+              real: false,
+              ch: '.',
+            }});
+          }}
+        }}
+        const utf8 = this.utf8TokensWithRanges(chunk, offset);
+        rows.push({{
+          offset,
+          offsetHex: offset.toString(16).padStart(8, '0'),
+          bytes,
+          ascii,
+          utf8,
+        }});
+      }}
+      return rows;
     }},
     jqOutputHighlighted() {{
       return this.highlightStructured(this.jqOutput || '');
@@ -3118,6 +3900,21 @@ const app = Vue.createApp({{
         .slice(0, 10);
       return out.concat(fnSuggestions).slice(0, 20);
     }},
+    jqSuggestPanelStyle() {{
+      const maxPanel = 460;
+      const minPanel = 280;
+      const editor = this.$el ? this.$el.querySelector('.jq-query-editor') : null;
+      const editorWidth = editor && editor.clientWidth ? (editor.clientWidth - 12) : maxPanel;
+      const labels = this.jqSuggestions || [];
+      let longest = 0;
+      for (const s of labels) {{
+        const l = String((s && s.label) || '').length;
+        if (l > longest) longest = l;
+      }}
+      const byContent = 220 + (longest * 9);
+      const width = Math.max(minPanel, Math.min(maxPanel, Math.min(editorWidth, byContent)));
+      return {{ width: width + 'px' }};
+    }},
     jqActiveSuggestionHint() {{
       if(!this.jqSuggestions.length) return 'No suggestions';
       const idx = Math.min(this.jqSuggestIndex, this.jqSuggestions.length - 1);
@@ -3165,6 +3962,12 @@ const app = Vue.createApp({{
         if(s.converterDocMode) this.converterDocMode = s.converterDocMode;
         this.converterDocIndex = Number.isFinite(s.converterDocIndex) ? Number(s.converterDocIndex) : 0;
         this.converterInput = s.converterInput || '';
+        this.converterHexOutFormat = s.converterHexOutFormat || 'all';
+        this.converterHexView = s.converterHexView || 'dump';
+        this.converterHexInFormat = s.converterHexInFormat || 'auto';
+        this.converterHexUppercase = !!s.converterHexUppercase;
+        this.converterHexSeparator = s.converterHexSeparator || '';
+        this.converterHexBytesPerLine = Number.isFinite(s.converterHexBytesPerLine) ? Number(s.converterHexBytesPerLine) : 16;
         this.jqQuery = s.jqQuery || '.';
         this.jqInput = s.jqInput || '';
         this.jqDocMode = s.jqDocMode || 'first';
@@ -3223,37 +4026,61 @@ const app = Vue.createApp({{
     this.$nextTick(() => {{
       this.syncMainImportSourceScroll();
       this.initMainImportCodeMirror();
+      this.initToolCodeMirror();
+      this.syncMainImportEditorHeights();
     }});
-    setTimeout(() => this.initMainImportCodeMirror(), 120);
-    setTimeout(() => this.initMainImportCodeMirror(), 500);
+    setTimeout(() => {{
+      this.initMainImportCodeMirror();
+      this.initToolCodeMirror();
+      this.syncMainImportEditorHeights();
+    }}, 120);
+    setTimeout(() => {{
+      this.initMainImportCodeMirror();
+      this.initToolCodeMirror();
+      this.syncMainImportEditorHeights();
+    }}, 500);
     if (!this.cmAvailable) {{
       this.ensureCodeMirrorScriptLoaded().then(() => {{
-        this.$nextTick(() => this.initMainImportCodeMirror());
+        this.$nextTick(() => {{
+          this.initMainImportCodeMirror();
+          this.initToolCodeMirror();
+          this.syncMainImportEditorHeights();
+        }});
       }});
     }}
+    window.addEventListener('resize', this.syncMainImportEditorHeights);
   }},
   beforeUnmount() {{
+    this.abortAllRequests();
     this.destroyMainImportCodeMirror();
+    this.destroyToolCodeMirror();
+    window.removeEventListener('resize', this.syncMainImportEditorHeights);
   }},
   watch: {{
     wrapLines() {{
       this.saveSettings();
-      if (this.mainImportSourceCm) this.mainImportSourceCm.setWrapLines(this.wrapLines);
-      if (this.mainImportGeneratedCm) this.mainImportGeneratedCm.setWrapLines(this.wrapLines);
+      for (const cm of this.getAllCodeMirrorEditors()) cm.setWrapLines(this.wrapLines);
     }},
     fontSize() {{
       this.saveSettings();
-      if (this.mainImportSourceCm) this.mainImportSourceCm.setFontSize(this.fontSize);
-      if (this.mainImportGeneratedCm) this.mainImportGeneratedCm.setFontSize(this.fontSize);
+      for (const cm of this.getAllCodeMirrorEditors()) cm.setFontSize(this.fontSize);
     }},
     collapsedTitles: {{ handler: 'saveSettings', deep: true }},
     activeUtilityId() {{
       this.saveSettings();
-      this.$nextTick(() => this.initMainImportCodeMirror());
+      this.destroyMainImportCodeMirror();
+      this.destroyToolCodeMirror();
+      this.$nextTick(() => {{
+        this.initMainImportCodeMirror();
+        this.initToolCodeMirror();
+        this.syncMainImportEditorHeights();
+      }});
     }},
     converterMode() {{
       this.saveSettings();
+      this.clearHexSelection();
       this.scheduleConvert();
+      this.$nextTick(() => this.initToolCodeMirror());
     }},
     converterDocMode() {{
       this.saveSettings();
@@ -3265,7 +4092,39 @@ const app = Vue.createApp({{
     }},
     converterInput() {{
       this.saveSettings();
+      if (this.converterInputCm) this.converterInputCm.setValue(this.converterInput || '');
       this.scheduleConvert();
+    }},
+    converterHexOutFormat() {{
+      this.saveSettings();
+      this.clearHexSelection();
+      this.scheduleConvert();
+    }},
+    converterHexView() {{
+      this.saveSettings();
+      this.clearHexSelection();
+      this.scheduleConvert();
+    }},
+    converterHexInFormat() {{
+      this.saveSettings();
+      this.scheduleConvert();
+    }},
+    converterHexUppercase() {{
+      this.saveSettings();
+      this.scheduleConvert();
+    }},
+    converterHexSeparator() {{
+      this.saveSettings();
+      this.scheduleConvert();
+    }},
+    converterHexBytesPerLine() {{
+      this.saveSettings();
+      this.clearHexSelection();
+      this.scheduleConvert();
+    }},
+    converterOutput() {{
+      if (this.converterOutputCm) this.converterOutputCm.setValue(this.converterOutput || '');
+      this.applyConverterSelectionSync();
     }},
     jqQuery() {{
       this.saveSettings();
@@ -3273,7 +4132,12 @@ const app = Vue.createApp({{
     }},
     jqInput() {{
       this.saveSettings();
+      if (this.jqInputCm) this.jqInputCm.setValue(this.jqInput || '');
       this.scheduleJqRun();
+    }},
+    jqOutput() {{
+      if (this.jqOutputCm) this.jqOutputCm.setValue(this.jqOutput || '');
+      this.applyJqSelectionSync();
     }},
     jqDocMode() {{
       this.saveSettings();
@@ -3293,11 +4157,17 @@ const app = Vue.createApp({{
     }},
     yqQuery() {{
       this.saveSettings();
+      if (this.yqQueryCm) this.yqQueryCm.setValue(this.yqQuery || '');
       this.scheduleYqRun();
     }},
     yqInput() {{
       this.saveSettings();
+      if (this.yqInputCm) this.yqInputCm.setValue(this.yqInput || '');
       this.scheduleYqRun();
+    }},
+    yqOutput() {{
+      if (this.yqOutputCm) this.yqOutputCm.setValue(this.yqOutput || '');
+      this.applyYqSelectionSync();
     }},
     yqDocMode() {{
       this.saveSettings();
@@ -3317,11 +4187,17 @@ const app = Vue.createApp({{
     }},
     dyffFrom() {{
       this.saveSettings();
+      if (this.dyffFromCm) this.dyffFromCm.setValue(this.dyffFrom || '');
       this.scheduleDyffRun();
     }},
     dyffTo() {{
       this.saveSettings();
+      if (this.dyffToCm) this.dyffToCm.setValue(this.dyffTo || '');
       this.scheduleDyffRun();
+    }},
+    dyffOutput() {{
+      if (this.dyffOutputCm) this.dyffOutputCm.setValue(this.dyffOutput || '');
+      this.applyDyffSelectionSync();
     }},
     dyffIgnoreOrder() {{
       this.saveSettings();
@@ -3355,6 +4231,8 @@ const app = Vue.createApp({{
       if (this.mainImportGeneratedCm) {{
         this.mainImportGeneratedCm.setValue(this.mainImportOutput || '');
       }}
+      this.applyMainImportSelectionSync();
+      this.$nextTick(() => this.syncMainImportEditorHeights());
     }},
     mainImportChartValuesEditor() {{
       this.saveSettings();
@@ -3362,6 +4240,7 @@ const app = Vue.createApp({{
         this.mainImportSourceCm.setValue(this.mainImportChartValuesEditor || '');
       }}
       this.$nextTick(() => this.syncMainImportSourceScroll());
+      this.$nextTick(() => this.syncMainImportEditorHeights());
     }},
     mainImportUseChartValuesEditor: 'saveSettings',
     mainImportSectionCollapsed: {{ handler: 'saveSettings', deep: true }},
@@ -3374,6 +4253,44 @@ const app = Vue.createApp({{
     fsPickerOnlySelectable: 'saveSettings',
   }},
   methods: {{
+    isAbortError(err) {{
+      const name = String(err && err.name ? err.name : '');
+      if (name === 'AbortError') return true;
+      const msg = String(err || '').toLowerCase();
+      return msg.includes('abort');
+    }},
+    beginAbortableRequest(key) {{
+      const k = String(key || '');
+      if (!k) return null;
+      const map = this.requestAbortControllers || {{}};
+      const prev = map[k];
+      if (prev && typeof prev.abort === 'function') {{
+        try {{ prev.abort(); }} catch(_) {{}}
+      }}
+      const ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      map[k] = ctrl;
+      this.requestAbortControllers = map;
+      return ctrl;
+    }},
+    finishAbortableRequest(key, ctrl) {{
+      const k = String(key || '');
+      if (!k) return;
+      const map = this.requestAbortControllers || {{}};
+      if (map[k] === ctrl) {{
+        delete map[k];
+        this.requestAbortControllers = map;
+      }}
+    }},
+    abortAllRequests() {{
+      const map = this.requestAbortControllers || {{}};
+      for (const k of Object.keys(map)) {{
+        const ctrl = map[k];
+        if (ctrl && typeof ctrl.abort === 'function') {{
+          try {{ ctrl.abort(); }} catch(_) {{}}
+        }}
+      }}
+      this.requestAbortControllers = {{}};
+    }},
     getCodeMirrorApi() {{
       try {{
         if (typeof window === 'undefined') return null;
@@ -3485,6 +4402,9 @@ const app = Vue.createApp({{
                 this.mainImportChartValuesEditor = next;
                 this.mainImportSourceCmUpdating = false;
               }},
+              onSelectionChange: (sel) => {{
+                this.onMainImportSelection(sel);
+              }},
             }});
           }}
         }}
@@ -3500,12 +4420,165 @@ const app = Vue.createApp({{
             }});
           }}
         }}
+        this.applyMainImportSelectionSync();
       }} catch(e) {{
         this.cmAvailable = false;
         this.destroyMainImportCodeMirror();
         if (!this.mainImportError) {{
           this.mainImportError = 'CodeMirror initialization failed, switched to fallback editor: ' + String(e);
         }}
+      }}
+    }},
+    getAllCodeMirrorEditors() {{
+      return [
+        this.mainImportSourceCm,
+        this.mainImportGeneratedCm,
+        this.converterInputCm,
+        this.converterOutputCm,
+        this.jqInputCm,
+        this.jqOutputCm,
+        this.yqQueryCm,
+        this.yqInputCm,
+        this.yqOutputCm,
+        this.dyffFromCm,
+        this.dyffToCm,
+        this.dyffOutputCm,
+      ].filter(Boolean);
+    }},
+    destroyToolCodeMirror() {{
+      const keys = [
+        'converterInputCm',
+        'converterOutputCm',
+        'jqInputCm',
+        'jqOutputCm',
+        'yqQueryCm',
+        'yqInputCm',
+        'yqOutputCm',
+        'dyffFromCm',
+        'dyffToCm',
+        'dyffOutputCm',
+      ];
+      for (const key of keys) {{
+        const inst = this[key];
+        if (!inst) continue;
+        try {{ inst.destroy(); }} catch(_) {{}}
+        this[key] = null;
+      }}
+    }},
+    ensureToolEditor(instanceKey, hostRef, options) {{
+      const cmApi = this.getCodeMirrorApi();
+      if (!cmApi || typeof cmApi.createYamlEditor !== 'function') return null;
+      if (this[instanceKey]) return this[instanceKey];
+      const host = this.$refs[hostRef];
+      if (!host) return null;
+      this[instanceKey] = cmApi.createYamlEditor(host, options || {{}});
+      return this[instanceKey];
+    }},
+    initConverterCodeMirror() {{
+      if (!this.cmAvailable) return;
+      if (this.activeUtilityKey !== 'converter') return;
+      this.ensureToolEditor('converterInputCm', 'converterInputCmHost', {{
+        value: this.converterInput || '',
+        readOnly: false,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+        onChange: (next) => {{ this.converterInput = next; }},
+        onSelectionChange: (sel) => {{ this.onConverterSelection(sel); }},
+      }});
+      if (this.converterOutputUseCm) {{
+        this.ensureToolEditor('converterOutputCm', 'converterOutputCmHost', {{
+          value: this.converterOutput || '',
+          readOnly: true,
+          wrapLines: this.wrapLines,
+          fontSize: this.fontSize,
+        }});
+        this.applyConverterSelectionSync();
+      }} else if (this.converterOutputCm) {{
+        try {{ this.converterOutputCm.destroy(); }} catch(_) {{}}
+        this.converterOutputCm = null;
+      }}
+    }},
+    initJqCodeMirror() {{
+      if (!this.cmAvailable) return;
+      if (this.activeUtilityKey !== 'jq-playground') return;
+      this.ensureToolEditor('jqInputCm', 'jqInputCmHost', {{
+        value: this.jqInput || '',
+        readOnly: false,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+        onChange: (next) => {{ this.jqInput = next; }},
+        onSelectionChange: (sel) => {{ this.onJqSelection(sel); }},
+      }});
+      this.ensureToolEditor('jqOutputCm', 'jqOutputCmHost', {{
+        value: this.jqOutput || '',
+        readOnly: true,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+      }});
+      this.applyJqSelectionSync();
+    }},
+    initYqCodeMirror() {{
+      if (!this.cmAvailable) return;
+      if (this.activeUtilityKey !== 'yq-playground') return;
+      this.ensureToolEditor('yqQueryCm', 'yqQueryCmHost', {{
+        value: this.yqQuery || '',
+        readOnly: false,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+        onChange: (next) => {{ this.yqQuery = next; }},
+      }});
+      this.ensureToolEditor('yqInputCm', 'yqInputCmHost', {{
+        value: this.yqInput || '',
+        readOnly: false,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+        onChange: (next) => {{ this.yqInput = next; }},
+        onSelectionChange: (sel) => {{ this.onYqSelection(sel); }},
+      }});
+      this.ensureToolEditor('yqOutputCm', 'yqOutputCmHost', {{
+        value: this.yqOutput || '',
+        readOnly: true,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+      }});
+      this.applyYqSelectionSync();
+    }},
+    initDyffCodeMirror() {{
+      if (!this.cmAvailable) return;
+      if (this.activeUtilityKey !== 'dyff-compare') return;
+      this.ensureToolEditor('dyffFromCm', 'dyffFromCmHost', {{
+        value: this.dyffFrom || '',
+        readOnly: false,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+        onChange: (next) => {{ this.dyffFrom = next; }},
+        onSelectionChange: (sel) => {{ this.onDyffFromSelection(sel); }},
+      }});
+      this.ensureToolEditor('dyffToCm', 'dyffToCmHost', {{
+        value: this.dyffTo || '',
+        readOnly: false,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+        onChange: (next) => {{ this.dyffTo = next; }},
+        onSelectionChange: (sel) => {{ this.onDyffToSelection(sel); }},
+      }});
+      this.ensureToolEditor('dyffOutputCm', 'dyffOutputCmHost', {{
+        value: this.dyffOutput || '',
+        readOnly: true,
+        wrapLines: this.wrapLines,
+        fontSize: this.fontSize,
+      }});
+      this.applyDyffSelectionSync();
+    }},
+    initToolCodeMirror() {{
+      if (!this.refreshCodeMirrorAvailability()) return;
+      try {{
+        if (this.activeUtilityKey === 'converter') return this.initConverterCodeMirror();
+        if (this.activeUtilityKey === 'jq-playground') return this.initJqCodeMirror();
+        if (this.activeUtilityKey === 'yq-playground') return this.initYqCodeMirror();
+        if (this.activeUtilityKey === 'dyff-compare') return this.initDyffCodeMirror();
+      }} catch(e) {{
+        this.destroyToolCodeMirror();
       }}
     }},
     saveSettings() {{
@@ -3519,6 +4592,12 @@ const app = Vue.createApp({{
           converterDocMode: this.converterDocMode,
           converterDocIndex: this.converterDocIndex,
           converterInput: this.converterInput,
+          converterHexOutFormat: this.converterHexOutFormat,
+          converterHexView: this.converterHexView,
+          converterHexInFormat: this.converterHexInFormat,
+          converterHexUppercase: this.converterHexUppercase,
+          converterHexSeparator: this.converterHexSeparator,
+          converterHexBytesPerLine: this.converterHexBytesPerLine,
           jqQuery: this.jqQuery,
           jqInput: this.jqInput,
           jqDocMode: this.jqDocMode,
@@ -3754,11 +4833,13 @@ const app = Vue.createApp({{
         this.mainImportError = 'Select chart path first';
         return;
       }}
+      const ctrl = this.beginAbortableRequest('chart-values');
       try {{
         const res = await fetch('/api/chart-values', {{
           method: 'POST',
           headers: {{ 'content-type': 'application/json' }},
-          body: JSON.stringify({{ path: this.mainImportPath }})
+          body: JSON.stringify({{ path: this.mainImportPath }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -3777,13 +4858,23 @@ const app = Vue.createApp({{
         this.mainImportChartValuesEditor = this.mainImportLoadedChartValues;
         this.mainImportUseChartValuesEditor = true;
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         this.mainImportError = String(e);
+      }} finally {{
+        this.finishAbortableRequest('chart-values', ctrl);
       }}
     }},
     resetChartValuesEditor() {{
       if (this.mainImportLoadedChartValues) {{
         this.mainImportChartValuesEditor = this.mainImportLoadedChartValues;
       }}
+    }},
+    pasteMainImportFromStdin() {{
+      if (!this.mainImportStdinText) return;
+      this.mainImportChartValuesEditor = String(this.mainImportStdinText);
+      this.mainImportUseChartValuesEditor = true;
+      this.mainImportMessage = 'Loaded values from stdin';
+      this.mainImportError = '';
     }},
     async copyMainImportOutput() {{
       if (!this.mainImportOutput) return;
@@ -3853,11 +4944,13 @@ const app = Vue.createApp({{
     }},
     async loadFsEntries(path) {{
       this.fsPickerError = '';
+      const ctrl = this.beginAbortableRequest('fs-list');
       try {{
         const res = await fetch('/api/fs-list', {{
           method: 'POST',
           headers: {{ 'content-type': 'application/json' }},
-          body: JSON.stringify({{ path: path || '' }})
+          body: JSON.stringify({{ path: path || '' }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -3877,7 +4970,10 @@ const app = Vue.createApp({{
         this.fsPickerParent = data.parent || '';
         this.fsPickerEntries = Array.isArray(data.entries) ? data.entries : [];
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         this.fsPickerError = String(e);
+      }} finally {{
+        this.finishAbortableRequest('fs-list', ctrl);
       }}
     }},
     goFsParent() {{
@@ -3916,6 +5012,7 @@ const app = Vue.createApp({{
       this.mainImportCompareSourceCount = 0;
       this.mainImportCompareGeneratedCount = 0;
       this.mainImportRunning = true;
+      const ctrl = this.beginAbortableRequest('import');
       try {{
         const extra = this.parseSetBlocks();
         const res = await fetch('/api/import', {{
@@ -3941,7 +5038,8 @@ const app = Vue.createApp({{
             setJsonValues: extra.setJsonValues,
             apiVersions: this.parseLines(this.mainImportApiVersionsText),
             chartValuesYaml: this.mainImportUseChartValuesEditor ? (this.mainImportChartValuesEditor || '') : undefined,
-          }})
+          }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -3963,11 +5061,14 @@ const app = Vue.createApp({{
         this.mainImportSourceCount = Number(data.sourceCount || 0);
         this.mainImportMessage = data.message || 'Import completed';
         this.mainImportConfigOpen = false;
+        this.finishAbortableRequest('import', ctrl);
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         this.mainImportOutput = '';
         this.mainImportSourceCount = 0;
         this.mainImportError = String(e);
       }} finally {{
+        this.finishAbortableRequest('import', ctrl);
         this.mainImportRunning = false;
       }}
     }},
@@ -3987,6 +5088,7 @@ const app = Vue.createApp({{
         return;
       }}
       this.mainImportCompareRunning = true;
+      const ctrl = this.beginAbortableRequest('compare-renders');
       try {{
         const extra = this.parseSetBlocks();
         const res = await fetch('/api/compare-renders', {{
@@ -4014,7 +5116,8 @@ const app = Vue.createApp({{
             chartValuesYaml: this.mainImportUseChartValuesEditor ? (this.mainImportChartValuesEditor || '') : undefined,
             valuesYaml: this.mainImportOutput,
             libraryChartPath: this.mainImportLibraryChartPath || undefined,
-          }})
+          }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -4035,9 +5138,12 @@ const app = Vue.createApp({{
         this.mainImportCompareSourceCount = Number(data.sourceCount || 0);
         this.mainImportCompareGeneratedCount = Number(data.generatedCount || 0);
         this.mainImportCompareMessage = data.message || 'Render compare completed';
+        this.finishAbortableRequest('compare-renders', ctrl);
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         this.mainImportCompareError = String(e);
       }} finally {{
+        this.finishAbortableRequest('compare-renders', ctrl);
         this.mainImportCompareRunning = false;
       }}
     }},
@@ -4065,6 +5171,7 @@ const app = Vue.createApp({{
         return;
       }}
       this.mainImportSaveChartRunning = true;
+      const ctrl = this.beginAbortableRequest('save-chart');
       try {{
         const res = await fetch('/api/save-chart', {{
           method: 'POST',
@@ -4077,6 +5184,7 @@ const app = Vue.createApp({{
             libraryChartPath: this.mainImportLibraryChartPath || undefined,
             valuesYaml: this.mainImportOutput,
           }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -4094,9 +5202,12 @@ const app = Vue.createApp({{
         }}
         this.mainImportSaveChartMessage = data.message || 'Chart saved';
         this.mainImportSaveChartOpen = false;
+        this.finishAbortableRequest('save-chart', ctrl);
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         this.mainImportSaveChartError = String(e);
       }} finally {{
+        this.finishAbortableRequest('save-chart', ctrl);
         this.mainImportSaveChartRunning = false;
       }}
     }},
@@ -4138,6 +5249,333 @@ const app = Vue.createApp({{
       this.mainImportApiVersionsText = '';
       this.mainImportLibraryChartPath = '';
     }},
+    decodeBase64Url(s) {{
+      const text = String(s || '').replace(/-/g, '+').replace(/_/g, '/');
+      const padded = text + '='.repeat((4 - (text.length % 4 || 4)) % 4);
+      const bin = atob(padded);
+      const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }},
+    encodeUtf8Base64(s) {{
+      const bytes = new TextEncoder().encode(String(s || ''));
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 1) bin += String.fromCharCode(bytes[i]);
+      return btoa(bin);
+    }},
+    decodeUtf8Base64(s) {{
+      const bin = atob(String(s || '').trim());
+      const bytes = Uint8Array.from(bin, ch => ch.charCodeAt(0));
+      return new TextDecoder().decode(bytes);
+    }},
+    formatJwtTimestamp(v) {{
+      const n = Number(v);
+      if (!Number.isFinite(n)) return null;
+      const ms = n > 1e12 ? n : (n * 1000);
+      const d = new Date(ms);
+      if (Number.isNaN(d.getTime())) return null;
+      return d.toISOString();
+    }},
+    inspectJwt(token) {{
+      const raw = String(token || '').trim();
+      const parts = raw.split('.');
+      if (parts.length < 2) throw new Error('JWT must contain at least header.payload');
+      const headerText = this.decodeBase64Url(parts[0] || '');
+      const payloadText = this.decodeBase64Url(parts[1] || '');
+      let headerObj = null;
+      let payloadObj = null;
+      try {{ headerObj = JSON.parse(headerText); }} catch(_) {{}}
+      try {{ payloadObj = JSON.parse(payloadText); }} catch(_) {{}}
+      const nowSec = Math.floor(Date.now() / 1000);
+      const exp = payloadObj && Number(payloadObj.exp);
+      const nbf = payloadObj && Number(payloadObj.nbf);
+      const iat = payloadObj && Number(payloadObj.iat);
+      const status = [];
+      if (Number.isFinite(nbf) && nowSec < nbf) status.push('not active yet');
+      if (Number.isFinite(exp) && nowSec >= exp) status.push('expired');
+      if (!status.length) status.push('valid by time claims');
+      const out = {{
+        jwt: {{
+          algorithm: headerObj && headerObj.alg ? headerObj.alg : null,
+          typ: headerObj && headerObj.typ ? headerObj.typ : null,
+          signaturePresent: parts.length > 2 && String(parts[2] || '').length > 0,
+        }},
+        timing: {{
+          nowUnix: nowSec,
+          nowISO: new Date(nowSec * 1000).toISOString(),
+          status: status.join(', '),
+          exp: Number.isFinite(exp) ? {{ unix: exp, iso: this.formatJwtTimestamp(exp) }} : null,
+          nbf: Number.isFinite(nbf) ? {{ unix: nbf, iso: this.formatJwtTimestamp(nbf) }} : null,
+          iat: Number.isFinite(iat) ? {{ unix: iat, iso: this.formatJwtTimestamp(iat) }} : null,
+        }},
+        header: headerObj || headerText,
+        payload: payloadObj || payloadText,
+      }};
+      return JSON.stringify(out, null, 2);
+    }},
+    toHexPair(n, upper) {{
+      const v = Number(n) & 0xff;
+      const t = v.toString(16).padStart(2, '0');
+      return upper ? t.toUpperCase() : t.toLowerCase();
+    }},
+    utf8TokensWithRanges(chunkBytes, baseOffset) {{
+      const bytes = Array.isArray(chunkBytes) ? chunkBytes : [];
+      const out = [];
+      let i = 0;
+      while (i < bytes.length) {{
+        const b0 = Number(bytes[i]) & 0xff;
+        let len = 1;
+        if ((b0 & 0b1110_0000) === 0b1100_0000) len = 2;
+        else if ((b0 & 0b1111_0000) === 0b1110_0000) len = 3;
+        else if ((b0 & 0b1111_1000) === 0b1111_0000) len = 4;
+        if (i + len > bytes.length) len = 1;
+        let valid = len === 1 ? (b0 < 0x80) : true;
+        if (len > 1) {{
+          for (let j = 1; j < len; j += 1) {{
+            const bj = Number(bytes[i + j]) & 0xff;
+            if ((bj & 0b1100_0000) !== 0b1000_0000) {{
+              valid = false;
+              len = 1;
+              break;
+            }}
+          }}
+        }}
+        const part = bytes.slice(i, i + len);
+        let text = '.';
+        if (valid) {{
+          try {{
+            text = new TextDecoder().decode(Uint8Array.from(part));
+            if (!text || Array.from(text).some((ch) => {{
+              const cp = ch.codePointAt(0) || 0;
+              return cp < 32 || cp === 127;
+            }})) text = '.';
+          }} catch(_) {{
+            text = '.';
+          }}
+        }}
+        out.push({{
+          start: baseOffset + i,
+          end: baseOffset + i + len - 1,
+          text,
+        }});
+        i += len;
+      }}
+      return out;
+    }},
+    bytesFromText(value) {{
+      return Array.from(new TextEncoder().encode(String(value || '')));
+    }},
+    clearHexSelection() {{
+      this.converterHexSelStart = null;
+      this.converterHexSelEnd = null;
+      this.converterHexSelecting = false;
+    }},
+    normalizeHexSelRange() {{
+      if (this.converterHexSelStart === null || this.converterHexSelEnd === null) return null;
+      const a = Number(this.converterHexSelStart);
+      const b = Number(this.converterHexSelEnd);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return null;
+      return {{ from: Math.min(a, b), to: Math.max(a, b) }};
+    }},
+    isHexByteSelected(idx) {{
+      if (idx === null || idx === undefined) return false;
+      const r = this.normalizeHexSelRange();
+      if (!r) return false;
+      const n = Number(idx);
+      return Number.isFinite(n) && n >= r.from && n <= r.to;
+    }},
+    isHexRangeSelected(start, end) {{
+      const r = this.normalizeHexSelRange();
+      if (!r) return false;
+      const a = Number(start);
+      const b = Number(end);
+      if (!Number.isFinite(a) || !Number.isFinite(b)) return false;
+      return !(b < r.from || a > r.to);
+    }},
+    clearNativeSelection() {{
+      try {{
+        const sel = window.getSelection ? window.getSelection() : null;
+        if (sel && sel.removeAllRanges) sel.removeAllRanges();
+      }} catch(_) {{}}
+    }},
+    onHexByteDown(idx) {{
+      if (idx === null || idx === undefined) return;
+      const n = Number(idx);
+      if (!Number.isFinite(n)) return;
+      this.clearNativeSelection();
+      this.converterHexSelStart = n;
+      this.converterHexSelEnd = n;
+      this.converterHexSelecting = true;
+    }},
+    onHexByteEnter(idx) {{
+      if (idx === null || idx === undefined) return;
+      if (!this.converterHexSelecting) return;
+      const n = Number(idx);
+      if (!Number.isFinite(n)) return;
+      this.clearNativeSelection();
+      this.converterHexSelEnd = n;
+    }},
+    onHexDumpPointerUp() {{
+      this.clearNativeSelection();
+      this.converterHexSelecting = false;
+    }},
+    parseHexBytesFromInput(raw, formatMode) {{
+      const src = String(raw || '');
+      const parsePlain = (s) => {{
+        const clean = s.replace(/[\s:_-]/g, '');
+        if (!clean) return [];
+        if (!/^[0-9a-fA-F]+$/.test(clean) || clean.length % 2 !== 0) {{
+          throw new Error('Expected even-length plain HEX');
+        }}
+        const out = [];
+        for (let i = 0; i < clean.length; i += 2) out.push(parseInt(clean.slice(i, i + 2), 16));
+        return out;
+      }};
+      const parseOx = (s) => {{
+        const arr = [];
+        const re = /0x([0-9a-fA-F]{{2}})/g;
+        let m = null;
+        while ((m = re.exec(s)) !== null) arr.push(parseInt(m[1], 16));
+        if (!arr.length) throw new Error('Expected 0xNN bytes');
+        return arr;
+      }};
+      const parseEsc = (s) => {{
+        const arr = [];
+        const re = /\\x([0-9a-fA-F]{{2}})/g;
+        let m = null;
+        while ((m = re.exec(s)) !== null) arr.push(parseInt(m[1], 16));
+        if (!arr.length) throw new Error('Expected \\\\xNN bytes');
+        return arr;
+      }};
+      const parseByteArray = (s) => {{
+        const nums = (s.match(/-?\d+/g) || []).map(x => Number(x)).filter(n => Number.isFinite(n));
+        if (!nums.length) throw new Error('Expected byte array values');
+        for (const n of nums) {{
+          if (n < 0 || n > 255) throw new Error('Byte array values must be 0..255');
+        }}
+        return nums;
+      }};
+      const parseDump = (s) => {{
+        const lines = s.split(/\r?\n/);
+        const out = [];
+        const pair = /\b([0-9a-fA-F]{{2}})\b/g;
+        for (const line of lines) {{
+          const rhs = line.includes('|') ? line.split('|')[0] : line;
+          let m = null;
+          while ((m = pair.exec(rhs)) !== null) {{
+            out.push(parseInt(m[1], 16));
+          }}
+        }}
+        if (!out.length) throw new Error('Expected hex dump bytes');
+        return out;
+      }};
+      const mode = String(formatMode || 'auto');
+      if (mode === 'plain') return parsePlain(src);
+      if (mode === '0x' || mode === 'c-array') return parseOx(src);
+      if (mode === 'escaped') return parseEsc(src);
+      if (mode === 'byte-array') return parseByteArray(src);
+      if (mode === 'dump') return parseDump(src);
+      const tries = [
+        () => parseOx(src),
+        () => parseEsc(src),
+        () => parseByteArray(src),
+        () => parseDump(src),
+        () => parsePlain(src),
+      ];
+      for (const t of tries) {{
+        try {{ return t(); }} catch(_) {{}}
+      }}
+      throw new Error('Could not detect HEX format (expected plain, 0xNN, \\\\xNN, byte array or dump)');
+    }},
+    formatHexDump(bytes, upper, perLine) {{
+      const src = Array.isArray(bytes) ? bytes : [];
+      const lineSize = Math.max(4, Math.min(64, Number(perLine || 16)));
+      const out = [];
+      const toUtf8Preview = (chunk) => {{
+        try {{
+          const txt = new TextDecoder().decode(Uint8Array.from(chunk));
+          return Array.from(txt).map((ch) => {{
+            const cp = ch.codePointAt(0) || 0;
+            if (cp >= 32 && cp !== 127) return ch;
+            return '.';
+          }}).join('');
+        }} catch(_) {{
+          return '';
+        }}
+      }};
+      for (let i = 0; i < src.length; i += lineSize) {{
+        const chunk = src.slice(i, i + lineSize);
+        const hex = chunk.map(b => this.toHexPair(b, upper)).join(' ');
+        const ascii = chunk.map((b) => (b >= 32 && b <= 126 ? String.fromCharCode(b) : '.')).join('');
+        const utf8 = toUtf8Preview(chunk);
+        const off = i.toString(16).padStart(8, '0');
+        out.push(off + '  ' + hex.padEnd(lineSize * 3 - 1, ' ') + '  |' + ascii + '|  utf8:' + utf8);
+      }}
+      return out.join('\n');
+    }},
+    formatHexBytes(bytes, formatMode, upper, separator, perLine) {{
+      const sep = String(separator || '');
+      const pairs = bytes.map(b => this.toHexPair(b, upper));
+      if (formatMode === 'plain') return pairs.join(sep);
+      if (formatMode === '0x') return pairs.map(x => '0x' + x).join(sep || ' ');
+      if (formatMode === 'escaped') return pairs.map(x => '\\x' + x).join(sep || '');
+      if (formatMode === 'byte-array') return '[' + bytes.join(', ') + ']';
+      if (formatMode === 'c-array') return '{{ ' + pairs.map(x => '0x' + x).join(', ') + ' }}';
+      if (formatMode === 'dump') return this.formatHexDump(bytes, upper, perLine);
+      const all = [];
+      all.push('plain:\n' + this.formatHexBytes(bytes, 'plain', upper, sep || '', perLine));
+      all.push('0x:\n' + this.formatHexBytes(bytes, '0x', upper, sep || ' ', perLine));
+      all.push('escaped:\n' + this.formatHexBytes(bytes, 'escaped', upper, sep || '', perLine));
+      all.push('byte-array:\n' + this.formatHexBytes(bytes, 'byte-array', upper, sep, perLine));
+      all.push('c-array:\n' + this.formatHexBytes(bytes, 'c-array', upper, sep, perLine));
+      all.push('dump:\n' + this.formatHexBytes(bytes, 'dump', upper, sep, perLine));
+      return all.join('\n\n');
+    }},
+    runConvertLocal(mode, payload) {{
+      const value = String(payload || '');
+      switch (mode) {{
+        case 'base64-encode':
+          return this.encodeUtf8Base64(value);
+        case 'base64-decode':
+          return this.decodeUtf8Base64(value);
+        case 'url-encode':
+          return encodeURIComponent(value);
+        case 'url-decode':
+          return decodeURIComponent(value);
+        case 'jwt-inspect':
+          return this.inspectJwt(value);
+        case 'unix-to-iso': {{
+          const n = Number(value.trim());
+          if (!Number.isFinite(n)) throw new Error('Expected unix timestamp');
+          const ms = n > 1e12 ? n : (n * 1000);
+          const d = new Date(ms);
+          if (Number.isNaN(d.getTime())) throw new Error('Invalid timestamp');
+          return d.toISOString();
+        }}
+        case 'iso-to-unix': {{
+          const d = new Date(value.trim());
+          if (Number.isNaN(d.getTime())) throw new Error('Expected ISO8601 datetime');
+          return String(Math.floor(d.getTime() / 1000));
+        }}
+        case 'text-to-hex': {{
+          const bytes = this.bytesFromText(value);
+          this.converterHexLastBytes = bytes.slice();
+          return this.formatHexBytes(
+            bytes,
+            this.converterHexView || 'dump',
+            !!this.converterHexUppercase,
+            this.converterHexSeparator || '',
+            this.converterHexBytesPerLine || 16
+          );
+        }}
+        case 'hex-to-text': {{
+          const bytes = this.parseHexBytesFromInput(value, this.converterHexInFormat || 'auto');
+          this.converterHexLastBytes = bytes.slice();
+          return new TextDecoder().decode(Uint8Array.from(bytes));
+        }}
+        default:
+          throw new Error('Unsupported converter mode: ' + mode);
+      }}
+    }},
     async runConvert(mode) {{
       this.converterMode = mode || this.converterMode;
       this.converterError = '';
@@ -4148,39 +5586,49 @@ const app = Vue.createApp({{
       }}
       const reqId = ++this.converterRequestSeq;
       this.converting = true;
+      const ctrl = this.beginAbortableRequest('convert');
       try {{
-        const res = await fetch('/api/convert', {{
-          method: 'POST',
-          headers: {{ 'content-type': 'application/json' }},
-          body: JSON.stringify({{
-            mode: this.converterMode,
-            docMode: this.converterDocMode,
-            docIndex: this.converterDocMode === 'index' ? Number(this.converterDocIndex) : undefined,
-            input: payload
-          }})
-        }});
-        const raw = await res.text();
-        let data = null;
-        try {{
-          data = JSON.parse(raw);
-        }} catch(_) {{
-          throw new Error('convert API returned non-JSON response: ' + raw.slice(0, 300));
+        if (this.converterMode === 'yaml-to-json' || this.converterMode === 'json-to-yaml') {{
+          const res = await fetch('/api/convert', {{
+            method: 'POST',
+            headers: {{ 'content-type': 'application/json' }},
+            body: JSON.stringify({{
+              mode: this.converterMode,
+              docMode: this.converterDocMode,
+              docIndex: this.converterDocMode === 'index' ? Number(this.converterDocIndex) : undefined,
+              input: payload
+            }}),
+            signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
+          }});
+          const raw = await res.text();
+          let data = null;
+          try {{
+            data = JSON.parse(raw);
+          }} catch(_) {{
+            throw new Error('convert API returned non-JSON response: ' + raw.slice(0, 300));
+          }}
+          if(!res.ok) {{
+            throw new Error(data.output || ('convert API HTTP ' + res.status));
+          }}
+          if(reqId !== this.converterRequestSeq) return;
+          if(!data.ok) {{
+            this.converterError = data.output || 'Conversion failed';
+            this.converterOutput = '';
+            return;
+          }}
+          this.converterOutput = data.output || '';
+        }} else {{
+          const localOut = this.runConvertLocal(this.converterMode, payload);
+          if(reqId !== this.converterRequestSeq) return;
+          this.converterOutput = String(localOut || '');
         }}
-        if(!res.ok) {{
-          throw new Error(data.output || ('convert API HTTP ' + res.status));
-        }}
-        if(reqId !== this.converterRequestSeq) return;
-        if(!data.ok) {{
-          this.converterError = data.output || 'Conversion failed';
-          this.converterOutput = '';
-          return;
-        }}
-        this.converterOutput = data.output || '';
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         if(reqId !== this.converterRequestSeq) return;
         this.converterError = String(e);
         this.converterOutput = '';
       }} finally {{
+        this.finishAbortableRequest('convert', ctrl);
         if(reqId === this.converterRequestSeq) {{
           this.converting = false;
         }}
@@ -4195,17 +5643,46 @@ const app = Vue.createApp({{
       }}, 120);
     }},
     swapConvertMode() {{
-      this.converterMode = this.converterMode === 'yaml-to-json' ? 'json-to-yaml' : 'yaml-to-json';
+      const pairs = {{
+        'yaml-to-json': 'json-to-yaml',
+        'json-to-yaml': 'yaml-to-json',
+        'base64-encode': 'base64-decode',
+        'base64-decode': 'base64-encode',
+        'url-encode': 'url-decode',
+        'url-decode': 'url-encode',
+        'unix-to-iso': 'iso-to-unix',
+        'iso-to-unix': 'unix-to-iso',
+        'text-to-hex': 'hex-to-text',
+        'hex-to-text': 'text-to-hex',
+      }};
+      this.converterMode = pairs[this.converterMode] || this.converterMode;
     }},
     clearConverter() {{
       this.converterInput = '';
       this.converterOutput = '';
       this.converterError = '';
+      this.converterHexLastBytes = [];
+      this.clearHexSelection();
     }},
     loadSampleConverter() {{
-      this.converterMode = 'yaml-to-json';
-      this.converterDocMode = 'all';
-      this.converterInput = "global:\n  env: dev\napps-stateless:\n  app-1:\n    enabled: true\n";
+      const m = this.converterMode;
+      if (m === 'yaml-to-json' || m === 'json-to-yaml') {{
+        this.converterMode = 'yaml-to-json';
+        this.converterDocMode = 'all';
+        this.converterInput = "global:\n  env: dev\napps-stateless:\n  app-1:\n    enabled: true\n";
+      }} else if (m === 'base64-encode' || m === 'base64-decode') {{
+        this.converterInput = m === 'base64-encode' ? 'hello happ' : 'aGVsbG8gaGFwcA==';
+      }} else if (m === 'url-encode' || m === 'url-decode') {{
+        this.converterInput = m === 'url-encode' ? 'name=alex v&scope=dev ops' : 'name%3Dalex%20v%26scope%3Ddev%20ops';
+      }} else if (m === 'jwt-inspect') {{
+        this.converterInput = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjMiLCJuYW1lIjoiZGVtbyIsImlhdCI6MTUxNjIzOTAyMiwiZXhwIjo0MTAyNDQ0ODAwfQ.signature';
+      }} else if (m === 'unix-to-iso' || m === 'iso-to-unix') {{
+        this.converterInput = m === 'unix-to-iso' ? '1700000000' : '2026-03-02T12:00:00Z';
+      }} else if (m === 'text-to-hex' || m === 'hex-to-text') {{
+        this.converterInput = m === 'text-to-hex' ? 'happ' : '68617070';
+      }} else {{
+        this.converterInput = '';
+      }}
     }},
     async copyConverterOutput() {{
       if(!this.converterOutput) return;
@@ -4369,12 +5846,591 @@ const app = Vue.createApp({{
       pre.scrollTop = ta.scrollTop;
       pre.scrollLeft = ta.scrollLeft;
     }},
+    syncMainImportEditorHeights() {{
+      if (this.activeUtilityKey !== 'main-import') return;
+      this.$nextTick(() => {{
+        const sourceShell = this.$el && this.$el.querySelector('.import-layout .import-section .import-editor-shell');
+        const outputShell = this.$el && this.$el.querySelector('.import-layout .import-output .import-editor-shell');
+        if (!sourceShell || !outputShell) return;
+        const sourceMin = Number(sourceShell.style.minHeight.replace('px', '') || 0);
+        const outputMin = Number(outputShell.style.minHeight.replace('px', '') || 0);
+        const base = Math.max(
+          sourceShell.clientHeight || 0,
+          outputShell.clientHeight || 0,
+          sourceMin,
+          outputMin,
+          420
+        );
+        sourceShell.style.minHeight = base + 'px';
+        outputShell.style.minHeight = base + 'px';
+      }});
+    }},
     syncJqScroll() {{
       const ta = this.$refs.jqQueryInput;
       const pre = this.$el && this.$el.querySelector('.jq-query-highlight');
       if(!ta || !pre) return;
       pre.scrollTop = ta.scrollTop;
       pre.scrollLeft = ta.scrollLeft;
+    }},
+    makeSelectionInfo(src, sel) {{
+      const text = String(src || '');
+      const fromRaw = Number(sel && sel.from);
+      const toRaw = Number(sel && sel.to);
+      const from = Number.isFinite(fromRaw) ? Math.max(0, Math.min(text.length, fromRaw)) : 0;
+      const to = Number.isFinite(toRaw) ? Math.max(0, Math.min(text.length, toRaw)) : from;
+      const a = Math.min(from, to);
+      const b = Math.max(from, to);
+      const selected = text.slice(a, b);
+      return {{ from: a, to: b, text: selected }};
+    }},
+    tokenAtOffset(src, offset) {{
+      const text = String(src || '');
+      const pos = Math.max(0, Math.min(text.length, Number(offset) || 0));
+      let l = pos;
+      let r = pos;
+      const isToken = (ch) => /[0-9A-Za-z_.:@/-]/.test(ch);
+      while (l > 0 && isToken(text.charAt(l - 1))) l -= 1;
+      while (r < text.length && isToken(text.charAt(r))) r += 1;
+      return text.slice(l, r).trim();
+    }},
+    normalizeSemanticNeedle(raw) {{
+      const s = String(raw || '').trim();
+      if (!s) return null;
+      if (/^(true|false)$/i.test(s)) return {{ kind: 'bool', value: s.toLowerCase() }};
+      if (/^null$/i.test(s)) return {{ kind: 'null', value: 'null' }};
+      if (/^-?\d+(?:\.\d+)?$/.test(s)) return {{ kind: 'num', value: String(Number(s)) }};
+      if ((s.startsWith('"') && s.endsWith('"')) || (s.startsWith("'") && s.endsWith("'"))) {{
+        return {{ kind: 'str', value: s.slice(1, -1) }};
+      }}
+      return {{ kind: 'str', value: s }};
+    }},
+    extractYamlPathAt(text, offset) {{
+      const src = String(text || '');
+      const off = Math.max(0, Math.min(src.length, Number(offset) || 0));
+      const lines = src.split('\n');
+      let acc = 0;
+      let targetLine = 0;
+      for (let i = 0; i < lines.length; i += 1) {{
+        const len = lines[i].length + 1;
+        if (off < acc + len) {{
+          targetLine = i;
+          break;
+        }}
+        acc += len;
+      }}
+      const stack = [];
+      for (let i = 0; i <= targetLine; i += 1) {{
+        const line = lines[i];
+        if (!line || /^\s*#/.test(line) || /^\s*$/.test(line)) continue;
+        const m = /^(\s*)(["']?[A-Za-z0-9_.-]+["']?)\s*:/.exec(line);
+        if (!m) continue;
+        const indent = m[1].length;
+        let key = m[2] || '';
+        if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {{
+          key = key.slice(1, -1);
+        }}
+        while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+        stack.push({{ indent, key }});
+      }}
+      return stack.map((x) => x.key).filter(Boolean);
+    }},
+    findYamlRangesByPath(text, path) {{
+      const src = String(text || '');
+      const keys = Array.isArray(path) ? path.filter(Boolean) : [];
+      if (!keys.length) return [];
+      const lines = src.split('\n');
+      const starts = [];
+      let acc = 0;
+      for (let i = 0; i < lines.length; i += 1) {{
+        starts.push(acc);
+        acc += lines[i].length + 1;
+      }}
+      const stack = [];
+      const ranges = [];
+      for (let i = 0; i < lines.length; i += 1) {{
+        const line = lines[i];
+        if (!line || /^\s*#/.test(line) || /^\s*$/.test(line)) continue;
+        const m = /^(\s*)(["']?[A-Za-z0-9_.-]+["']?)\s*:/.exec(line);
+        if (!m) continue;
+        const indent = m[1].length;
+        let key = m[2] || '';
+        if ((key.startsWith('"') && key.endsWith('"')) || (key.startsWith("'") && key.endsWith("'"))) {{
+          key = key.slice(1, -1);
+        }}
+        while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop();
+        const nextPath = stack.map((x) => x.key).concat([key]);
+        if (nextPath.length === keys.length && nextPath.every((v, idx) => v === keys[idx])) {{
+          let j = i + 1;
+          while (j < lines.length) {{
+            const ln = lines[j];
+            if (!ln || /^\s*$/.test(ln)) {{
+              j += 1;
+              continue;
+            }}
+            const ind = (/^(\s*)/.exec(ln) || ['', ''])[1].length;
+            if (ind <= indent) break;
+            j += 1;
+          }}
+          const from = starts[i];
+          const to = j < lines.length ? starts[j] : src.length;
+          if (to > from) ranges.push({{ from, to }});
+        }}
+        stack.push({{ indent, key }});
+      }}
+      return ranges;
+    }},
+    findSemanticRangesLocal(output, info, pathHint) {{
+      const out = String(output || '');
+      if (!out) return [];
+      const ranges = [];
+      if (Array.isArray(pathHint) && pathHint.length) {{
+        ranges.push(...this.findYamlRangesByPath(out, pathHint));
+      }}
+      const selectedRaw = (info && info.text ? info.text : '').trim();
+      const tokenRaw = selectedRaw || this.tokenAtOffset(info && info.sourceText ? info.sourceText : '', info && info.from);
+      const needleMeta = this.normalizeSemanticNeedle(tokenRaw);
+      if (!needleMeta || !needleMeta.value) return ranges.slice(0, 64);
+      const escaped = needleMeta.value.replace(/[\\^$.*+?()[\]|]/g, '\\$&');
+      const regexes = [];
+      if (needleMeta.kind === 'bool' || needleMeta.kind === 'null') {{
+        regexes.push(new RegExp('\\\\b' + escaped + '\\\\b', 'g'));
+      }} else if (needleMeta.kind === 'num') {{
+        regexes.push(new RegExp('(^|[^0-9A-Za-z_.-])(' + escaped + ')(?=$|[^0-9A-Za-z_.-])', 'g'));
+      }} else {{
+        regexes.push(new RegExp('"' + escaped + '"', 'g'));
+        regexes.push(new RegExp("'" + escaped + "'", 'g'));
+        regexes.push(new RegExp(escaped, 'g'));
+      }}
+      const seen = new Set(ranges.map((r) => String(r.from) + ':' + String(r.to)));
+      for (const re of regexes) {{
+        let m = null;
+        while ((m = re.exec(out)) !== null) {{
+          const whole = String(m[0] || '');
+          const needle = String(m[2] || whole);
+          const from = whole === needle ? m.index : (m.index + whole.indexOf(needle));
+          const to = from + needle.length;
+          const key = String(from) + ':' + String(to);
+          if (!seen.has(key)) {{
+            seen.add(key);
+            ranges.push({{ from, to }});
+          }}
+          if (ranges.length >= 64) return ranges;
+          if (m[0].length === 0) re.lastIndex += 1;
+        }}
+      }}
+      return ranges;
+    }},
+    async requestSemanticRanges(mapKey, payload) {{
+      const ctrl = this.beginAbortableRequest('semantic-' + String(mapKey || 'default'));
+      try {{
+        const res = await fetch('/api/semantic-map', {{
+          method: 'POST',
+          headers: {{ 'content-type': 'application/json' }},
+          body: JSON.stringify(payload || {{}}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
+        }});
+        const raw = await res.text();
+        let data = null;
+        try {{
+          data = JSON.parse(raw);
+        }} catch(_) {{
+          throw new Error('semantic-map API returned non-JSON response: ' + raw.slice(0, 300));
+        }}
+        if (!res.ok) {{
+          throw new Error(data.message || ('semantic-map API HTTP ' + res.status));
+        }}
+        if (!data.ok) {{
+          throw new Error(data.message || 'semantic-map failed');
+        }}
+        return Array.isArray(data.ranges) ? data.ranges : [];
+      }} finally {{
+        this.finishAbortableRequest('semantic-' + String(mapKey || 'default'), ctrl);
+      }}
+    }},
+    applySelectionsToEditor(editor, ranges, virtualCursorPos) {{
+      if (!editor) return;
+      const rs = (Array.isArray(ranges) ? ranges : []).filter((r) => r && Number.isFinite(r.from) && Number.isFinite(r.to) && r.to >= r.from);
+      try {{
+        const hasNonEmpty = rs.some((r) => Number(r.to) > Number(r.from));
+        if (hasNonEmpty) {{
+          if (typeof editor.setSelections === 'function') editor.setSelections(rs);
+          else if (typeof editor.setSelection === 'function') editor.setSelection(rs[0].from, rs[0].to);
+          if (typeof editor.clearVirtualCursor === 'function') editor.clearVirtualCursor();
+          return;
+        }}
+        const vp = Number(virtualCursorPos);
+        if (Number.isFinite(vp)) {{
+          if (typeof editor.setSelection === 'function') editor.setSelection(vp, vp);
+          if (typeof editor.setVirtualCursor === 'function') editor.setVirtualCursor(vp);
+          return;
+        }}
+        if (typeof editor.clearSelections === 'function') editor.clearSelections();
+        if (typeof editor.clearVirtualCursor === 'function') editor.clearVirtualCursor();
+      }} catch(_) {{}}
+    }},
+    mapBase64EncodeSelectionToOutput(inputText, from, to) {{
+      const src = String(inputText || '');
+      const a = Math.max(0, Math.min(src.length, Number(from) || 0));
+      const b = Math.max(0, Math.min(src.length, Number(to) || a));
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      let fromOut = 0;
+      let toOut = 0;
+      try {{
+        fromOut = this.encodeUtf8Base64(src.slice(0, lo)).length;
+        toOut = this.encodeUtf8Base64(src.slice(0, hi)).length;
+      }} catch(_) {{
+        fromOut = 0;
+        toOut = 0;
+      }}
+      return {{ fromOut, toOut }};
+    }},
+    mapBase64DecodeSelectionToOutput(inputText, from, to) {{
+      const src = String(inputText || '');
+      const a = Math.max(0, Math.min(src.length, Number(from) || 0));
+      const b = Math.max(0, Math.min(src.length, Number(to) || a));
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      const decodeLen = (s) => {{
+        const raw = String(s || '').replace(/\s+/g, '');
+        for (let i = raw.length; i >= 0; i -= 1) {{
+          try {{
+            return this.decodeUtf8Base64(raw.slice(0, i)).length;
+          }} catch(_) {{}}
+        }}
+        return 0;
+      }};
+      return {{
+        fromOut: decodeLen(src.slice(0, lo)),
+        toOut: decodeLen(src.slice(0, hi)),
+      }};
+    }},
+    mapUrlEncodeSelectionToOutput(inputText, from, to) {{
+      const src = String(inputText || '');
+      const a = Math.max(0, Math.min(src.length, Number(from) || 0));
+      const b = Math.max(0, Math.min(src.length, Number(to) || a));
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      return {{
+        fromOut: encodeURIComponent(src.slice(0, lo)).length,
+        toOut: encodeURIComponent(src.slice(0, hi)).length,
+      }};
+    }},
+    mapUrlDecodeSelectionToOutput(inputText, from, to) {{
+      const src = String(inputText || '');
+      const a = Math.max(0, Math.min(src.length, Number(from) || 0));
+      const b = Math.max(0, Math.min(src.length, Number(to) || a));
+      const lo = Math.min(a, b);
+      const hi = Math.max(a, b);
+      const decodeLen = (s) => {{
+        const raw = String(s || '');
+        for (let i = raw.length; i >= 0; i -= 1) {{
+          try {{
+            return decodeURIComponent(raw.slice(0, i)).length;
+          }} catch(_) {{}}
+        }}
+        return 0;
+      }};
+      return {{
+        fromOut: decodeLen(src.slice(0, lo)),
+        toOut: decodeLen(src.slice(0, hi)),
+      }};
+    }},
+    renderTextWithSyncOverlay(text, ranges, cursorPos) {{
+      const src = String(text || '');
+      if (!src) return ' ';
+      const len = src.length;
+      const rs = (Array.isArray(ranges) ? ranges : [])
+        .map((r) => {{
+          const from = Math.max(0, Math.min(len, Number(r && r.from) || 0));
+          const to = Math.max(0, Math.min(len, Number(r && r.to) || 0));
+          return {{ from: Math.min(from, to), to: Math.max(from, to) }};
+        }})
+        .filter((r) => r.to > r.from)
+        .sort((a, b) => a.from - b.from);
+      const out = [];
+      let pos = 0;
+      if (!rs.length && Number.isFinite(Number(cursorPos))) {{
+        const cp = Math.max(0, Math.min(len, Number(cursorPos)));
+        out.push(this.escapeHtml(src.slice(0, cp)));
+        out.push("<span class='sync-cursor' aria-hidden='true'></span>");
+        out.push(this.escapeHtml(src.slice(cp)));
+        return out.join('') || ' ';
+      }}
+      for (const r of rs) {{
+        const from = Math.max(pos, r.from);
+        const to = Math.max(from, r.to);
+        if (from > pos) out.push(this.escapeHtml(src.slice(pos, from)));
+        if (to > from) out.push("<span class='sync-sel'>" + this.escapeHtml(src.slice(from, to)) + "</span>");
+        pos = Math.max(pos, to);
+      }}
+      if (pos < len) out.push(this.escapeHtml(src.slice(pos)));
+      return out.join('') || ' ';
+    }},
+    selectionFromEventTextArea(ev, src) {{
+      const ta = ev && ev.target ? ev.target : null;
+      const text = String(src || '');
+      if (!ta) return {{ from: 0, to: 0, text: '' }};
+      return this.makeSelectionInfo(text, {{
+        from: Number.isFinite(ta.selectionStart) ? ta.selectionStart : 0,
+        to: Number.isFinite(ta.selectionEnd) ? ta.selectionEnd : 0,
+      }});
+    }},
+    onMainImportSelection(sel) {{
+      const info = this.makeSelectionInfo(this.mainImportChartValuesEditor || '', sel || {{}});
+      info.sourceText = this.mainImportChartValuesEditor || '';
+      this.mainImportSelection = info;
+      this.applyMainImportSelectionSync();
+    }},
+    onConverterSelection(sel) {{
+      const info = this.makeSelectionInfo(this.converterInput || '', sel || {{}});
+      info.sourceText = this.converterInput || '';
+      this.converterSelection = info;
+      this.applyConverterSelectionSync();
+    }},
+    onJqSelection(sel) {{
+      const info = this.makeSelectionInfo(this.jqInput || '', sel || {{}});
+      info.sourceText = this.jqInput || '';
+      this.jqSelection = info;
+      this.applyJqSelectionSync();
+    }},
+    onYqSelection(sel) {{
+      const info = this.makeSelectionInfo(this.yqInput || '', sel || {{}});
+      info.sourceText = this.yqInput || '';
+      this.yqSelection = info;
+      this.applyYqSelectionSync();
+    }},
+    onDyffFromSelection(sel) {{
+      const info = this.makeSelectionInfo(this.dyffFrom || '', sel || {{}});
+      info.sourceText = this.dyffFrom || '';
+      this.dyffFromSelection = info;
+      this.applyDyffSelectionSync();
+    }},
+    onDyffToSelection(sel) {{
+      const info = this.makeSelectionInfo(this.dyffTo || '', sel || {{}});
+      info.sourceText = this.dyffTo || '';
+      this.dyffToSelection = info;
+      this.applyDyffSelectionSync();
+    }},
+    onMainImportTextareaSelect(ev) {{
+      this.onMainImportSelection(this.selectionFromEventTextArea(ev, this.mainImportChartValuesEditor || ''));
+    }},
+    onConverterTextareaSelect(ev) {{
+      this.onConverterSelection(this.selectionFromEventTextArea(ev, this.converterInput || ''));
+    }},
+    onJqTextareaSelect(ev) {{
+      this.onJqSelection(this.selectionFromEventTextArea(ev, this.jqInput || ''));
+    }},
+    onYqTextareaSelect(ev) {{
+      this.onYqSelection(this.selectionFromEventTextArea(ev, this.yqInput || ''));
+    }},
+    onDyffFromTextareaSelect(ev) {{
+      this.onDyffFromSelection(this.selectionFromEventTextArea(ev, this.dyffFrom || ''));
+    }},
+    onDyffToTextareaSelect(ev) {{
+      this.onDyffToSelection(this.selectionFromEventTextArea(ev, this.dyffTo || ''));
+    }},
+    async applyMainImportSelectionSync() {{
+      const info = this.mainImportSelection;
+      if (!info || !this.mainImportGeneratedCm) return;
+      const path = this.extractYamlPathAt(info.sourceText || '', info.from);
+      try {{
+        const ranges = await this.requestSemanticRanges('main-import', {{
+          source: info.sourceText || '',
+          output: this.mainImportOutput || '',
+          sourceKind: 'yaml',
+          outputKind: 'yaml',
+          from: info.from,
+          to: info.to,
+          selectedText: info.text || '',
+          pathHint: path,
+        }});
+        if (!Array.isArray(ranges) || !ranges.length) {{
+          const local = this.findSemanticRangesLocal(this.mainImportOutput || '', info, path);
+          const cursorPosLocal = Number(info.from) === Number(info.to) && local.length ? Number(local[0].from) : null;
+          this.applySelectionsToEditor(this.mainImportGeneratedCm, local, cursorPosLocal);
+          return;
+        }}
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.mainImportGeneratedCm, ranges, cursorPos);
+      }} catch(e) {{
+        if (this.isAbortError(e)) return;
+        const ranges = this.findSemanticRangesLocal(this.mainImportOutput || '', info, path);
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.mainImportGeneratedCm, ranges, cursorPos);
+      }}
+    }},
+    async applyConverterSelectionSync() {{
+      const info = this.converterSelection;
+      if (!info) return;
+      this.converterPlainRanges = [];
+      this.converterPlainCursor = null;
+      if (this.converterMode === 'text-to-hex' && this.converterHexDumpInteractive) {{
+        const src = String(this.converterInput || '');
+        const a = Math.min(info.from, info.to);
+        const b = Math.max(info.from, info.to);
+        const pfx = src.slice(0, a);
+        const sel = src.slice(a, b);
+        const fromByte = this.bytesFromText(pfx).length;
+        const len = this.bytesFromText(sel).length;
+        if (len > 0) {{
+          this.converterHexSelStart = fromByte;
+          this.converterHexSelEnd = fromByte + len - 1;
+        }} else {{
+          this.clearHexSelection();
+        }}
+        return;
+      }}
+      if (!this.converterOutputCm) {{
+        let mapped = null;
+        if (this.converterMode === 'base64-encode') mapped = this.mapBase64EncodeSelectionToOutput(this.converterInput || '', info.from, info.to);
+        if (this.converterMode === 'base64-decode') mapped = this.mapBase64DecodeSelectionToOutput(this.converterInput || '', info.from, info.to);
+        if (this.converterMode === 'url-encode') mapped = this.mapUrlEncodeSelectionToOutput(this.converterInput || '', info.from, info.to);
+        if (this.converterMode === 'url-decode') mapped = this.mapUrlDecodeSelectionToOutput(this.converterInput || '', info.from, info.to);
+        if (mapped) {{
+          const fromOut = Number(mapped.fromOut) || 0;
+          const toOut = Number(mapped.toOut) || fromOut;
+          if (toOut > fromOut) this.converterPlainRanges = [{{ from: fromOut, to: toOut }}];
+          if (Number(info.from) === Number(info.to)) this.converterPlainCursor = fromOut;
+          return;
+        }}
+        const path = (this.converterMode === 'yaml-to-json' || this.converterMode === 'json-to-yaml')
+          ? this.extractYamlPathAt(info.sourceText || '', info.from)
+          : [];
+        const local = this.findSemanticRangesLocal(this.converterOutput || '', info, path);
+        this.converterPlainRanges = local;
+        if (Number(info.from) === Number(info.to) && local.length) this.converterPlainCursor = Number(local[0].from);
+        return;
+      }}
+      if (this.converterMode === 'base64-encode') {{
+        const mapped = this.mapBase64EncodeSelectionToOutput(this.converterInput || '', info.from, info.to);
+        const fromOut = Number(mapped.fromOut) || 0;
+        const toOut = Number(mapped.toOut) || fromOut;
+        const ranges = (toOut > fromOut) ? [{{ from: fromOut, to: toOut }}] : [];
+        const cursorPos = Number(info.from) === Number(info.to) ? fromOut : null;
+        this.applySelectionsToEditor(this.converterOutputCm, ranges, cursorPos);
+        return;
+      }}
+      const path = (this.converterMode === 'yaml-to-json' || this.converterMode === 'json-to-yaml')
+        ? this.extractYamlPathAt(info.sourceText || '', info.from)
+        : [];
+      const sourceKind = (this.converterMode === 'yaml-to-json') ? 'yaml' : ((this.converterMode === 'json-to-yaml') ? 'json' : 'text');
+      const outputKind = (this.converterMode === 'yaml-to-json') ? 'json' : ((this.converterMode === 'json-to-yaml') ? 'yaml' : 'text');
+      try {{
+        const ranges = await this.requestSemanticRanges('converter', {{
+          source: info.sourceText || '',
+          output: this.converterOutput || '',
+          sourceKind,
+          outputKind,
+          from: info.from,
+          to: info.to,
+          selectedText: info.text || '',
+          pathHint: path,
+        }});
+        if (!Array.isArray(ranges) || !ranges.length) {{
+          const local = this.findSemanticRangesLocal(this.converterOutput || '', info, path);
+          const cursorPosLocal = Number(info.from) === Number(info.to) && local.length ? Number(local[0].from) : null;
+          this.applySelectionsToEditor(this.converterOutputCm, local, cursorPosLocal);
+          return;
+        }}
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.converterOutputCm, ranges, cursorPos);
+      }} catch(e) {{
+        if (this.isAbortError(e)) return;
+        const ranges = this.findSemanticRangesLocal(this.converterOutput || '', info, path);
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.converterOutputCm, ranges, cursorPos);
+      }}
+    }},
+    async applyJqSelectionSync() {{
+      const info = this.jqSelection;
+      if (!info || !this.jqOutputCm) return;
+      const path = this.extractYamlPathAt(info.sourceText || '', info.from);
+      try {{
+        const ranges = await this.requestSemanticRanges('jq', {{
+          source: info.sourceText || '',
+          output: this.jqOutput || '',
+          sourceKind: 'auto',
+          outputKind: 'json',
+          from: info.from,
+          to: info.to,
+          selectedText: info.text || '',
+          pathHint: path,
+        }});
+        if (!Array.isArray(ranges) || !ranges.length) {{
+          const local = this.findSemanticRangesLocal(this.jqOutput || '', info, path);
+          const cursorPosLocal = Number(info.from) === Number(info.to) && local.length ? Number(local[0].from) : null;
+          this.applySelectionsToEditor(this.jqOutputCm, local, cursorPosLocal);
+          return;
+        }}
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.jqOutputCm, ranges, cursorPos);
+      }} catch(e) {{
+        if (this.isAbortError(e)) return;
+        const ranges = this.findSemanticRangesLocal(this.jqOutput || '', info, path);
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.jqOutputCm, ranges, cursorPos);
+      }}
+    }},
+    async applyYqSelectionSync() {{
+      const info = this.yqSelection;
+      if (!info || !this.yqOutputCm) return;
+      const path = this.extractYamlPathAt(info.sourceText || '', info.from);
+      try {{
+        const ranges = await this.requestSemanticRanges('yq', {{
+          source: info.sourceText || '',
+          output: this.yqOutput || '',
+          sourceKind: 'auto',
+          outputKind: 'json',
+          from: info.from,
+          to: info.to,
+          selectedText: info.text || '',
+          pathHint: path,
+        }});
+        if (!Array.isArray(ranges) || !ranges.length) {{
+          const local = this.findSemanticRangesLocal(this.yqOutput || '', info, path);
+          const cursorPosLocal = Number(info.from) === Number(info.to) && local.length ? Number(local[0].from) : null;
+          this.applySelectionsToEditor(this.yqOutputCm, local, cursorPosLocal);
+          return;
+        }}
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.yqOutputCm, ranges, cursorPos);
+      }} catch(e) {{
+        if (this.isAbortError(e)) return;
+        const ranges = this.findSemanticRangesLocal(this.yqOutput || '', info, path);
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.yqOutputCm, ranges, cursorPos);
+      }}
+    }},
+    async applyDyffSelectionSync() {{
+      if (!this.dyffOutputCm) return;
+      const info = this.dyffFromSelection || this.dyffToSelection;
+      if (!info) return;
+      try {{
+        const ranges = await this.requestSemanticRanges('dyff', {{
+          source: info.sourceText || '',
+          output: this.dyffOutput || '',
+          sourceKind: 'auto',
+          outputKind: 'text',
+          from: info.from,
+          to: info.to,
+          selectedText: info.text || '',
+          pathHint: [],
+        }});
+        if (!Array.isArray(ranges) || !ranges.length) {{
+          const local = this.findSemanticRangesLocal(this.dyffOutput || '', info, []);
+          const cursorPosLocal = Number(info.from) === Number(info.to) && local.length ? Number(local[0].from) : null;
+          this.applySelectionsToEditor(this.dyffOutputCm, local, cursorPosLocal);
+          return;
+        }}
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.dyffOutputCm, ranges, cursorPos);
+      }} catch(e) {{
+        if (this.isAbortError(e)) return;
+        const ranges = this.findSemanticRangesLocal(this.dyffOutput || '', info, []);
+        const cursorPos = Number(info.from) === Number(info.to) && ranges.length ? Number(ranges[0].from) : null;
+        this.applySelectionsToEditor(this.dyffOutputCm, ranges, cursorPos);
+      }}
     }},
     escapeHtml(s) {{
       return String(s || '')
@@ -4410,6 +6466,24 @@ const app = Vue.createApp({{
       }});
       return html.join('\n');
     }},
+    highlightHexOutput(src, viewMode) {{
+      const text = String(src || '');
+      if (!text) return ' ';
+      if (viewMode !== 'dump') {{
+        return "<span class='hex-plain'>" + this.escapeHtml(text) + "</span>";
+      }}
+      const lines = text.split('\n');
+      const out = lines.map((line) => {{
+        const m = /^([0-9a-fA-F]{{8}})(\s+)(.*?)(\s+\|.*\|)?$/.exec(line);
+        if (!m) return this.escapeHtml(line);
+        const off = this.escapeHtml(m[1]);
+        const sep = this.escapeHtml(m[2] || '  ');
+        const hex = this.escapeHtml(m[3] || '');
+        const ascii = this.escapeHtml(m[4] || '');
+        return "<span class='hex-line'><span class='hex-offset'>" + off + "</span><span class='hex-sep'>" + sep + "</span><span class='hex-bytes'>" + hex + "</span><span class='hex-sep'>" + (ascii ? "  " : "") + "</span><span class='hex-ascii'>" + ascii + "</span></span>";
+      }});
+      return out.join('\n');
+    }},
     highlightJq(src) {{
       let out = this.escapeHtml(src);
       out = out.replace(/(\"(?:[^\"\\\\]|\\\\.)*\")/g, "<span class='jq-token-string'>$1</span>");
@@ -4427,6 +6501,7 @@ const app = Vue.createApp({{
         this.jqOutput = '';
         return;
       }}
+      const ctrl = this.beginAbortableRequest('jq');
       try {{
         const res = await fetch('/api/jq', {{
           method: 'POST',
@@ -4438,7 +6513,8 @@ const app = Vue.createApp({{
             docIndex: this.jqDocMode === 'index' ? Number(this.jqDocIndex) : undefined,
             compact: this.jqCompact,
             rawOutput: this.jqRawOutput
-          }})
+          }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -4458,9 +6534,12 @@ const app = Vue.createApp({{
         }}
         this.jqOutput = data.output || '';
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         if(reqId !== this.jqRequestSeq) return;
         this.jqError = String(e);
         this.jqOutput = '';
+      }} finally {{
+        this.finishAbortableRequest('jq', ctrl);
       }}
     }},
     applyYqPreset(query) {{
@@ -4474,6 +6553,7 @@ const app = Vue.createApp({{
         this.yqOutput = '';
         return;
       }}
+      const ctrl = this.beginAbortableRequest('yq');
       try {{
         const res = await fetch('/api/yq', {{
           method: 'POST',
@@ -4485,7 +6565,8 @@ const app = Vue.createApp({{
             docIndex: this.yqDocMode === 'index' ? Number(this.yqDocIndex) : undefined,
             compact: this.yqCompact,
             rawOutput: this.yqRawOutput
-          }})
+          }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -4505,9 +6586,12 @@ const app = Vue.createApp({{
         }}
         this.yqOutput = data.output || '';
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         if(reqId !== this.yqRequestSeq) return;
         this.yqError = String(e);
         this.yqOutput = '';
+      }} finally {{
+        this.finishAbortableRequest('yq', ctrl);
       }}
     }},
     scheduleYqRun() {{
@@ -4541,6 +6625,7 @@ const app = Vue.createApp({{
         this.dyffOutput = '';
         return;
       }}
+      const ctrl = this.beginAbortableRequest('dyff');
       try {{
         const res = await fetch('/api/dyff', {{
           method: 'POST',
@@ -4550,7 +6635,8 @@ const app = Vue.createApp({{
             to,
             ignoreOrder: this.dyffIgnoreOrder,
             ignoreWhitespace: this.dyffIgnoreWhitespace
-          }})
+          }}),
+          signal: ctrl && ctrl.signal ? ctrl.signal : undefined,
         }});
         const raw = await res.text();
         let data = null;
@@ -4570,9 +6656,12 @@ const app = Vue.createApp({{
         }}
         this.dyffOutput = data.output || '';
       }} catch(e) {{
+        if (this.isAbortError(e)) return;
         if(reqId !== this.dyffRequestSeq) return;
         this.dyffError = String(e);
         this.dyffOutput = '';
+      }} finally {{
+        this.finishAbortableRequest('dyff', ctrl);
       }}
     }},
     scheduleDyffRun() {{
@@ -4676,7 +6765,7 @@ mod tests {
         assert!(html.contains("Wrap lines"));
         assert!(html.contains("Copy"));
         assert!(html.contains("Download"));
-        assert!(html.contains("YAML/JSON Converter"));
+        assert!(html.contains("Converters"));
         assert!(html.contains("jq Playground"));
         assert!(html.contains("/api/jq"));
         assert!(html.contains("yq Playground"));
@@ -4695,6 +6784,14 @@ mod tests {
         assert!(html.contains("/api/save-chart"));
         assert!(html.contains("Compare renders"));
         assert!(html.contains("/api/compare-renders"));
+        assert!(html.contains("/api/semantic-map"));
+    }
+
+    #[test]
+    fn codemirror_bundle_has_virtual_cursor_support() {
+        assert!(CODEMIRROR_BUNDLE_JS.contains("setVirtualCursor"));
+        assert!(CODEMIRROR_BUNDLE_JS.contains("clearVirtualCursor"));
+        assert!(CODEMIRROR_BUNDLE_JS.contains("happ-virtual-cursor"));
     }
 
     #[test]
@@ -5068,5 +7165,66 @@ text: |-
         .expect("save");
         assert!(msg.contains("CRDs copied"));
         assert!(out.join("crds/widgets.example.com.yaml").exists());
+    }
+
+    #[test]
+    fn semantic_map_payload_matches_yaml_path_block() {
+        let source = "apps-stateless:\n  app-1:\n    service:\n      enabled: true\n";
+        let output = "global:\n  env: dev\napps-stateless:\n  app-1:\n    service:\n      enabled: true\n      ports:\n        - name: http\n          port: 80\n";
+        let from = source.find("service").expect("service");
+        let from_utf16 = byte_to_utf16_idx(source, from);
+        let ranges = semantic_map_payload(
+            source,
+            output,
+            "yaml",
+            "yaml",
+            from_utf16,
+            from_utf16,
+            "",
+            &[],
+        )
+        .expect("semantic map");
+        assert!(!ranges.is_empty());
+    }
+
+    #[test]
+    fn semantic_map_payload_handles_utf16_offsets_for_cyrillic() {
+        let source = "name: привет\n";
+        let output = "meta:\n  title: \"привет\"\n";
+        let from = source.find("привет").expect("utf");
+        let from_utf16 = byte_to_utf16_idx(source, from);
+        let to_utf16 = from_utf16 + "привет".encode_utf16().count();
+        let ranges = semantic_map_payload(
+            source,
+            output,
+            "yaml",
+            "yaml",
+            from_utf16,
+            to_utf16,
+            "привет",
+            &[],
+        )
+        .expect("semantic map");
+        assert!(!ranges.is_empty());
+    }
+
+    #[test]
+    fn semantic_map_payload_finds_number_in_text_output() {
+        let source = "port: 8080\n";
+        let output = "changed: spec.ports[0].port\nsrc: 80\ngen: 8080\n";
+        let from = source.find("8080").expect("num");
+        let from_utf16 = byte_to_utf16_idx(source, from);
+        let ranges = semantic_map_payload(
+            source,
+            output,
+            "yaml",
+            "text",
+            from_utf16,
+            from_utf16 + 4,
+            "8080",
+            &[],
+        )
+        .expect("semantic map");
+        assert!(!ranges.is_empty());
     }
 }

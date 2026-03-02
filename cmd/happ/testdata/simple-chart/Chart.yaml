@@ -1,4 +1,0 @@
-apiVersion: v2
-name: simple-chart
-version: 0.1.0
-type: application

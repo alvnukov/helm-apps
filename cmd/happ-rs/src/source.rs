@@ -92,14 +92,23 @@ fn render_invocations(args: &ImportArgs, chart_path: &str) -> Vec<RenderInvocati
 
     let mut werf = RenderInvocation {
         program: "werf".to_string(),
-        args: vec!["render".to_string(), "--release".to_string(), args.release_name.clone(), chart_path.to_string()],
+        args: vec![
+            "render".to_string(),
+            "--release".to_string(),
+            args.release_name.clone(),
+            chart_path.to_string(),
+        ],
     };
     apply_render_flags(&mut werf.args, args);
     out.push(werf);
 
     let mut helm = RenderInvocation {
         program: "helm".to_string(),
-        args: vec!["template".to_string(), args.release_name.clone(), chart_path.to_string()],
+        args: vec![
+            "template".to_string(),
+            args.release_name.clone(),
+            chart_path.to_string(),
+        ],
     };
     apply_render_flags(&mut helm.args, args);
     out.push(helm);
@@ -233,7 +242,10 @@ items:
 "#;
         let docs = parse_documents(src).expect("parse");
         assert_eq!(docs.len(), 1);
-        assert_eq!(docs[0].get("kind").and_then(|v| v.as_str()), Some("ConfigMap"));
+        assert_eq!(
+            docs[0].get("kind").and_then(|v| v.as_str()),
+            Some("ConfigMap")
+        );
     }
 
     #[test]
@@ -307,6 +319,7 @@ items:
             chart_name: None,
             library_chart_path: None,
             import_strategy: "raw".into(),
+            verify_equivalence: false,
             release_name: "inspect".into(),
             namespace: None,
             values_files: Vec::new(),

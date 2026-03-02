@@ -66,7 +66,8 @@ fn build_values_helpers_experimental(args: &ImportArgs, docs: &[Value]) -> Resul
             let final_key = insert_group_with_dedupe(&mut apps_stateless, &app_key, app);
             let name = metadata_name(m);
             if !name.is_empty() {
-                stateless_by_ns_name.insert(format!("{}/{}", metadata_namespace(m), name), final_key);
+                stateless_by_ns_name
+                    .insert(format!("{}/{}", metadata_namespace(m), name), final_key);
             }
         } else {
             push_raw_fallback(&mut raw_fallback, &mut raw_fallback_seen, doc);
@@ -189,10 +190,16 @@ fn build_values_helpers_experimental(args: &ImportArgs, docs: &[Value]) -> Resul
         root.insert(k("apps-ingresses"), Value::Mapping(apps_ingresses));
     }
     if !apps_network_policies.is_empty() {
-        root.insert(k("apps-network-policies"), Value::Mapping(apps_network_policies));
+        root.insert(
+            k("apps-network-policies"),
+            Value::Mapping(apps_network_policies),
+        );
     }
     if !apps_service_accounts.is_empty() {
-        root.insert(k("apps-service-accounts"), Value::Mapping(apps_service_accounts));
+        root.insert(
+            k("apps-service-accounts"),
+            Value::Mapping(apps_service_accounts),
+        );
     }
     if !apps_jobs.is_empty() {
         root.insert(k("apps-jobs"), Value::Mapping(apps_jobs));
@@ -358,7 +365,17 @@ fn map_configmap_to_apps_configmaps(doc: &Mapping) -> Option<(String, Mapping)> 
         }
     }
 
-    if let Some(extra) = extract_by_allowed(doc, &["apiVersion", "kind", "metadata", "data", "binaryData", "immutable"]) {
+    if let Some(extra) = extract_by_allowed(
+        doc,
+        &[
+            "apiVersion",
+            "kind",
+            "metadata",
+            "data",
+            "binaryData",
+            "immutable",
+        ],
+    ) {
         if let Some(s) = yaml_body(&Value::Mapping(extra)) {
             append_extra_field(&mut app, &s);
         }
@@ -417,7 +434,18 @@ fn map_secret_to_apps_secrets(doc: &Mapping) -> Option<(String, Mapping)> {
         }
     }
 
-    if let Some(extra) = extract_by_allowed(doc, &["apiVersion", "kind", "metadata", "type", "data", "stringData", "immutable"]) {
+    if let Some(extra) = extract_by_allowed(
+        doc,
+        &[
+            "apiVersion",
+            "kind",
+            "metadata",
+            "type",
+            "data",
+            "stringData",
+            "immutable",
+        ],
+    ) {
         if let Some(s) = yaml_body(&Value::Mapping(extra)) {
             append_extra_field(&mut app, &s);
         }
@@ -439,7 +467,9 @@ fn map_deployment_to_apps_stateless(doc: &Mapping) -> Option<(String, Mapping)> 
     let spec = get_map(doc, "spec").cloned().unwrap_or_default();
     let template = get_map(&spec, "template").cloned().unwrap_or_default();
     let pod_spec = get_map(&template, "spec").cloned().unwrap_or_default();
-    let containers = get_seq(&pod_spec, "containers").cloned().unwrap_or_default();
+    let containers = get_seq(&pod_spec, "containers")
+        .cloned()
+        .unwrap_or_default();
     if containers.is_empty() {
         return None;
     }
@@ -485,7 +515,9 @@ fn map_deployment_to_apps_stateless(doc: &Mapping) -> Option<(String, Mapping)> 
     let container_map = map_containers_for_stateless(&containers)?;
     app.insert(k("containers"), Value::Mapping(container_map));
 
-    let init_containers = get_seq(&pod_spec, "initContainers").cloned().unwrap_or_default();
+    let init_containers = get_seq(&pod_spec, "initContainers")
+        .cloned()
+        .unwrap_or_default();
     if !init_containers.is_empty() {
         if let Some(mapped) = map_containers_for_stateless(&init_containers) {
             app.insert(k("initContainers"), Value::Mapping(mapped));
@@ -585,7 +617,12 @@ fn map_service_to_apps_services(doc: &Mapping) -> Option<(String, Mapping)> {
         copy_scalar_if_present(&mut app, &spec, key);
     }
 
-    for key in ["clusterIPs", "externalIPs", "ipFamilies", "loadBalancerSourceRanges"] {
+    for key in [
+        "clusterIPs",
+        "externalIPs",
+        "ipFamilies",
+        "loadBalancerSourceRanges",
+    ] {
         if let Some(v) = spec.get(&k(key)) {
             if let Some(s) = yaml_body_clean(v) {
                 app.insert(k(key), Value::String(s));
@@ -628,7 +665,9 @@ fn map_ingress_to_apps_ingresses(doc: &Mapping) -> Option<(String, Mapping)> {
     app.insert(k("name"), Value::String(name.clone()));
     app.insert(k("host"), Value::String(host));
 
-    let mut ann = get_map(&metadata, "annotations").cloned().unwrap_or_default();
+    let mut ann = get_map(&metadata, "annotations")
+        .cloned()
+        .unwrap_or_default();
     if let Some(class) = get_str(&ann, "kubernetes.io/ingress.class") {
         let class = class.trim().to_string();
         if !class.is_empty() {
@@ -661,7 +700,10 @@ fn map_ingress_to_apps_ingresses(doc: &Mapping) -> Option<(String, Mapping)> {
             tls.insert(k("enabled"), Value::Bool(true));
             if let Some(secret_name) = get_str(tls0, "secretName") {
                 if !secret_name.trim().is_empty() {
-                    tls.insert(k("secret_name"), Value::String(secret_name.trim().to_string()));
+                    tls.insert(
+                        k("secret_name"),
+                        Value::String(secret_name.trim().to_string()),
+                    );
                 }
             }
             app.insert(k("tls"), Value::Mapping(tls));
@@ -713,7 +755,9 @@ fn map_network_policy_to_apps_network_policies(doc: &Mapping) -> Option<(String,
         }
     }
 
-    if let Some(extra_spec) = extract_by_allowed(&spec, &["podSelector", "policyTypes", "ingress", "egress"]) {
+    if let Some(extra_spec) =
+        extract_by_allowed(&spec, &["podSelector", "policyTypes", "ingress", "egress"])
+    {
         if let Some(s) = yaml_body(&Value::Mapping(extra_spec)) {
             app.insert(k("spec"), Value::String(s));
         }
@@ -735,7 +779,9 @@ fn map_job_to_apps_jobs(doc: &Mapping) -> Option<(String, Mapping)> {
     let spec = get_map(doc, "spec").cloned().unwrap_or_default();
     let template = get_map(&spec, "template").cloned().unwrap_or_default();
     let pod_spec = get_map(&template, "spec").cloned().unwrap_or_default();
-    let containers = get_seq(&pod_spec, "containers").cloned().unwrap_or_default();
+    let containers = get_seq(&pod_spec, "containers")
+        .cloned()
+        .unwrap_or_default();
     if containers.is_empty() {
         return None;
     }
@@ -758,7 +804,9 @@ fn map_job_to_apps_jobs(doc: &Mapping) -> Option<(String, Mapping)> {
     let mapped_containers = map_containers_for_stateless(&containers)?;
     app.insert(k("containers"), Value::Mapping(mapped_containers));
 
-    let init_containers = get_seq(&pod_spec, "initContainers").cloned().unwrap_or_default();
+    let init_containers = get_seq(&pod_spec, "initContainers")
+        .cloned()
+        .unwrap_or_default();
     if !init_containers.is_empty() {
         if let Some(mapped) = map_containers_for_stateless(&init_containers) {
             app.insert(k("initContainers"), Value::Mapping(mapped));
@@ -823,7 +871,9 @@ fn map_cronjob_to_apps_cronjobs(doc: &Mapping) -> Option<(String, Mapping)> {
     let job_spec = get_map(&job_template, "spec").cloned().unwrap_or_default();
     let template = get_map(&job_spec, "template").cloned().unwrap_or_default();
     let pod_spec = get_map(&template, "spec").cloned().unwrap_or_default();
-    let containers = get_seq(&pod_spec, "containers").cloned().unwrap_or_default();
+    let containers = get_seq(&pod_spec, "containers")
+        .cloned()
+        .unwrap_or_default();
     if containers.is_empty() {
         return None;
     }
@@ -846,7 +896,9 @@ fn map_cronjob_to_apps_cronjobs(doc: &Mapping) -> Option<(String, Mapping)> {
     let mapped_containers = map_containers_for_stateless(&containers)?;
     app.insert(k("containers"), Value::Mapping(mapped_containers));
 
-    let init_containers = get_seq(&pod_spec, "initContainers").cloned().unwrap_or_default();
+    let init_containers = get_seq(&pod_spec, "initContainers")
+        .cloned()
+        .unwrap_or_default();
     if !init_containers.is_empty() {
         if let Some(mapped) = map_containers_for_stateless(&init_containers) {
             app.insert(k("initContainers"), Value::Mapping(mapped));
@@ -855,7 +907,14 @@ fn map_cronjob_to_apps_cronjobs(doc: &Mapping) -> Option<(String, Mapping)> {
 
     merge_maps(&mut app, &map_pod_spec_fields_for_library(&pod_spec));
 
-    for key in ["schedule", "concurrencyPolicy", "failedJobsHistoryLimit", "startingDeadlineSeconds", "successfulJobsHistoryLimit", "suspend"] {
+    for key in [
+        "schedule",
+        "concurrencyPolicy",
+        "failedJobsHistoryLimit",
+        "startingDeadlineSeconds",
+        "successfulJobsHistoryLimit",
+        "suspend",
+    ] {
         copy_scalar_if_present(&mut app, &spec, key);
     }
 
@@ -1006,7 +1065,10 @@ fn attach_pdbs_to_stateless_apps(
             push_raw_fallback(raw_fallback, raw_fallback_seen, doc);
             continue;
         };
-        let Some(app) = apps_stateless.get_mut(&k(app_key)).and_then(Value::as_mapping_mut) else {
+        let Some(app) = apps_stateless
+            .get_mut(&k(app_key))
+            .and_then(Value::as_mapping_mut)
+        else {
             push_raw_fallback(raw_fallback, raw_fallback_seen, doc);
             continue;
         };
@@ -1015,7 +1077,9 @@ fn attach_pdbs_to_stateless_apps(
         pdb.insert(k("enabled"), Value::Bool(true));
         copy_scalar_if_present(&mut pdb, &spec, "maxUnavailable");
         copy_scalar_if_present(&mut pdb, &spec, "minAvailable");
-        if let Some(extra) = extract_by_allowed(&spec, &["selector", "maxUnavailable", "minAvailable"]) {
+        if let Some(extra) =
+            extract_by_allowed(&spec, &["selector", "maxUnavailable", "minAvailable"])
+        {
             if let Some(s) = yaml_body(&Value::Mapping(extra)) {
                 pdb.insert(k("extraSpec"), Value::String(s));
             }
@@ -1044,7 +1108,9 @@ fn map_service_accounts_to_group(
     }
 }
 
-fn map_service_account_to_apps_service_accounts(doc: &Mapping) -> Option<(String, Mapping, String, String)> {
+fn map_service_account_to_apps_service_accounts(
+    doc: &Mapping,
+) -> Option<(String, Mapping, String, String)> {
     if kind_of(doc) != "ServiceAccount" {
         return None;
     }
@@ -1083,7 +1149,13 @@ fn map_service_account_to_apps_service_accounts(doc: &Mapping) -> Option<(String
 
     if let Some(extra) = extract_by_allowed(
         doc,
-        &["apiVersion", "kind", "metadata", "automountServiceAccountToken", "imagePullSecrets"],
+        &[
+            "apiVersion",
+            "kind",
+            "metadata",
+            "automountServiceAccountToken",
+            "imagePullSecrets",
+        ],
     ) {
         if let Some(s) = yaml_body(&Value::Mapping(extra)) {
             app.insert(k("extraFields"), Value::String(s));
@@ -1108,7 +1180,10 @@ fn attach_rbac_to_service_accounts(
     let mut cluster_role_by_name: HashMap<String, Value> = HashMap::new();
     for role in roles {
         if let Some(m) = role.as_mapping() {
-            role_by_ns_name.insert(format!("{}/{}", metadata_namespace(m), metadata_name(m)), role.clone());
+            role_by_ns_name.insert(
+                format!("{}/{}", metadata_namespace(m), metadata_name(m)),
+                role.clone(),
+            );
         }
     }
     for role in cluster_roles {
@@ -1130,7 +1205,8 @@ fn attach_rbac_to_service_accounts(
             push_raw_fallback(raw_fallback, raw_fallback_seen, rb);
             continue;
         };
-        let Some(sa_group_key) = service_accounts_by_ns_name.get(&format!("{}/{}", sa_ns, sa_name)) else {
+        let Some(sa_group_key) = service_accounts_by_ns_name.get(&format!("{}/{}", sa_ns, sa_name))
+        else {
             push_raw_fallback(raw_fallback, raw_fallback_seen, rb);
             continue;
         };
@@ -1179,7 +1255,8 @@ fn attach_rbac_to_service_accounts(
             push_raw_fallback(raw_fallback, raw_fallback_seen, crb);
             continue;
         };
-        let Some(sa_group_key) = service_accounts_by_ns_name.get(&format!("{}/{}", sa_ns, sa_name)) else {
+        let Some(sa_group_key) = service_accounts_by_ns_name.get(&format!("{}/{}", sa_ns, sa_name))
+        else {
             push_raw_fallback(raw_fallback, raw_fallback_seen, crb);
             continue;
         };
@@ -1265,7 +1342,11 @@ fn attach_role_doc_to_service_account(
         return false;
     };
 
-    let roles_field = if cluster_role { "clusterRoles" } else { "roles" };
+    let roles_field = if cluster_role {
+        "clusterRoles"
+    } else {
+        "roles"
+    };
     let roles_map = get_or_create_child_mapping(sa_app, roles_field);
     let role_entry_key = dedupe_group_key(roles_map, &sanitize_key(role_key));
     roles_map.insert(k(&role_entry_key), Value::Mapping(role_app));
@@ -1308,14 +1389,29 @@ fn map_role_doc_to_service_account_role(doc: &Mapping) -> Option<Mapping> {
             continue;
         }
         let mut item = Mapping::new();
-        for field in ["apiGroups", "resources", "verbs", "resourceNames", "nonResourceURLs"] {
+        for field in [
+            "apiGroups",
+            "resources",
+            "verbs",
+            "resourceNames",
+            "nonResourceURLs",
+        ] {
             if let Some(v) = rule_map.get(&k(field)) {
                 if let Some(clean) = clean_value(v.clone()) {
                     item.insert(k(field), clean);
                 }
             }
         }
-        if let Some(extra) = extract_by_allowed(rule_map, &["apiGroups", "resources", "verbs", "resourceNames", "nonResourceURLs"]) {
+        if let Some(extra) = extract_by_allowed(
+            rule_map,
+            &[
+                "apiGroups",
+                "resources",
+                "verbs",
+                "resourceNames",
+                "nonResourceURLs",
+            ],
+        ) {
             if let Some(s) = yaml_body(&Value::Mapping(extra)) {
                 item.insert(k("extraFields"), Value::String(s));
             }
@@ -1346,7 +1442,11 @@ fn map_role_doc_to_service_account_role(doc: &Mapping) -> Option<Mapping> {
     Some(role)
 }
 
-fn map_role_binding_override(binding_doc: &Mapping, role_doc: &Mapping, role_kind: &str) -> Option<Mapping> {
+fn map_role_binding_override(
+    binding_doc: &Mapping,
+    role_doc: &Mapping,
+    role_kind: &str,
+) -> Option<Mapping> {
     let role_ref = get_map(binding_doc, "roleRef").cloned().unwrap_or_default();
     if get_str(&role_ref, "apiGroup").unwrap_or_default().trim() != "rbac.authorization.k8s.io" {
         return None;
@@ -1366,7 +1466,9 @@ fn map_role_binding_override(binding_doc: &Mapping, role_doc: &Mapping, role_kin
         override_map.insert(k("name"), Value::String(binding_name));
     }
 
-    let metadata = get_map(binding_doc, "metadata").cloned().unwrap_or_default();
+    let metadata = get_map(binding_doc, "metadata")
+        .cloned()
+        .unwrap_or_default();
     if let Some(labels) = filter_imported_metadata_labels(metadata.get(&k("labels"))) {
         if let Some(s) = yaml_body(&labels) {
             override_map.insert(k("labels"), Value::String(s));
@@ -1391,7 +1493,10 @@ fn map_role_binding_override(binding_doc: &Mapping, role_doc: &Mapping, role_kin
         }
     }
 
-    if let Some(extra) = extract_by_allowed(binding_doc, &["apiVersion", "kind", "metadata", "subjects", "roleRef"]) {
+    if let Some(extra) = extract_by_allowed(
+        binding_doc,
+        &["apiVersion", "kind", "metadata", "subjects", "roleRef"],
+    ) {
         if let Some(s) = yaml_body(&Value::Mapping(extra)) {
             override_map.insert(k("extraFields"), Value::String(s));
         }
@@ -1405,7 +1510,9 @@ fn map_role_binding_override(binding_doc: &Mapping, role_doc: &Mapping, role_kin
 }
 
 fn is_default_single_service_account_binding_subjects(binding_doc: &Mapping) -> bool {
-    let subjects = get_seq(binding_doc, "subjects").cloned().unwrap_or_default();
+    let subjects = get_seq(binding_doc, "subjects")
+        .cloned()
+        .unwrap_or_default();
     if subjects.len() != 1 {
         return false;
     }
@@ -1415,7 +1522,11 @@ fn is_default_single_service_account_binding_subjects(binding_doc: &Mapping) -> 
     if get_str(subject, "kind").unwrap_or_default().trim() != "ServiceAccount" {
         return false;
     }
-    if get_str(subject, "name").unwrap_or_default().trim().is_empty() {
+    if get_str(subject, "name")
+        .unwrap_or_default()
+        .trim()
+        .is_empty()
+    {
         return false;
     }
     let subject_ns = normalized_ns(&get_str(subject, "namespace").unwrap_or_default());
@@ -1484,7 +1595,10 @@ fn attach_service_accounts_to_stateless_apps(
             push_raw_fallback(raw_fallback, raw_fallback_seen, doc);
             continue;
         };
-        let Some(app) = apps_stateless.get_mut(&k(app_key)).and_then(Value::as_mapping_mut) else {
+        let Some(app) = apps_stateless
+            .get_mut(&k(app_key))
+            .and_then(Value::as_mapping_mut)
+        else {
             push_raw_fallback(raw_fallback, raw_fallback_seen, doc);
             continue;
         };
@@ -1553,7 +1667,8 @@ fn map_container_for_stateless(container: &Mapping) -> Option<Mapping> {
         }
     }
 
-    let (shared_cms, shared_secrets, env_from_residual) = split_container_env_from(container.get(&k("envFrom")));
+    let (shared_cms, shared_secrets, env_from_residual) =
+        split_container_env_from(container.get(&k("envFrom")));
     if !shared_cms.is_empty() {
         out.insert(
             k("sharedEnvConfigMaps"),
@@ -1572,7 +1687,13 @@ fn map_container_for_stateless(container: &Mapping) -> Option<Mapping> {
         }
     }
 
-    for key in ["livenessProbe", "readinessProbe", "startupProbe", "securityContext", "lifecycle"] {
+    for key in [
+        "livenessProbe",
+        "readinessProbe",
+        "startupProbe",
+        "securityContext",
+        "lifecycle",
+    ] {
         if let Some(v) = container.get(&k(key)) {
             if let Some(s) = yaml_body_clean(v) {
                 out.insert(k(key), Value::String(s));
@@ -1673,7 +1794,10 @@ fn split_container_env_from(v: Option<&Value>) -> (Vec<String>, Vec<String>, Vec
         if let Some(cm_ref) = get_map(m, "configMapRef") {
             let name = get_str(cm_ref, "name").unwrap_or_default();
             let has_optional = cm_ref.contains_key(&k("optional"));
-            let optional_null = cm_ref.get(&k("optional")).map(Value::is_null).unwrap_or(true);
+            let optional_null = cm_ref
+                .get(&k("optional"))
+                .map(Value::is_null)
+                .unwrap_or(true);
             if !name.trim().is_empty() && (!has_optional || optional_null) && m.len() == 1 {
                 shared_cms.push(name.trim().to_string());
                 continue;
@@ -1683,7 +1807,10 @@ fn split_container_env_from(v: Option<&Value>) -> (Vec<String>, Vec<String>, Vec
         if let Some(sec_ref) = get_map(m, "secretRef") {
             let name = get_str(sec_ref, "name").unwrap_or_default();
             let has_optional = sec_ref.contains_key(&k("optional"));
-            let optional_null = sec_ref.get(&k("optional")).map(Value::is_null).unwrap_or(true);
+            let optional_null = sec_ref
+                .get(&k("optional"))
+                .map(Value::is_null)
+                .unwrap_or(true);
             if !name.trim().is_empty() && (!has_optional || optional_null) && m.len() == 1 {
                 shared_secrets.push(name.trim().to_string());
                 continue;
@@ -1695,11 +1822,24 @@ fn split_container_env_from(v: Option<&Value>) -> (Vec<String>, Vec<String>, Vec
         }
     }
 
-    (uniq_strings(&shared_cms), uniq_strings(&shared_secrets), residual)
+    (
+        uniq_strings(&shared_cms),
+        uniq_strings(&shared_secrets),
+        residual,
+    )
 }
 
 fn extract_deployment_extra_spec(spec: &Mapping) -> Option<Mapping> {
-    extract_by_allowed(spec, &["replicas", "revisionHistoryLimit", "strategy", "selector", "template"])
+    extract_by_allowed(
+        spec,
+        &[
+            "replicas",
+            "revisionHistoryLimit",
+            "strategy",
+            "selector",
+            "template",
+        ],
+    )
 }
 
 fn extract_service_extra_spec(spec: &Mapping) -> Option<Mapping> {
@@ -1878,7 +2018,9 @@ fn resource_uid(doc: &Value) -> String {
         "unknown|unknown|||".to_string()
     };
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
-    serde_yaml::to_string(doc).unwrap_or_default().hash(&mut hasher);
+    serde_yaml::to_string(doc)
+        .unwrap_or_default()
+        .hash(&mut hasher);
     format!("{}|{:x}", base, hasher.finish())
 }
 
@@ -1981,7 +2123,9 @@ fn escape_tpl_delimiters_value(v: &Value) -> Value {
             }
             Value::Mapping(out)
         }
-        Value::Sequence(seq) => Value::Sequence(seq.iter().map(escape_tpl_delimiters_value).collect()),
+        Value::Sequence(seq) => {
+            Value::Sequence(seq.iter().map(escape_tpl_delimiters_value).collect())
+        }
         other => other.clone(),
     }
 }
@@ -2128,7 +2272,9 @@ fn sorted_string_keys(m: &Mapping) -> Vec<String> {
 }
 
 fn get_str(m: &Mapping, key: &str) -> Option<String> {
-    m.get(&k(key)).and_then(Value::as_str).map(ToString::to_string)
+    m.get(&k(key))
+        .and_then(Value::as_str)
+        .map(ToString::to_string)
 }
 
 fn get_map<'a>(m: &'a Mapping, key: &str) -> Option<&'a Mapping> {
@@ -2220,6 +2366,7 @@ mod tests {
             chart_name: None,
             library_chart_path: None,
             import_strategy: strategy.into(),
+            verify_equivalence: false,
             release_name: "imported".into(),
             namespace: None,
             values_files: vec![],
@@ -2377,7 +2524,11 @@ roleRef:
             .and_then(Value::as_mapping)
             .expect("apps-service-accounts");
         assert_eq!(sa_group.len(), 1);
-        let sa_app = sa_group.values().next().and_then(Value::as_mapping).expect("sa app");
+        let sa_app = sa_group
+            .values()
+            .next()
+            .and_then(Value::as_mapping)
+            .expect("sa app");
         assert!(sa_app.contains_key(&k("roles")));
         assert!(!root.contains_key(&k("apps-k8s-manifests")));
     }

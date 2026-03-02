@@ -92,7 +92,9 @@ fn canonical(v: &Value) -> String {
 }
 
 fn key_string(v: &Value) -> String {
-    v.as_str().map(ToString::to_string).unwrap_or_else(|| canonical(v))
+    v.as_str()
+        .map(ToString::to_string)
+        .unwrap_or_else(|| canonical(v))
 }
 
 fn canonicalize_json(v: serde_json::Value) -> serde_json::Value {
