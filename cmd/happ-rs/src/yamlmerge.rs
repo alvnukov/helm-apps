@@ -336,7 +336,7 @@ unsafe fn parser_error(parser: &yaml_parser_t) -> String {
     let problem = if parser.problem.is_null() {
         "yaml parse error".to_string()
     } else {
-        CStr::from_ptr(parser.problem)
+        CStr::from_ptr(parser.problem.cast::<std::ffi::c_char>())
             .to_string_lossy()
             .into_owned()
     };

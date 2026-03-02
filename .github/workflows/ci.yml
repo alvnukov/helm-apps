@@ -306,7 +306,7 @@ jobs:
             asset_name: happ_linux_amd64
           - runner: ubuntu-24.04-arm
             asset_name: happ_linux_arm64
-          - runner: macos-13
+          - runner: macos-15-intel
             asset_name: happ_darwin_amd64
           - runner: macos-14
             asset_name: happ_darwin_arm64
