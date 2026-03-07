@@ -799,6 +799,76 @@ Dashboard definition читается из `dashboards/<name>.json`.
 - `annotations`
 - `labels`
 
+### 14.12 `apps-network-policies`
+<a id="param-apps-network-policies"></a>
+
+Поддерживаемые реализации через `type`:
+- `kubernetes` -> `apiVersion: networking.k8s.io/v1`, `kind: NetworkPolicy`
+- `cilium` -> `apiVersion: cilium.io/v2`, `kind: CiliumNetworkPolicy`
+- `calico` -> `apiVersion: projectcalico.org/v3`, `kind: NetworkPolicy`
+
+Общие поля app:
+- `enabled`
+- `name`
+- `type`
+- `annotations`
+- `labels`
+- `extraSpec`
+
+Поля для `kubernetes`:
+- `podSelector`
+- `policyTypes`
+- `ingress`
+- `egress`
+
+Поля для `cilium`:
+- `endpointSelector`
+- `ingress`
+- `egress`
+- `ingressDeny`
+- `egressDeny`
+
+Поля для `calico`:
+- `selector`
+- `types`
+- `ingress`
+- `egress`
+
+Пример:
+
+```yaml
+apps-network-policies:
+  allow-web-k8s:
+    enabled: true
+    type: kubernetes
+    podSelector: |
+      matchLabels:
+        app: web
+    ingress: |
+      - from:
+          - namespaceSelector: {}
+  allow-web-cilium:
+    enabled: true
+    type: cilium
+    endpointSelector: |
+      matchLabels:
+        app: web
+    ingress: |
+      - fromEndpoints:
+          - matchLabels:
+              app: api
+  allow-web-calico:
+    enabled: true
+    type: calico
+    selector: "app == 'web'"
+    types: |
+      - Ingress
+    ingress: |
+      - action: Allow
+        source:
+          selector: "app == 'api'"
+```
+
 <a id="param-custom-groups"></a>
 ## 15. Custom-группы
 

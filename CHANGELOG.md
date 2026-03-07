@@ -18,6 +18,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   - CLI moved to `alvnukov/happ`;
   - IDE extensions moved to `alvnukov/helm-apps-extensions`.
 
+## [1.8.4] - 2026-03-07
+
+### Fixed
+- Clarified and locked `apps-network-policies` contract in docs for all built-in implementations:
+  - `kubernetes` (`networking.k8s.io/v1`, `NetworkPolicy`);
+  - `cilium` (`cilium.io/v2`, `CiliumNetworkPolicy`);
+  - `calico` (`projectcalico.org/v3`, `NetworkPolicy`).
+- Added direct parameter index navigation to dedicated `apps-network-policies` reference section.
+
 ## [1.8.3] - 2026-03-03
 
 ### Changed

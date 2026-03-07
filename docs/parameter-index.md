@@ -62,7 +62,7 @@
 |---|---|---|
 | `apps-configmaps` | [Описание](reference-values.md#param-apps-configmaps) | [Пример](cookbook.md#example-sharedenvconfigmaps) |
 | `apps-secrets` | [Описание](reference-values.md#param-apps-secrets) | [Пример](cookbook.md#example-sharedenvsecrets) |
-| `apps-network-policies` | [Описание](reference-values.md#param-apps-sections) | [Пример](../tests/.helm/values.yaml) |
+| `apps-network-policies` | [Описание](reference-values.md#param-apps-network-policies) | [Пример](../tests/.helm/values.yaml) |
 
 ## Extension and Reliability
 
