@@ -70,7 +70,7 @@
   {{- end -}}
   {{- $looksLikeEnvMap := or (hasKey $value "_default") (and (ne $currentEnv "") (hasKey $value $currentEnv)) (ne $regexState "not found") -}}
   {{- if $looksLikeEnvMap -}}
-    {{- $selected := nil -}}
+    {{- $selected := "" -}}
     {{- if and (ne $currentEnv "") (hasKey $value $currentEnv) -}}
       {{- $selected = index $value $currentEnv -}}
     {{- else if ne $regexState "not found" -}}
@@ -167,8 +167,9 @@
       {{- end -}}
     {{- end -}}
   {{- end -}}
-  {{- $isBuiltinListFieldName := has $last (list "accessModes" "args" "command" "ports" "tolerations" "imagePullSecrets" "hostAliases" "topologySpreadConstraints" "clusterIPs" "externalIPs" "ipFamilies" "loadBalancerSourceRanges" "extraGroups" "nodeGroups" "sshPublicKeys" "volumes" "volumeClaimTemplates") -}}
-  {{- $isAllowedBuiltinListField := and $nativeListSupportEnabled $isBuiltinListFieldName -}}
+  {{- $isBuiltinListFieldPath := regexMatch "^Values\\..*\\.(accessModes|args|command|ports|tolerations|imagePullSecrets|hostAliases|topologySpreadConstraints|clusterIPs|externalIPs|ipFamilies|loadBalancerSourceRanges|extraGroups|nodeGroups|sshPublicKeys|volumes|volumeClaimTemplates)$" $pathString -}}
+  {{- $isBuiltinListFieldEnvMapPath := regexMatch "^Values\\..*\\.(accessModes|args|command|ports|tolerations|imagePullSecrets|hostAliases|topologySpreadConstraints|clusterIPs|externalIPs|ipFamilies|loadBalancerSourceRanges|extraGroups|nodeGroups|sshPublicKeys|volumes|volumeClaimTemplates)\\.[^.]+$" $pathString -}}
+  {{- $isAllowedBuiltinListField := and $nativeListSupportEnabled (or $isBuiltinListFieldPath $isBuiltinListFieldEnvMapPath) -}}
   {{- if not (or (eq $last "_include") (eq $last "_include_files") $isAllowedGlobalInclude $isAllowedKafkaHosts $isAllowedKafkaDexGroups $isAllowedConfigFilesYAMLContent $isAllowedEnvYAML $isAllowedExtraFieldsAnyLevel $isAllowedServiceAccountRbacRuleList $isAllowedServiceAccountBindingSubjects $isAllowedContainerSharedEnvConfigMaps $isAllowedInitContainerSharedEnvConfigMaps $isAllowedContainerSharedEnvSecrets $isAllowedInitContainerSharedEnvSecrets $isAllowedBuiltinListField) -}}
     {{- include "apps-utils.error" (list $ "E_UNEXPECTED_LIST" "native YAML list is not allowed here" "for Kubernetes list fields use YAML block string ('|'); native lists are allowed only for _include/_include_files and documented exceptions" "docs/faq.md#2-почему-list-в-values-почти-везде-запрещены" $pathString) -}}
   {{- end -}}

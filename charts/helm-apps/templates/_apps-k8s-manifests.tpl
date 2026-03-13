@@ -73,7 +73,7 @@
   {{- end -}}
   {{- $looksLikeEnvMap := or (hasKey $value "_default") (and (ne $currentEnv "") (hasKey $value $currentEnv)) (ne $regexState "not found") -}}
   {{- if $looksLikeEnvMap -}}
-    {{- $selected := nil -}}
+    {{- $selected := "" -}}
     {{- if and (ne $currentEnv "") (hasKey $value $currentEnv) -}}
       {{- $selected = index $value $currentEnv -}}
     {{- else if ne $regexState "not found" -}}

@@ -7,8 +7,12 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.5] - 2026-03-13
+
 ### Added
 - Automated GitHub Release notes generation in `release.yml`.
+- Added experimental opt-in support for native YAML lists in built-in list fields via `global.validation.allowNativeListsInBuiltInListFields=true`.
+- Added contract coverage for native lists in built-in list fields, including env-map branches.
 
 ### Changed
 - Repository scope narrowed to Helm library only:
@@ -17,6 +21,10 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added cross-repo links in docs:
   - CLI moved to `alvnukov/happ`;
   - IDE extensions moved to `alvnukov/helm-apps-extensions`.
+
+### Fixed
+- Fixed internal template crashes (`nil is not a command`) in env-aware native list resolution for compatibility and generic manifests helpers.
+- Fixed native `service.ports` rendering when `global.validation.allowNativeListsInBuiltInListFields=true`.
 
 ## [1.8.4] - 2026-03-07
 

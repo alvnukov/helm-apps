@@ -540,6 +540,25 @@ spec:
   externalTrafficPolicy: Local
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.native-list-env-optin.service
+apiVersion: v1
+kind: Service
+metadata:
+  name: "native-list-env-optin"
+  annotations:
+    helm-apps/version: "1.8.1"
+  labels:
+    app: "native-list-env-optin"
+    chart: "contracts"
+spec:
+  ports:
+    - name: http
+      port: 8089
+      targetPort: 8089
+  selector:
+    app: "native-list-env-optin"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.native-list-optin.service
 apiVersion: v1
 kind: Service
@@ -732,6 +751,43 @@ spec:
     matchLabels:
       app: "compat-service"
   paused: true
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.native-list-env-optin
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "native-list-env-optin"
+  annotations:
+    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.8.1"
+  labels:
+    app: "native-list-env-optin"
+    chart: "contracts"
+spec:
+  template:
+    metadata:
+      name: "native-list-env-optin"
+      annotations:
+        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      labels:
+        app: "native-list-env-optin"
+        chart: "contracts"
+    spec:
+      containers:
+      - name: "main"
+        image: alpine:3
+        args:
+          - -c
+          - sleep 7200
+        command:
+          - sh
+        ports:
+          - containerPort: 8089
+            name: http
+  selector:
+    matchLabels:
+      app: "native-list-env-optin"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.native-list-optin

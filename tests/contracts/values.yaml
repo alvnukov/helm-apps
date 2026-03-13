@@ -68,6 +68,31 @@ apps-configmaps:
       key: value
 
 apps-stateless:
+  native-list-env-optin:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command:
+          _default:
+            - sh
+        args:
+          _default:
+            - -c
+            - sleep 7200
+        ports:
+          _default:
+            - name: http
+              containerPort: 8089
+    service:
+      enabled: true
+      ports:
+        _default:
+          - name: http
+            port: 8089
+            targetPort: 8089
   native-list-optin:
     enabled: true
     containers:
