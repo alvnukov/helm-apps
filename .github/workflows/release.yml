@@ -36,9 +36,14 @@ jobs:
         with:
           version: v3.15.4
 
-      - name: Install Dyff
+      - name: Install zq
         run: |
-          curl --silent --location https://git.io/JYfAY | bash
+          set -euo pipefail
+          ZQ_VERSION=1.5.1
+          curl -sSL -o /tmp/zq.tar.gz "https://github.com/alvnukov/zq/releases/download/v${ZQ_VERSION}/zq-v${ZQ_VERSION}-x86_64-unknown-linux-musl.tar.gz"
+          tar -xzf /tmp/zq.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/zq /usr/local/bin/zq
+          zq --version
 
       - name: Install kubeconform
         run: |
@@ -96,11 +101,19 @@ jobs:
           set -e
           source $(werf ci-env github --as-file)
           ruby scripts/validate-yaml-stream.rb tests/test_render.yaml
-          cd tests && werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod | sed '/werf.io\//d' > test_render_check.yaml
+          cd tests
+          werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod | sed '/werf.io\//d' > test_render_check.yaml
           ruby ../scripts/validate-yaml-stream.rb test_render_check.yaml
-          dyff between test_render.yaml test_render_check.yaml | tee /tmp/test_render_check
-          check_tests=$(sed 1,7d /tmp/test_render_check | wc -l)
-          if [ $check_tests -gt "7" ]; then exit 1; fi
+          zq --input-format yaml --doc-mode all --output-format yaml \
+            'del(.metadata.labels.app, .metadata.labels.chart, .metadata.labels.repo)' \
+            test_render.yaml > /tmp/test_render_expected.normalized.yaml
+          zq --input-format yaml --doc-mode all --output-format yaml \
+            'del(.metadata.labels.app, .metadata.labels.chart, .metadata.labels.repo)' \
+            test_render_check.yaml > /tmp/test_render_check.normalized.yaml
+          ../scripts/semantic-yaml-diff-zq.sh \
+            /tmp/test_render_expected.normalized.yaml \
+            /tmp/test_render_check.normalized.yaml \
+            "tests snapshot"
 
       - name: Check apps entity coverage in contracts
         run: |

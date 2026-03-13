@@ -63,8 +63,9 @@ if ! command -v kubeconform >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ "${RUN_SNAPSHOT}" -eq 1 ]] && ! command -v dyff >/dev/null 2>&1; then
-  echo "dyff not found: fallback to diff -u for snapshot check."
+if [[ "${RUN_SNAPSHOT}" -eq 1 ]] && ! command -v zq >/dev/null 2>&1; then
+  echo "Missing required command: zq" >&2
+  exit 1
 fi
 
 APPS_VERSION_FILE="charts/helm-apps/templates/_apps-version.tpl"
@@ -146,16 +147,18 @@ if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
     werf render --dev --set "global._includes.apps-defaults.enabled=true" --env=prod | sed '/werf.io\//d' > test_render_check.yaml
     ruby ../scripts/validate-yaml-stream.rb test_render_check.yaml
 
-    if command -v dyff >/dev/null 2>&1; then
-      dyff between test_render.yaml test_render_check.yaml | tee /tmp/test_render_check
-      check_tests="$(sed 1,7d /tmp/test_render_check | wc -l | tr -d ' ')"
-      if [[ "${check_tests}" -gt "7" ]]; then
-        echo "Snapshot mismatch: dyff output lines=${check_tests}" >&2
-        exit 1
-      fi
-    else
-      diff -u test_render.yaml test_render_check.yaml
-    fi
+    # These chart-level labels are volatile for this snapshot and are not part of library behavior contract.
+    zq --input-format yaml --doc-mode all --output-format yaml \
+      'del(.metadata.labels.app, .metadata.labels.chart, .metadata.labels.repo)' \
+      test_render.yaml > /tmp/tests_snapshot_expected.normalized.yaml
+    zq --input-format yaml --doc-mode all --output-format yaml \
+      'del(.metadata.labels.app, .metadata.labels.chart, .metadata.labels.repo)' \
+      test_render_check.yaml > /tmp/tests_snapshot_check.normalized.yaml
+
+    ../scripts/semantic-yaml-diff-zq.sh \
+      /tmp/tests_snapshot_expected.normalized.yaml \
+      /tmp/tests_snapshot_check.normalized.yaml \
+      "tests snapshot"
   )
 fi
 

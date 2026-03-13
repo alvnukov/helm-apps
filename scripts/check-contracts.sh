@@ -51,6 +51,11 @@ if ! command -v ruby >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v zq >/dev/null 2>&1; then
+  echo "Missing required command: zq" >&2
+  exit 1
+fi
+
 backup_file() {
   local file="$1"
   if [[ -f "${file}" ]]; then
@@ -111,7 +116,10 @@ if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
   sed '/helm-apps\/version:/d' tests/contracts/test_render.snapshot.yaml > /tmp/contracts_snapshot_expected.normalized.yaml
   sed '/helm-apps\/version:/d' /tmp/contracts_snapshot_check.yaml > /tmp/contracts_snapshot_check.normalized.yaml
 
-  diff -u /tmp/contracts_snapshot_expected.normalized.yaml /tmp/contracts_snapshot_check.normalized.yaml
+  scripts/semantic-yaml-diff-zq.sh \
+    /tmp/contracts_snapshot_expected.normalized.yaml \
+    /tmp/contracts_snapshot_check.normalized.yaml \
+    "contracts snapshot"
 fi
 
 echo "==> Structural contracts checks"
