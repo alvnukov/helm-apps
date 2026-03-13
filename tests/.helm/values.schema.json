@@ -987,11 +987,15 @@
           "properties": {
             "strict": {
               "type": "boolean",
-              "description": "Opt-in strict mode contract. Default=false for 1.x compatibility."
+              "description": "Opt-in strict mode contract. Default=false for 1.x compatibility. Unknown-key validation covers top-level apps-* names, apps-network-policies and built-in workload sections."
             },
             "allowNativeListsInBuiltInListFields": {
               "type": "boolean",
               "description": "Experimental opt-in: allow native YAML lists in selected built-in Kubernetes list fields while keeping string block format as default."
+            },
+            "forbidLegacyServiceAccountClusterRole": {
+              "type": "boolean",
+              "description": "Opt-in validation guard: forbid legacy workload-local serviceAccount.clusterRole rendering. Default=false for backward compatibility; prefer apps-service-accounts."
             },
             "validateTplDelimiters": {
               "type": "boolean",

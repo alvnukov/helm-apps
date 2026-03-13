@@ -169,6 +169,57 @@ echo "==> Strict negative checks"
   --set global.validation.strict=true \
   --set apps-typo.bad.enabled=true >/tmp/contracts_render_strict_top_fail.yaml
 
+! helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.validation.strict=true \
+  --set apps-stateless.compat-service.securityContexts=1 \
+  >/tmp/contracts_render_strict_workload_fail.out 2>/tmp/contracts_render_strict_workload_fail.err
+
+grep -q "\[helm-apps:E_STRICT_UNKNOWN_KEY\]" /tmp/contracts_render_strict_workload_fail.err
+grep -q "path=apps-stateless.compat-service.securityContexts" /tmp/contracts_render_strict_workload_fail.err
+
+echo "==> Legacy serviceAccount.clusterRole guard checks"
+cat > /tmp/contracts_legacy_serviceaccount_clusterrole.yaml <<'YAML'
+apps-stateless:
+  legacy-rbac-app:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+    serviceAccount:
+      enabled: true
+      name: legacy-rbac-app
+      clusterRole:
+        name: legacy-rbac-app:reader
+        rules: |
+          - apiGroups: [""]
+            resources: ["pods"]
+            verbs: ["get"]
+YAML
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_legacy_serviceaccount_clusterrole.yaml \
+  >/tmp/contracts_legacy_serviceaccount_clusterrole_compat.yaml
+
+grep -q 'name: "legacy-rbac-app"' /tmp/contracts_legacy_serviceaccount_clusterrole_compat.yaml
+grep -q 'name: "legacy-rbac-app:reader"' /tmp/contracts_legacy_serviceaccount_clusterrole_compat.yaml
+
+! helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.validation.forbidLegacyServiceAccountClusterRole=true \
+  --values /tmp/contracts_legacy_serviceaccount_clusterrole.yaml \
+  >/tmp/contracts_legacy_serviceaccount_clusterrole_forbidden.out 2>/tmp/contracts_legacy_serviceaccount_clusterrole_forbidden.err
+
+grep -q "\[helm-apps:E_LEGACY_SERVICE_ACCOUNT_CLUSTER_ROLE_FORBIDDEN\]" /tmp/contracts_legacy_serviceaccount_clusterrole_forbidden.err
+
 echo "==> Missing env negative check"
 ! helm template contracts tests/contracts \
   --set-string global.env= \
@@ -178,6 +229,53 @@ grep -q "\[helm-apps:E_ENV_REQUIRED\]" /tmp/contracts_env_required.err
 echo "==> Native list policy negative check"
 cat > /tmp/contracts_invalid_native_list.yaml <<'YAML'
 apps-stateless:
+  native-list-env-optin:
+    enabled: false
+    containers:
+      main:
+        command:
+          _default: |
+            - sh
+        args:
+          _default: |
+            - -c
+            - sleep 7200
+        ports:
+          _default: |
+            - name: http
+              containerPort: 8089
+    service:
+      ports:
+        _default: |
+          - name: http
+            port: 8089
+            targetPort: 8089
+  native-list-optin:
+    enabled: false
+    containers:
+      main:
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        ports: |
+          - name: http
+            containerPort: 8088
+    service:
+      ports: |
+        - name: http
+          port: 8088
+          targetPort: 8088
+  compat-native-list-envlike-dev:
+    enabled: false
+    imagePullSecrets: ""
+  compat-native-list-envlike-default:
+    enabled: false
+    imagePullSecrets: ""
+  compat-native-list-literal-tpl:
+    enabled: false
+    imagePullSecrets: ""
   compat-service:
     service:
       ports:
@@ -194,6 +292,21 @@ YAML
 
 grep -q "\[helm-apps:E_UNEXPECTED_LIST\]" /tmp/contracts_invalid_native_list.err
 grep -q "path=Values.apps-stateless.compat-service.service.ports" /tmp/contracts_invalid_native_list.err
+
+echo "==> Invalid built-in list type negative check"
+cat > /tmp/contracts_invalid_list_type.yaml <<'YAML'
+apps-stateless:
+  compat-service:
+    imagePullSecrets: regcred
+YAML
+
+! helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_invalid_list_type.yaml \
+  >/tmp/contracts_invalid_list_type.out 2>/tmp/contracts_invalid_list_type.err
+
+grep -q "\[helm-apps:E_LIST_FIELD\]" /tmp/contracts_invalid_list_type.err
+grep -q "path=apps-stateless.compat-service.imagePullSecrets" /tmp/contracts_invalid_list_type.err
 
 echo "==> Secret config source negative check"
 cat > /tmp/contracts_invalid_secret_config_file.yaml <<'YAML'

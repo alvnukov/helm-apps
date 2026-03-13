@@ -215,6 +215,48 @@ def verify_main!(paths)
   compat_env_mixed = find_one!(prod_docs, kind: 'Deployment', name: 'compat-env-mixed')
   assert_eq!(env_from_refs(compat_env_mixed), ['secretRef:common-runtime', 'secretRef:manual-env-mixed', 'secretRef:envs-containers-compat-env-mixed-main'], 'compat-env-mixed envFrom order')
 
+  compat_env_list_miss_prod = find_one!(prod_docs, kind: 'Deployment', name: 'compat-env-list-miss')
+  assert_eq!(compat_env_list_miss_prod.dig('spec', 'template', 'spec', 'imagePullSecrets'), nil, 'compat-env-list-miss(prod) imagePullSecrets must be absent')
+  assert_eq!(compat_env_list_miss_prod.dig('spec', 'template', 'spec', 'containers', 0, 'ports'), nil, 'compat-env-list-miss(prod) container ports must be absent')
+  assert!(find_docs(prod_docs, kind: 'Service', name: 'compat-env-list-miss').empty?, 'compat-env-list-miss(prod) service must be absent when ports are unresolved')
+
+  compat_env_list_miss_dev = find_one!(dev_docs, kind: 'Deployment', name: 'compat-env-list-miss')
+  assert_eq!(compat_env_list_miss_dev.dig('spec', 'template', 'spec', 'imagePullSecrets', 0, 'name'), 'compat-regcred', 'compat-env-list-miss(dev) imagePullSecrets[0].name')
+  assert_eq!(compat_env_list_miss_dev.dig('spec', 'template', 'spec', 'containers', 0, 'ports', 0, 'containerPort'), 8091, 'compat-env-list-miss(dev) container port')
+  compat_env_list_miss_service_dev = find_one!(dev_docs, kind: 'Service', name: 'compat-env-list-miss')
+  assert_eq!(compat_env_list_miss_service_dev.dig('spec', 'ports', 0, 'port'), 8091, 'compat-env-list-miss(dev) service port')
+
+  compat_generic_envlike_dev = find_one!(dev_docs, kind: 'WidgetPolicy', name: 'compat-generic-envlike-dev')
+  compat_generic_envlike_dev_literal = compat_generic_envlike_dev.dig('spec', 'literal')
+  assert_eq!(compat_generic_envlike_dev_literal, 'keepme', 'compat-generic-envlike-dev(dev) spec.literal')
+
+  compat_generic_envlike_default = find_one!(prod_docs, kind: 'WidgetPolicy', name: 'compat-generic-envlike-default')
+  compat_generic_envlike_default_literal = compat_generic_envlike_default.dig('spec', 'literal')
+  assert_eq!(compat_generic_envlike_default_literal, 'keepme', 'compat-generic-envlike-default(prod) spec.literal')
+
+  compat_native_list_envlike_dev = find_one!(dev_docs, kind: 'Deployment', name: 'compat-native-list-envlike-dev')
+  compat_native_list_envlike_dev_secret = compat_native_list_envlike_dev.dig('spec', 'template', 'spec', 'imagePullSecrets', 0)
+  assert!(compat_native_list_envlike_dev_secret.is_a?(Hash), 'compat-native-list-envlike-dev(dev) imagePullSecrets[0] must stay map')
+  assert_eq!(compat_native_list_envlike_dev_secret['name'], 'compat-regcred', 'compat-native-list-envlike-dev(dev) imagePullSecrets[0].name')
+  assert_eq!(compat_native_list_envlike_dev_secret['dev'], 'keepme', 'compat-native-list-envlike-dev(dev) imagePullSecrets[0].dev')
+  assert_eq!(compat_native_list_envlike_dev_secret['other'], 'stay', 'compat-native-list-envlike-dev(dev) imagePullSecrets[0].other')
+
+  compat_native_list_envlike_default = find_one!(prod_docs, kind: 'Deployment', name: 'compat-native-list-envlike-default')
+  compat_native_list_envlike_default_secret = compat_native_list_envlike_default.dig('spec', 'template', 'spec', 'imagePullSecrets', 0)
+  assert!(compat_native_list_envlike_default_secret.is_a?(Hash), 'compat-native-list-envlike-default(prod) imagePullSecrets[0] must stay map')
+  assert_eq!(compat_native_list_envlike_default_secret['name'], 'compat-regcred', 'compat-native-list-envlike-default(prod) imagePullSecrets[0].name')
+  assert_eq!(compat_native_list_envlike_default_secret['_default'], 'keepme', 'compat-native-list-envlike-default(prod) imagePullSecrets[0]._default')
+  assert_eq!(compat_native_list_envlike_default_secret['another'], 'stay', 'compat-native-list-envlike-default(prod) imagePullSecrets[0].another')
+
+  compat_native_list_literal_tpl = find_one!(prod_docs, kind: 'Deployment', name: 'compat-native-list-literal-tpl')
+  assert_eq!(compat_native_list_literal_tpl.dig('spec', 'template', 'spec', 'imagePullSecrets', 0, 'name'), '{{ $.Values.jwtSigningMethod }}', 'compat-native-list-literal-tpl(prod) imagePullSecrets[0].name must stay literal')
+
+  compat_string_list_tpl = find_one!(prod_docs, kind: 'Deployment', name: 'compat-string-list-tpl')
+  assert_eq!(compat_string_list_tpl.dig('spec', 'template', 'spec', 'imagePullSecrets', 0, 'name'), 'rsa', 'compat-string-list-tpl(prod) imagePullSecrets[0].name')
+
+  compat_generic_string_list_tpl = find_one!(prod_docs, kind: 'WidgetPolicy', name: 'compat-generic-string-list-tpl')
+  assert_eq!(compat_generic_string_list_tpl.dig('spec', 'rules', 0, 'action'), 'rsa', 'compat-generic-string-list-tpl(prod) spec.rules[0].action')
+
   verify_required_entities!(prod_docs)
 
   strict_custom = find_one!(strict_docs, kind: 'ConfigMap', name: 'custom-group-cm')

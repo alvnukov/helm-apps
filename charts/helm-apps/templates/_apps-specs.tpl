@@ -2,7 +2,7 @@
 {{- $ := index . 0 }}
 {{- $relativeScope := index . 1 }}
 {{- with $relativeScope }}
-{{ include "apps-compat.renderRawResolved" (list $ . .volumes) | trim | nindent 0 }}
+{{ include "apps-compat.renderListResolved" (list $ . "volumes" .volumes) | trim | nindent 0 }}
 {{ include "apps-helpers.generateVolumes" (list $ .) | trim | nindent 0 }}
 {{- $_ := set . "__specName__" "volumes"}}
 {{- end }}
@@ -35,7 +35,7 @@ matchLabels:
 {{- $ := index . 0 }}
 {{- $relativeScope := index . 1 }}
 {{- with $relativeScope }}
-{{- include "apps-compat.renderRawResolved" (list $ . .volumeClaimTemplates) | nindent 0 }}
+{{- include "apps-compat.renderListResolved" (list $ . "volumeClaimTemplates" .volumeClaimTemplates) | nindent 0 }}
 {{- /* Loop through containers to generate Pod volumes */ -}}
 {{- range $_, $containersType := list "initContainers" "containers" }}
 {{- range $_containerName, $_container := index $.CurrentApp $containersType }}

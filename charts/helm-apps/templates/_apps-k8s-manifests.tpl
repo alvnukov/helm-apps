@@ -91,12 +91,8 @@
     {{- dict "wrapper" $result | toJson -}}
   {{- end -}}
 {{- else if kindIs "slice" $value -}}
-  {{- $result := list -}}
-  {{- range $_, $v := $value -}}
-    {{- $child := include "apps-k8s-manifests.resolveRawJson" (list $ $scope $v) | fromJson -}}
-    {{- $result = append $result $child.wrapper -}}
-  {{- end -}}
-  {{- dict "wrapper" $result | toJson -}}
+  {{- /* Native lists are user data, not library DSL: no tpl/env processing inside elements. */ -}}
+  {{- dict "wrapper" $value | toJson -}}
 {{- else if kindIs "string" $value -}}
   {{- dict "wrapper" (include "fl.value" (list $ $scope $value)) | toJson -}}
 {{- else if kindIs "invalid" $value -}}

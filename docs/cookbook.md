@@ -389,7 +389,7 @@ apps-stateless:
 Параметры: [horizontalPodAutoscaler](reference-values.md#param-hpa), [hpa.metrics](reference-values.md#param-hpa-metrics)
 Навигация: [Parameter Index](parameter-index.md#networking-and-scaling) | [Наверх](#top)
 
-## 11. ServiceAccount + ClusterRole
+## 11. Legacy ServiceAccount + ClusterRole
 <a id="example-serviceaccount"></a>
 
 ```yaml
@@ -414,6 +414,8 @@ apps-stateless:
 ```
 
 Параметры: [serviceAccount](reference-values.md#param-serviceaccount)
+
+Для нового кода предпочтительнее `apps-service-accounts`: legacy `serviceAccount.clusterRole` оставлен как совместимый deprecated-путь.
 Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
 
 ## 12. Stateful сервис с PVC

@@ -12,6 +12,10 @@
 {{- $ := . }}
 {{- $_ := set $ "CurrentJob" $.CurrentApp }}
 {{- with $.CurrentApp }}
+{{- if include "apps-compat.strictEnabled" (list $) }}
+{{- $allowedKeys := include "apps-compat.workloadAllowedKeys" (list "apps-jobs") | fromJsonArray }}
+{{- include "apps-compat.enforceAllowedKeys" (list $ . $allowedKeys (printf "apps-jobs.%s" $.CurrentApp.name)) }}
+{{- end }}
 
 {{- if not .containers }}
 {{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "job '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the job (enabled=false)" "docs/reference-values.md#param-containers") }}

@@ -12,6 +12,10 @@
 {{- $ := . }}
 {{- $_ := set $ "CurrentCronJob" $.CurrentApp }}
 {{- with $.CurrentApp }}
+{{- if include "apps-compat.strictEnabled" (list $) }}
+{{- $allowedKeys := include "apps-compat.workloadAllowedKeys" (list "apps-cronjobs") | fromJsonArray }}
+{{- include "apps-compat.enforceAllowedKeys" (list $ . $allowedKeys (printf "apps-cronjobs.%s" $.CurrentApp.name)) }}
+{{- end }}
 {{- if not .containers }}
 {{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "cronjob '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the cronjob (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}

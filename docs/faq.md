@@ -38,6 +38,27 @@
 Важно:
 - строковый формат (`|`) остается базовым и полностью поддерживается;
 - merge/includes для native lists сохраняют текущую семантику библиотеки (конкатенация списков), поэтому при `_include` возможны дубли элементов.
+- native list это только альтернативный синтаксис для части list-полей, а не полный заменитель YAML block string.
+
+Ограничение native list:
+- если внутри list-элемента нужен `tpl`, который должен дать не строку, а типизированное YAML-значение (`int`, `bool`, `null`), используйте YAML block string (`|`);
+- причина в том, что `containerPort: {{ $.Values.port }}` невалиден как native YAML, а `containerPort: '{{ $.Values.port }}'` после `tpl` остается строкой и может сломать Kubernetes-тип.
+
+Практика:
+
+```yaml
+ports: |
+  - name: http
+    containerPort: {{ $.Values.port }}
+```
+
+А не так:
+
+```yaml
+ports:
+  - name: http
+    containerPort: '{{ $.Values.port }}'
+```
 
 ## 3. Как задавать окружения правильно?
 

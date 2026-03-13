@@ -13,6 +13,9 @@ apiVersion: v1
 kind: ServiceAccount
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 {{- if hasKey . "clusterRole" }}
+{{- if include "apps-compat.forbidLegacyServiceAccountClusterRole" (list $) }}
+{{- include "apps-utils.error" (list $ "E_LEGACY_SERVICE_ACCOUNT_CLUSTER_ROLE_FORBIDDEN" "serviceAccount.clusterRole is forbidden by validation policy" "migrate to apps-service-accounts or disable global.validation.forbidLegacyServiceAccountClusterRole" "docs/reference-values.md#param-serviceaccount") }}
+{{- end }}
 {{- include "apps-utils.enterScope" (list $ "clusterRole") }}
 {{- $roleName := include "apps-utils.requiredValue" (list $ .clusterRole "name") }}
 ---

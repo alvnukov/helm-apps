@@ -82,7 +82,7 @@ Values
 {{- end }}
 {{- else }}
 {{- if hasKey $relativeScope $specName }}
-{{- with  include "apps-compat.renderRawResolved" (list $ $relativeScope (index $relativeScope .)) | trim }}
+{{- with  include "apps-compat.renderListResolved" (list $ $relativeScope $specName (index $relativeScope .)) | trim }}
 {{ $specName }}:{{ print . | trim | nindent 2 }}
 {{- end }}
 {{- end }}

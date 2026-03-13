@@ -398,6 +398,12 @@ serviceAccount:
 - `ClusterRole`;
 - `ClusterRoleBinding`.
 
+Замечание:
+- `serviceAccount.clusterRole` считается legacy-путём;
+- по умолчанию он остаётся рабочим для обратной совместимости;
+- при `global.validation.forbidLegacyServiceAccountClusterRole=true` библиотека запрещает этот путь;
+- для нового кода предпочитайте `apps-service-accounts`.
+
 ## 12. Масштабирование и SLO
 
 ### 12.1 VerticalPodAutoscaler
@@ -450,6 +456,10 @@ Deckhouse-инфраструктурные сущности:
 - group-level: `__GroupVars__._preRenderGroupHook`;
 - app-level default: `__GroupVars__._preRenderAppHook`;
 - app-level explicit: `_preRenderHook`.
+
+Порядок:
+- hooks исполняются до финальной проверки `enabled`;
+- поэтому `enabled: false` не является абсолютным «kill switch», если в values используются hooks.
 
 Практические применения:
 - массовая модификация группы перед рендером;

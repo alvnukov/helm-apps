@@ -10,6 +10,10 @@
 {{- define "apps-stateless.render" }}
 {{- $ := . }}
 {{- with $.CurrentApp }}
+{{- if include "apps-compat.strictEnabled" (list $) }}
+{{- $allowedKeys := include "apps-compat.workloadAllowedKeys" (list "apps-stateless") | fromJsonArray }}
+{{- include "apps-compat.enforceAllowedKeys" (list $ . $allowedKeys (printf "apps-stateless.%s" $.CurrentApp.name)) }}
+{{- end }}
 {{- if kindIs "invalid" .containers }}
 {{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "app '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the app (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}

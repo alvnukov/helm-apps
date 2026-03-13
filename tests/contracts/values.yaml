@@ -114,6 +114,92 @@ apps-stateless:
         - name: http
           port: 8088
           targetPort: 8088
+  compat-env-list-miss:
+    enabled: true
+    imagePullSecrets:
+      dev: |
+        - name: compat-regcred
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        ports:
+          dev: |
+            - name: http
+              containerPort: 8091
+    service:
+      enabled: true
+      ports:
+        dev: |
+          - name: http
+            port: 8091
+            targetPort: 8091
+  compat-native-list-envlike-dev:
+    enabled: true
+    imagePullSecrets:
+      - name: compat-regcred
+        dev: keepme
+        other: stay
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  compat-native-list-envlike-default:
+    enabled: true
+    imagePullSecrets:
+      - name: compat-regcred
+        _default: keepme
+        another: stay
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  compat-native-list-literal-tpl:
+    enabled: true
+    imagePullSecrets:
+      - name: '{{ $.Values.jwtSigningMethod }}'
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  compat-string-list-tpl:
+    enabled: true
+    imagePullSecrets: |
+      - name: {{ $.Values.jwtSigningMethod }}
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
   release-auto-app:
     enabled: false
     versionKey: release-web
@@ -573,6 +659,36 @@ apps-k8s-manifests:
           port: 9090
     status: |
       observedGeneration: 1
+  compat-generic-envlike-dev:
+    enabled: true
+    apiVersion: example.io/v1alpha1
+    kind: WidgetPolicy
+    metadata: |
+      namespace: compat
+    spec:
+      literal:
+        dev: keepme
+        other: stay
+  compat-generic-envlike-default:
+    enabled: true
+    apiVersion: example.io/v1alpha1
+    kind: WidgetPolicy
+    metadata: |
+      namespace: compat
+    spec:
+      literal:
+        _default: keepme
+        another: stay
+  compat-generic-string-list-tpl:
+    enabled: true
+    apiVersion: example.io/v1alpha1
+    kind: WidgetPolicy
+    metadata: |
+      namespace: compat
+    spec: |
+      rules:
+        - action: {{ $.Values.jwtSigningMethod }}
+          port: 9090
 
 apps-limit-range:
   compat-limit-range:

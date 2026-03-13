@@ -99,7 +99,7 @@ spec:
 {{- $service := index . 2 }}
 {{- if $service }}
 {{- if include "fl.isTrue" (list $ . $service.enabled) }}
-{{- $servicePortsRaw := include "apps-compat.renderRawResolved" (list $ . $service.ports) | trim -}}
+{{- $servicePortsRaw := include "apps-compat.renderListResolved" (list $ . "ports" $service.ports) | trim -}}
 {{- if or $servicePortsRaw (and (kindIs "slice" $service.ports) (gt (len $service.ports) 0)) }}
 {{- include "apps-utils.enterScope" (list $ "service") }}
 {{- include "apps-utils.printPath" $ -}}

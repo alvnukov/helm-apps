@@ -69,6 +69,7 @@ global:
   ci_url: example.org
   validation:
     strict: false
+    forbidLegacyServiceAccountClusterRole: false
   _includes:
     apps-stateless-defaultApp:
       replicas:
@@ -79,20 +80,43 @@ global:
 Примечание по `validation.strict`:
 - В ветке `1.x` значение по умолчанию — `false` (совместимость).
 - Флаг добавлен как контракт для постепенного перехода к более строгой валидации без breaking changes.
-- Текущая реализация strict-check сначала покрывает `apps-network-policies` (неизвестные ключи дают fail).
+- Текущая реализация strict-check покрывает:
+  - top-level `apps-*` имена;
+  - `apps-network-policies`;
+  - built-in workload-секции: `apps-stateless`, `apps-stateful`, `apps-jobs`, `apps-cronjobs`.
 - На top-level strict-check валидирует только `apps-*` имена:
   - встроенные `apps-*` группы разрешены;
   - custom-группы разрешены через `__GroupVars__.type`;
 
 Дополнительно в `global.validation` доступен experimental opt-in флаг:
 - `allowNativeListsInBuiltInListFields: true`
+- `forbidLegacyServiceAccountClusterRole: true`
 - `validateTplDelimiters: true`
 
 Что делает флаг:
 - разрешает native YAML lists в ограниченном наборе встроенных Kubernetes list-полей (`args`, `command`, `ports`, `tolerations` и др.);
 - не меняет поведение по умолчанию (по умолчанию контракт с YAML block string остается прежним);
 - не меняет merge-семантику include: native lists по-прежнему могут конкатенироваться при `_include`.
+- не делает native list полным заменителем YAML block string для templated typed scalars.
   - неизвестная `apps-*` секция без `__GroupVars__` даёт fail.
+
+Практическое ограничение:
+- если внутри list-элемента шаблон `{{ ... }}` должен после рендера стать `int` / `bool` / `null`, используйте YAML block string (`|`);
+- в native YAML запись вида `containerPort: {{ $.Values.port }}` невалидна;
+- запись вида `containerPort: '{{ $.Values.port }}'` валидна как YAML, но после `tpl` остаётся строкой, а не числом.
+
+Пример:
+
+```yaml
+ports: |
+  - name: http
+    containerPort: {{ $.Values.port }}
+```
+
+Что делает `forbidLegacyServiceAccountClusterRole`:
+- запрещает legacy-путь `serviceAccount.clusterRole` внутри workload app;
+- по умолчанию выключен (`false`) для обратной совместимости;
+- рекомендуется миграция на `apps-service-accounts`, где RBAC описывается явно и отдельно от workload-конфига.
 
 Что делает `validateTplDelimiters`:
 - включает проверку баланса `{{`/`}}` и запрет `{{{`/`}}}` в строках, проходящих через `fl.value`;
@@ -315,6 +339,11 @@ apps-stateless:
 - `versionKey`
 - `annotations`
 - `labels`
+
+Замечание по `enabled`:
+- финальная проверка `enabled` выполняется после `_preRenderGroupHook`, `_preRenderAppHook` и `_preRenderHook`;
+- hook может вычислить или изменить `enabled` и другие поля перед рендером;
+- если нужен полностью декларативный «данные без кода» режим, hooks и `tpl`-значения для этого не подходят.
 
 Для fallback-импорта arbitrary объектов используйте `apps-k8s-manifests`:
 - задайте `apiVersion`, `kind`;
@@ -688,11 +717,16 @@ secretConfigFiles:
 Поля:
 - `enabled`
 - `name`
-- `clusterRole`
+- `clusterRole` (legacy, по умолчанию запрещен)
 
 `clusterRole`:
 - `name`
 - `rules`
+
+Примечание:
+- `serviceAccount.clusterRole` считается legacy-путём, но по умолчанию остаётся рабочим для обратной совместимости;
+- при `global.validation.forbidLegacyServiceAccountClusterRole=true` библиотека выдаёт ошибку;
+- рекомендуемый путь для нового кода: `apps-service-accounts`.
 
 Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
 
@@ -893,6 +927,10 @@ group-name:
 - `_include`
 - `_preRenderGroupHook`
 - `_preRenderAppHook`
+
+Порядок выполнения:
+- `_preRenderGroupHook` / `_preRenderAppHook` / `_preRenderHook` исполняются до финальной проверки `enabled`;
+- hook может включить/выключить app, клонировать app или изменить его поля перед рендером.
 
 ### 15.1 Custom renderer через `__GroupVars__.type`
 

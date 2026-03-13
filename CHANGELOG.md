@@ -7,6 +7,25 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.6] - 2026-03-13
+
+### Fixed
+- Restored pre-`1.8.0` list semantics for native built-in list fields:
+  - native list items are rendered as raw user data;
+  - no recursive `tpl`/env-resolution is applied inside list elements;
+  - env selection is preserved only on the root list field value.
+- Preserved old string DSL behavior for list blocks:
+  - YAML block string list fields still render `tpl` before YAML parsing;
+  - documented that native lists are not a full replacement for templated typed scalar fields.
+- Expanded contracts around native list compatibility:
+  - native list items with keys like `dev` / `_default` stay data;
+  - string list path and native list path now have explicit regression coverage.
+- Extended `global.validation.strict` to built-in workload sections (`apps-stateless`, `apps-stateful`, `apps-jobs`, `apps-cronjobs`) so typos in workload keys fail explicitly instead of being ignored.
+- Added an opt-in guard for legacy `serviceAccount.clusterRole` inside workloads:
+  - legacy path remains available for compatibility;
+  - `global.validation.forbidLegacyServiceAccountClusterRole=true` now blocks it explicitly.
+- Added fail-fast validation for built-in list fields such as `imagePullSecrets`, so wrong scalar values now fail during render with `E_LIST_FIELD` instead of surfacing later during deploy.
+
 ## [1.8.5] - 2026-03-13
 
 ### Added

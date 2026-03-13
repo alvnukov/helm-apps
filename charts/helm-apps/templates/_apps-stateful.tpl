@@ -11,6 +11,10 @@
 {{- define "apps-stateful.render" }}
 {{- $ := . }}
 {{- with $.CurrentApp }}
+{{- if include "apps-compat.strictEnabled" (list $) }}
+{{- $allowedKeys := include "apps-compat.workloadAllowedKeys" (list "apps-stateful") | fromJsonArray }}
+{{- include "apps-compat.enforceAllowedKeys" (list $ . $allowedKeys (printf "apps-stateful.%s" $.CurrentApp.name)) }}
+{{- end }}
 {{- if not .containers }}
 {{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "app '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the app (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}

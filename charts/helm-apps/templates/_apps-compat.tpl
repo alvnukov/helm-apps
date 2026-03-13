@@ -58,6 +58,211 @@
 {{- end -}}
 {{- end -}}
 
+{{- define "apps-compat.renderListResolved" -}}
+{{- $ := index . 0 -}}
+{{- $scope := index . 1 -}}
+{{- $fieldName := index . 2 -}}
+{{- $value := index . 3 -}}
+{{- $explicitPath := printf "%s.%s" (include "apps-utils.currentPath" (list $) | trim) $fieldName -}}
+{{- $resolved := include "apps-compat.renderListText" (list $ $scope $value) | trim -}}
+{{- if eq $resolved "" -}}
+{{- else -}}
+  {{- $parsedList := fromYamlArray $resolved -}}
+  {{- $parsedListHasError := and (kindIs "slice" $parsedList) (eq (len $parsedList) 1) (kindIs "string" (index $parsedList 0)) (hasPrefix "error unmarshaling JSON:" (index $parsedList 0)) -}}
+  {{- if or (not (kindIs "slice" $parsedList)) $parsedListHasError -}}
+    {{- include "apps-utils.error" (list $ "E_LIST_FIELD" (printf "'%s' must resolve to YAML list" $fieldName) "use YAML block string ('|') with list items or a native list on allowed paths" "docs/faq.md#2-почему-list-в-values-почти-везде-запрещены" $explicitPath) -}}
+  {{- end -}}
+{{- $resolved -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-compat.renderListText" -}}
+{{- $ := index . 0 -}}
+{{- $scope := index . 1 -}}
+{{- $value := index . 2 -}}
+{{- if kindIs "map" $value -}}
+  {{- if include "apps-compat.hasEnvValueSelection" (list $ $value) | trim -}}
+    {{- $selectedWrapper := include "apps-compat.selectEnvValueJson" (list $ $value) | fromJson -}}
+    {{- include "apps-compat.renderListText" (list $ $scope $selectedWrapper.wrapper) -}}
+  {{- else -}}
+    {{- /* Keep pre-1.8 compatibility: env-aware list fields without current env/_default collapse to empty. */ -}}
+  {{- end -}}
+{{- else if kindIs "slice" $value -}}
+  {{- /* Native lists are data passthrough. Keep structure as-is after optional root env selection. */ -}}
+{{ toYaml $value }}
+{{- else -}}
+{{ include "fl.value" (list $ $scope $value) }}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-compat.hasEnvValueSelection" -}}
+{{- $ := index . 0 -}}
+{{- $value := index . 1 -}}
+{{- if kindIs "map" $value -}}
+  {{- $currentEnv := include "fl.currentEnv" (list $) | trim -}}
+  {{- $regexState := "" -}}
+  {{- if ne $currentEnv "" -}}
+    {{- $regexState = include "_fl.getValueRegex" (list $ $value $currentEnv) -}}
+  {{- end -}}
+  {{- if or (hasKey $value "_default") (and (ne $currentEnv "") (hasKey $value $currentEnv)) (ne $regexState "not found") -}}true{{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-compat.selectEnvValueJson" -}}
+{{- $ := index . 0 -}}
+{{- $value := index . 1 -}}
+{{- $currentEnv := include "fl.currentEnv" (list $) | trim -}}
+{{- $regexState := "" -}}
+{{- if ne $currentEnv "" -}}
+  {{- $regexState = include "_fl.getValueRegex" (list $ $value $currentEnv) -}}
+{{- end -}}
+{{- if and (ne $currentEnv "") (hasKey $value $currentEnv) -}}
+{{- dict "wrapper" (index $value $currentEnv) | toJson -}}
+{{- else if ne $regexState "not found" -}}
+{{- dict "wrapper" $._CurrentFuncResult | toJson -}}
+{{- else if hasKey $value "_default" -}}
+{{- dict "wrapper" (index $value "_default") | toJson -}}
+{{- else -}}
+{{- dict "wrapper" "" | toJson -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-compat.strictEnabled" -}}
+{{- $ := index . 0 -}}
+{{- $strict := false -}}
+{{- with $.Values.global -}}
+  {{- with .validation -}}
+    {{- if include "fl.isTrue" (list $ . .strict) -}}
+      {{- $strict = true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if $strict }}true{{ end -}}
+{{- end -}}
+
+{{- define "apps-compat.forbidLegacyServiceAccountClusterRole" -}}
+{{- $ := index . 0 -}}
+{{- $forbidden := false -}}
+{{- with $.Values.global -}}
+  {{- with .validation -}}
+    {{- if include "fl.isTrue" (list $ . .forbidLegacyServiceAccountClusterRole) -}}
+      {{- $forbidden = true -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- if $forbidden }}true{{ end -}}
+{{- end -}}
+
+{{- define "apps-compat.workloadAllowedKeys" -}}
+{{- $type := index . 0 -}}
+{{- $allowed := list
+"_include"
+"__AppType__"
+"enabled"
+"name"
+"randomName"
+"alwaysRestart"
+"CurrentAppVersion"
+"werfWeight"
+"versionKey"
+"annotations"
+"labels"
+"selector"
+"containers"
+"initContainers"
+"verticalPodAutoscaler"
+"serviceAccount"
+"priorityClassName"
+"affinity"
+"tolerations"
+"nodeSelector"
+"volumes"
+"imagePullSecrets"
+"topologySpreadConstraints"
+"hostAliases"
+"dnsConfig"
+"overhead"
+"readinessGates"
+"securityContext"
+"dnsPolicy"
+"hostname"
+"nodeName"
+"preemptionPolicy"
+"restartPolicy"
+"runtimeClassName"
+"schedulerName"
+"serviceAccountName"
+"subdomain"
+"activeDeadlineSeconds"
+"priority"
+"terminationGracePeriodSeconds"
+"automountServiceAccountToken"
+"enableServiceLinks"
+"hostIPC"
+"hostNetwork"
+"hostPID"
+"setHostnameAsFQDN"
+"shareProcessNamespace"
+"podSpecExtra"
+"extraSpec"
+"_preRenderHook" -}}
+{{- if eq $type "apps-stateless" -}}
+  {{- $allowed = concat $allowed (list
+  "reloader"
+  "replicas"
+  "minReadySeconds"
+  "progressDeadlineSeconds"
+  "revisionHistoryLimit"
+  "strategy"
+  "podDisruptionBudget"
+  "service"
+  "horizontalPodAutoscaler"
+  ) -}}
+{{- else if eq $type "apps-stateful" -}}
+  {{- $allowed = concat $allowed (list
+  "reloader"
+  "replicas"
+  "minReadySeconds"
+  "progressDeadlineSeconds"
+  "revisionHistoryLimit"
+  "podDisruptionBudget"
+  "service"
+  "updateStrategy"
+  "persistentVolumeClaimRetentionPolicy"
+  "podManagementPolicy"
+  "volumeClaimTemplates"
+  ) -}}
+{{- else if eq $type "apps-jobs" -}}
+  {{- $allowed = concat $allowed (list
+  "completionMode"
+  "backoffLimit"
+  "completions"
+  "parallelism"
+  "ttlSecondsAfterFinished"
+  "manualSelector"
+  "suspend"
+  "jobTemplateExtraSpec"
+  ) -}}
+{{- else if eq $type "apps-cronjobs" -}}
+  {{- $allowed = concat $allowed (list
+  "schedule"
+  "concurrencyPolicy"
+  "successfulJobsHistoryLimit"
+  "failedJobsHistoryLimit"
+  "startingDeadlineSeconds"
+  "completionMode"
+  "backoffLimit"
+  "completions"
+  "parallelism"
+  "ttlSecondsAfterFinished"
+  "manualSelector"
+  "suspend"
+  "jobTemplateExtraSpec"
+  ) -}}
+{{- end -}}
+{{- $allowed | toJson -}}
+{{- end -}}
+
 {{- define "apps-compat.resolveRawJson" -}}
 {{- $ := index . 0 -}}
 {{- $scope := index . 1 -}}
@@ -88,12 +293,8 @@
     {{- dict "wrapper" $result | toJson -}}
   {{- end -}}
 {{- else if kindIs "slice" $value -}}
-  {{- $result := list -}}
-  {{- range $_, $v := $value -}}
-    {{- $child := include "apps-compat.resolveRawJson" (list $ $scope $v) | fromJson -}}
-    {{- $result = append $result $child.wrapper -}}
-  {{- end -}}
-  {{- dict "wrapper" $result | toJson -}}
+  {{- /* Native lists are user data, not library DSL: no tpl/env processing inside elements. */ -}}
+  {{- dict "wrapper" $value | toJson -}}
 {{- else if kindIs "string" $value -}}
   {{- dict "wrapper" (include "fl.value" (list $ $scope $value)) | toJson -}}
 {{- else if kindIs "invalid" $value -}}
