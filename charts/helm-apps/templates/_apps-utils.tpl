@@ -193,39 +193,41 @@ Values
 {{- $appScope := index . 1 }}
 {{- include "apps-utils.enterScope" (list $ $appScope.__GroupVars__.name) }}
 {{- include "_apps-utils.initCurrentGroupVars" (list $ $appScope $appScope.__GroupVars__.name) }}
-{{- range $_appName, $_app := omit $appScope "global" "enabled" "_include" "__GroupVars__" "__AppType__" }}
-{{- if hasKey . "__GroupVars__" }}
-{{- include "_apps-utils.initCurrentGroupVars" (list $ . $_appName) }}
-{{- if include "fl.isTrue" (list $ . $.CurrentGroupVars.enabled) }}
-{{- include "apps-utils.renderApps" (list $ . $.CurrentGroupVars.type) }}
+{{- $appNames := keys (omit $appScope "global" "enabled" "_include" "__GroupVars__" "__AppType__") | sortAlpha -}}
+{{- range $_, $_appName := $appNames }}
+{{- $app := index $appScope $_appName }}
+{{- if hasKey $app "__GroupVars__" }}
+{{- include "_apps-utils.initCurrentGroupVars" (list $ $app $_appName) }}
+{{- if include "fl.isTrue" (list $ $app $.CurrentGroupVars.enabled) }}
+{{- include "apps-utils.renderApps" (list $ $app $.CurrentGroupVars.type) }}
 {{- end }}
 {{- include "_apps-utils.initCurrentGroupVars" (list $ $appScope $appScope.__GroupVars__.name) }}
 {{- else }}
 {{- include "apps-utils.enterScope" (list $ $_appName) }}
 {{- $type := $.CurrentGroupVars.type }}
-{{- if  hasKey . "__AppType__" }}
-{{- $type = .__AppType__ }}
+{{- if  hasKey $app "__AppType__" }}
+{{- $type = $app.__AppType__ }}
 {{- end }}
 {{- if not (eq $type "__DO_NOT_RENDER__") }}
-{{- $_ := set . "__AppName__" $_appName }}
-{{- if hasKey . "name" }}
-{{- $_ := set . "name" (include "fl.value" (list $ . .name)) }}
+{{- $_ := set $app "__AppName__" $_appName }}
+{{- if hasKey $app "name" }}
+{{- $_ := set $app "name" (include "fl.value" (list $ $app $app.name)) }}
 {{- else }}
-{{- $_ := set . "name" $_appName }}
+{{- $_ := set $app "name" $_appName }}
 {{- end }}
-{{- $_ := set $ "CurrentApp" . }}
+{{- $_ := set $ "CurrentApp" $app }}
 {{- include "apps-utils.preRenderHooks" $ }}
-{{- if (include "fl.isTrue" (list $ . .randomName)) }}
-{{- $_ := set . "name" (printf "%s-%s" .name (randAlphaNum 7 | lower)) }}
+{{- if (include "fl.isTrue" (list $ $app $app.randomName)) }}
+{{- $_ := set $app "name" (printf "%s-%s" $app.name (randAlphaNum 7 | lower)) }}
 {{- end }}
-{{- if include "fl.isTrue" (list $ . .enabled) }}
-{{- if not .__Rendered__ }}
+{{- if include "fl.isTrue" (list $ $app $app.enabled) }}
+{{- if not $app.__Rendered__ }}
 {{- include "apps-utils.printPath" $ -}}
 {{- include "apps-helpers.activateContainerForDefault" $ }}
 {{- include (printf "%s.render" $type) $ }}
 {{- end }}
 {{- end }}
-{{- $_ = set . "__Rendered__" true }}
+{{- $_ = set $app "__Rendered__" true }}
 {{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 {{- end }}
