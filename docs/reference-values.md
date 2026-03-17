@@ -57,6 +57,7 @@
 Типичные поля:
 - `env`: текущее окружение (`dev`, `prod`, `production`, etc.);
 - `_includes`: библиотека include-блоков;
+- `werfReport`: импортированный build report `werf` для fallback-резолва image в nested/shared charts;
 - `release`: декларативное управление версиями приложений;
 - `validation.strict`: opt-in strict contract для проверки values;
 - произвольные project-level переменные (`ci_url`, `baseUrl` и т.д.).
@@ -174,10 +175,31 @@ apps-stateless:
 - при `global.deploy.annotateAllWithRelease=true` `helm-apps/release` ставится всем ресурсам текущего деплоя;
 - если `image.staticTag` не задан, используется `CurrentAppVersion`;
 - если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
+- если `Values.werf.image` тоже не задан, используется последний fallback `Values.global.werfReport.image`;
 - в metadata добавляются аннотации:
   - `helm-apps/release`
   - `helm-apps/app-version`
 - при `global.deploy.enabled=true` app автоматически включается, когда версия найдена.
+
+### 2.1.1 `global.werfReport`
+<a id="param-global-werf-report"></a>
+
+`global.werfReport` позволяет импортировать результат `werf build report` в values consumer chart.
+
+Минимальный формат:
+
+```yaml
+global:
+  werfReport:
+    image:
+      backend: registry.example/project/backend:tag
+```
+
+Поведение:
+- `global.werfReport.image.<name>` используется только как последний fallback для container image;
+- текущий порядок резолва не меняется: `image.staticTag` -> `CurrentAppVersion` -> `Values.werf.image` -> `Values.global.werfReport.image`;
+- отсутствие `global`, `werfReport` или `image` не роняет рендер;
+- подробный pipeline `werf build report -> jq/zq -> helm -f` вынесен в отдельную страницу: [werf-build-report.md](werf-build-report.md).
 
 ### 2.2 `global._includes` + `_include`: примеры merge
 <a id="param-global-includes"></a>

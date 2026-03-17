@@ -978,6 +978,18 @@
           },
           "additionalProperties": true
         },
+        "werfReport": {
+          "type": "object",
+          "properties": {
+            "image": {
+              "type": "object",
+              "additionalProperties": {
+                "type": ["string", "null"]
+              }
+            }
+          },
+          "additionalProperties": true
+        },
         "_includes": {
           "type": "object",
           "additionalProperties": true

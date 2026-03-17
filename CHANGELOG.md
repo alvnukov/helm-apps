@@ -7,6 +7,12 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.7] - 2026-03-17
+
+### Added
+- Added a new last-resort image fallback `global.werfReport.image` for shared/nested charts importing image refs from `werf build report`.
+- Added dedicated documentation for passing `werf build report` into charts with both `zq` and `jq` examples.
+
 ## [1.8.6] - 2026-03-13
 
 ### Fixed

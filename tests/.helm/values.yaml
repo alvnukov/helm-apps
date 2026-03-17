@@ -3,6 +3,9 @@ global:
   labels:
     addEnv: false
   ci_url: example.com
+  werfReport:
+    image:
+      report-only: registry.example/test/report-only:1.2.3
   deploy:
     enabled: true
     annotateAllWithRelease: false
@@ -1525,6 +1528,18 @@ apps-stateless:
       main:
         image:
           name: alpine
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  werf-report-fallback-app:
+    _include: ["apps-stateless-defaultApp"]
+    enabled: true
+    containers:
+      main:
+        image:
+          name: report-only
         command: |
           - sh
         args: |

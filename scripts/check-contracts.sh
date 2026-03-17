@@ -113,8 +113,17 @@ if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
 
   # Keep contracts snapshot stable across library releases:
   # runtime annotation helm-apps/version is expected to change with Chart version.
-  sed '/helm-apps\/version:/d' tests/contracts/test_render.snapshot.yaml > /tmp/contracts_snapshot_expected.normalized.yaml
-  sed '/helm-apps\/version:/d' /tmp/contracts_snapshot_check.yaml > /tmp/contracts_snapshot_check.normalized.yaml
+  sed '/helm-apps\/version:/d' tests/contracts/test_render.snapshot.yaml > /tmp/contracts_snapshot_expected.raw.yaml
+  sed '/helm-apps\/version:/d' /tmp/contracts_snapshot_check.yaml > /tmp/contracts_snapshot_check.raw.yaml
+
+  # After removing helm-apps/version, some resources keep an empty metadata.annotations.
+  # Normalize it away on both sides so release bumps do not produce false snapshot diffs.
+  zq --input-format yaml --doc-mode all --output-format yaml \
+    'if (.metadata.annotations == null or .metadata.annotations == {}) then del(.metadata.annotations) else . end' \
+    /tmp/contracts_snapshot_expected.raw.yaml > /tmp/contracts_snapshot_expected.normalized.yaml
+  zq --input-format yaml --doc-mode all --output-format yaml \
+    'if (.metadata.annotations == null or .metadata.annotations == {}) then del(.metadata.annotations) else . end' \
+    /tmp/contracts_snapshot_check.raw.yaml > /tmp/contracts_snapshot_check.normalized.yaml
 
   scripts/semantic-yaml-diff-zq.sh \
     /tmp/contracts_snapshot_expected.normalized.yaml \

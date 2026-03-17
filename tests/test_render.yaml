@@ -559,8 +559,11 @@ kind: CustomPrometheusRules
 metadata:
   annotations: {}
   labels:
+    app: test-rule
+    chart: tests
     component: rules
     prometheus: main
+    repo: ""
   name: test-rule
 spec:
   groups:
@@ -1336,6 +1339,50 @@ spec:
       - name: registrysecret
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    helm-apps/version: TEST
+  labels:
+    app: werf-report-fallback-app
+    chart: tests
+    repo: ""
+  name: werf-report-fallback-app
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: werf-report-fallback-app
+  strategy:
+    rollingUpdate:
+      maxSurge: 20%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      labels:
+        app: werf-report-fallback-app
+        chart: tests
+        repo: ""
+      name: werf-report-fallback-app
+    spec:
+      containers:
+      - args:
+        - -c
+        - sleep 3600
+        command:
+        - sh
+        image: registry.example/test/report-only:1.2.3
+        name: main
+      imagePullSecrets:
+      - name: registrysecret
+      priorityClassName: production-medium
+---
+# Source: tests/templates/init-helm-apps-library.yaml
 apiVersion: deckhouse.io/v1
 kind: DexAuthenticator
 metadata:
@@ -2085,6 +2132,23 @@ spec:
   selector:
     matchLabels:
       app: test-app-2
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: werf-report-fallback-app
+    chart: tests
+    repo: ""
+  name: werf-report-fallback-app
+spec:
+  maxUnavailable: 15%
+  selector:
+    matchLabels:
+      app: werf-report-fallback-app
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 apiVersion: deckhouse.io/v1beta1
@@ -3118,5 +3182,25 @@ spec:
     apiVersion: apps/v1
     kind: Deployment
     name: test-app-2
+  updatePolicy:
+    updateMode: "Off"
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: werf-report-fallback-app
+    chart: tests
+    repo: ""
+  name: werf-report-fallback-app
+spec:
+  resourcePolicy: {}
+  targetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: werf-report-fallback-app
   updatePolicy:
     updateMode: "Off"

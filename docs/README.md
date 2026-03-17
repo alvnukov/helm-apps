@@ -13,6 +13,7 @@
 6. Понять концепцию и границы контрактов: [library-guide.md](library-guide.md)
 7. Посмотреть архитектуру рендера и приоритеты merge/env: [architecture.md](architecture.md)
 8. Свериться с операционными чеклистами: [operations.md](operations.md)
+9. Протащить image из `werf build report`: [werf-build-report.md](werf-build-report.md)
 
 ## Навигация по ролям
 
@@ -35,6 +36,7 @@
 | Быстро понять kubernetes-поля (для разработчика) | [k8s-fields-guide.md](k8s-fields-guide.md) |
 | Понять порядок приоритетов env | [cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars](cookbook.md#63-порядок-источников-env-sharedenvconfigmapssharedenvsecretsenvfromsecretenvvarsenvvars) |
 | Включить release matrix | [reference-values.md#param-global-deploy](reference-values.md#param-global-deploy) |
+| Передать image refs из `werf build report` в shared/nested chart | [werf-build-report.md](werf-build-report.md) |
 | Сделать переиспользование через include-профили | [reference-values.md#param-global-includes](reference-values.md#param-global-includes), [../README.md#example-global-includes-merge](../README.md#example-global-includes-merge) |
 | Добавить custom renderer | [library-guide.md#param-custom-renderer](library-guide.md#param-custom-renderer) |
 | Разобраться с ошибкой рендера | [operations.md](operations.md), [faq.md](faq.md) |
@@ -46,6 +48,7 @@
 - Концепция и принципы: [library-guide.md](library-guide.md)
 - Архитектура рендера и приоритеты: [architecture.md](architecture.md)
 - Полный референс параметров: [reference-values.md](reference-values.md)
+- Импорт image refs из `werf build report`: [werf-build-report.md](werf-build-report.md)
 - Индекс параметров: [parameter-index.md](parameter-index.md)
 - Карта use-cases: [use-case-map.md](use-case-map.md)
 - Практические рецепты: [cookbook.md](cookbook.md)

@@ -32,6 +32,7 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 - Быстрый старт: [`docs/quickstart.md`](docs/quickstart.md)
 - Выбор подхода под задачу: [`docs/decision-guide.md`](docs/decision-guide.md)
 - Полный reference по параметрам: [`docs/reference-values.md`](docs/reference-values.md)
+- Импорт image refs из `werf build report`: [`docs/werf-build-report.md`](docs/werf-build-report.md)
 - Старт docs: [`docs/README.md`](docs/README.md)
 
 ## Практическая польза для команды

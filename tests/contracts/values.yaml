@@ -1,5 +1,8 @@
 global:
   env: production
+  werfReport:
+    image:
+      compat-report-only: registry.example/contracts/compat-report-only:2.4.6
   validation:
     allowNativeListsInBuiltInListFields: true
   deploy:
@@ -207,6 +210,17 @@ apps-stateless:
       main:
         image:
           name: alpine
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  compat-werf-report-fallback:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: compat-report-only
         command: |
           - sh
         args: |

@@ -16,6 +16,7 @@
 |---|---|---|
 | `global.env` | [Описание](reference-values.md#param-global-env) | [Пример](cookbook.md#example-global-env) |
 | `global._includes` | [Описание](reference-values.md#param-global-includes) | [Пример](../README.md#example-global-includes-merge) |
+| `global.werfReport` | [Описание](reference-values.md#param-global-werf-report) | [Пример](werf-build-report.md) |
 | `_include` | [Описание](reference-values.md#param-include) | [Пример](../README.md#example-include-concat) |
 | `global.deploy` | [Описание](reference-values.md#param-global-deploy) | [Пример](reference-values.md#example-global-deploy) |
 | `global.deploy.annotateAllWithRelease` | [Описание](reference-values.md#param-global-deploy) | [Пример](reference-values.md#example-global-deploy) |
