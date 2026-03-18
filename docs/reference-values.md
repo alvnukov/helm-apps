@@ -131,7 +131,8 @@ ports: |
 
 `global.deploy` и `global.releases` включают режим декларативных релизов:
 - `global.deploy.release`: имя релиза, выбираемое через env-map по `global.env`;
-- `global.deploy.enabled`: автоматически включает app, если для него найдена версия;
+- `global.deploy.enabled`: master-switch built-in release logic;
+- `global.deploy.autoEnableApps`: автоматически включает app, если для него найдена версия;
 - `global.deploy.annotateAllWithRelease`: если `true`, аннотация `helm-apps/release` ставится на все ресурсы текущего деплоя;
 - `global.releases`: матрица `релиз -> appKey -> tag/version`.
 
@@ -148,6 +149,7 @@ global:
   env: production
   deploy:
     enabled: true
+    autoEnableApps: true
     annotateAllWithRelease: false
     release:
       _default: production-v1
@@ -173,13 +175,14 @@ apps-stateless:
 - библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion` только для app, которые найдены в `global.releases.<release>`;
 - `helm-apps/release` по умолчанию ставится только для app, найденных в release map;
 - при `global.deploy.annotateAllWithRelease=true` `helm-apps/release` ставится всем ресурсам текущего деплоя;
+- при `global.deploy.enabled=false` built-in release logic полностью отключается: библиотека не резолвит `CurrentReleaseVersion`/`CurrentAppVersion`, не авто-включает app и игнорирует `annotateAllWithRelease`;
+- при `global.deploy.autoEnableApps=true` app автоматически включается, когда версия найдена;
 - если `image.staticTag` не задан, используется `CurrentAppVersion`;
 - если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
 - если `Values.werf.image` тоже не задан, используется последний fallback `Values.global.werfReport.image`;
 - в metadata добавляются аннотации:
   - `helm-apps/release`
   - `helm-apps/app-version`
-- при `global.deploy.enabled=true` app автоматически включается, когда версия найдена.
 
 ### 2.1.1 `global.werfReport`
 <a id="param-global-werf-report"></a>

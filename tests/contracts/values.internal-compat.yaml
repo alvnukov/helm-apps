@@ -2,6 +2,7 @@ global:
   env: dev
   deploy:
     enabled: true
+    autoEnableApps: true
     release:
       _default: "r1"
       production: "r1"
@@ -17,7 +18,7 @@ global:
         {{- if empty $release }}{{ fail (printf "Not such release! [%s]" $.CurrentReleaseVersion) }}{{ end }}
         {{- $appVersion := index $release $.CurrentApp.name }}
         {{- if $appVersion }}
-        {{- if $.Values.global.deploy.enabled }}{{ $_ := set $.CurrentApp "enabled" true }}{{ end }}
+        {{- if $.Values.global.deploy.autoEnableApps }}{{ $_ := set $.CurrentApp "enabled" true }}{{ end }}
         {{- $_ = set $.CurrentApp "CurrentAppVersion" (include "fl.value" (list $ . $appVersion)) }}
         {{- end }}
 

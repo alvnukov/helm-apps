@@ -19,6 +19,7 @@
 | `global.werfReport` | [Описание](reference-values.md#param-global-werf-report) | [Пример](werf-build-report.md) |
 | `_include` | [Описание](reference-values.md#param-include) | [Пример](../README.md#example-include-concat) |
 | `global.deploy` | [Описание](reference-values.md#param-global-deploy) | [Пример](reference-values.md#example-global-deploy) |
+| `global.deploy.autoEnableApps` | [Описание](reference-values.md#param-global-deploy) | [Пример](reference-values.md#example-global-deploy) |
 | `global.deploy.annotateAllWithRelease` | [Описание](reference-values.md#param-global-deploy) | [Пример](reference-values.md#example-global-deploy) |
 | `global.releases` | [Описание](reference-values.md#param-global-releases) | [Пример](reference-values.md#example-global-deploy) |
 | `versionKey` | [Описание](reference-values.md#param-versionkey) | [Пример](reference-values.md#example-global-deploy) |

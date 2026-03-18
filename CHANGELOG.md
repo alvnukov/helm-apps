@@ -7,6 +7,20 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.8] - 2026-03-18
+
+### Fixed
+- Split release-mode master switch from app auto-enable:
+  - `global.deploy.enabled` now controls built-in release logic only;
+  - `global.deploy.autoEnableApps` now controls auto-enable only;
+  - if `global.deploy.autoEnableApps` is absent, `null` or `false`, apps are not auto-enabled.
+- Fixed release-mode leakage when built-in release logic is disabled:
+  - `global.deploy.enabled=false` now blocks release-derived image tags and release annotations consistently;
+  - `annotateAllWithRelease` is ignored when built-in release logic is disabled.
+- Expanded contracts and docs for the new release-mode split:
+  - added checks for `autoEnableApps=false`, `autoEnableApps=null` and missing `autoEnableApps`;
+  - documented the separate responsibilities of `global.deploy.enabled` and `global.deploy.autoEnableApps`.
+
 ## [1.8.7] - 2026-03-17
 
 ### Added

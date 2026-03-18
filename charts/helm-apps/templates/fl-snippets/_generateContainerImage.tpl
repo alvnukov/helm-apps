@@ -22,9 +22,10 @@
   {{- end }}
   {{- end }}
   {{- end }}
+  {{- $releaseLogicDisabled := eq (include "apps-release.logicDisabled" $ | trim) "true" }}
   {{- if include "fl.value" (list $ . $imageConfig.staticTag) }}
     {{- $imageName }}:{{ include "fl.value" (list $ . $imageConfig.staticTag) }}
-  {{- else if hasKey $.CurrentApp "CurrentAppVersion" }}
+  {{- else if and (not $releaseLogicDisabled) (hasKey $.CurrentApp "CurrentAppVersion") }}
     {{- $imageName }}:{{ include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion) }}
   {{- else if $werfImage }}
     {{- $werfImage }}

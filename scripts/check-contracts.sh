@@ -160,6 +160,152 @@ app_version = deployment.dig('metadata', 'annotations', 'helm-apps/app-version')
 abort "compat-service must not get helm-apps/app-version, got #{app_version.inspect}" unless app_version.nil?
 RUBY
 
+echo "==> Release mode disable checks"
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.deploy.enabled=false \
+  --set global.deploy.annotateAllWithRelease=true \
+  > /tmp/contracts_render_release_disabled.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_release_disabled.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+release_auto_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-auto-app' }
+abort 'release-auto-app must stay disabled when global.deploy.enabled=false' unless release_auto_app.nil?
+
+compat_service = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'compat-service' }
+abort 'Missing Deployment/compat-service in release-disabled render' unless compat_service
+
+release = compat_service.dig('metadata', 'annotations', 'helm-apps/release')
+abort "compat-service must not get helm-apps/release when global.deploy.enabled=false, got #{release.inspect}" unless release.nil?
+
+app_version = compat_service.dig('metadata', 'annotations', 'helm-apps/app-version')
+abort "compat-service must not get helm-apps/app-version when global.deploy.enabled=false, got #{app_version.inspect}" unless app_version.nil?
+RUBY
+
+cat > /tmp/contracts_release_image_scenario.yaml <<'YAML'
+apps-stateless:
+  release-manual-app:
+    enabled: true
+    versionKey: release-web
+    containers:
+      main:
+        image:
+          name: compat-report-only
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+YAML
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_release_image_scenario.yaml \
+  > /tmp/contracts_render_release_image_enabled.yaml
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.deploy.enabled=false \
+  --values /tmp/contracts_release_image_scenario.yaml \
+  > /tmp/contracts_render_release_image_disabled.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+def find_deployment(path, name)
+  docs = YAML.load_stream(File.read(path)).compact.select { |doc| doc.is_a?(Hash) }
+  docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == name }
+end
+
+enabled = find_deployment('/tmp/contracts_render_release_image_enabled.yaml', 'release-manual-app')
+abort 'Missing Deployment/release-manual-app in release-enabled render' unless enabled
+enabled_image = enabled.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected release-derived image compat-report-only:3.19, got #{enabled_image.inspect}" unless enabled_image == 'compat-report-only:3.19'
+
+disabled = find_deployment('/tmp/contracts_render_release_image_disabled.yaml', 'release-manual-app')
+abort 'Missing Deployment/release-manual-app in release-disabled render' unless disabled
+disabled_image = disabled.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected fallback image registry.example/contracts/compat-report-only:2.4.6, got #{disabled_image.inspect}" unless disabled_image == 'registry.example/contracts/compat-report-only:2.4.6'
+RUBY
+
+echo "==> Release auto-enable option checks"
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.deploy.autoEnableApps=false \
+  > /tmp/contracts_render_auto_enable_disabled.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_auto_enable_disabled.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+release_auto_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-auto-app' }
+abort 'release-auto-app must stay disabled when global.deploy.autoEnableApps=false' unless release_auto_app.nil?
+RUBY
+
+tmp_contracts_absent_dir="$(mktemp -d)"
+cp -R tests/contracts/. "${tmp_contracts_absent_dir}/"
+grep -v 'autoEnableApps:' "${tmp_contracts_absent_dir}/values.yaml" > "${tmp_contracts_absent_dir}/values.yaml.tmp"
+mv "${tmp_contracts_absent_dir}/values.yaml.tmp" "${tmp_contracts_absent_dir}/values.yaml"
+
+helm template contracts "${tmp_contracts_absent_dir}" \
+  --set global.env=production \
+  > /tmp/contracts_render_auto_enable_absent.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_auto_enable_absent.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+release_auto_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-auto-app' }
+abort 'release-auto-app must stay disabled when global.deploy.autoEnableApps is absent' unless release_auto_app.nil?
+RUBY
+
+cat > /tmp/contracts_auto_enable_null.yaml <<'YAML'
+global:
+  deploy:
+    autoEnableApps: null
+YAML
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_auto_enable_null.yaml \
+  > /tmp/contracts_render_auto_enable_null.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_auto_enable_null.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+release_auto_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-auto-app' }
+abort 'release-auto-app must stay disabled when global.deploy.autoEnableApps is null' unless release_auto_app.nil?
+RUBY
+
+rm -rf "${tmp_contracts_absent_dir}"
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.deploy.autoEnableApps=false \
+  --set global.deploy.annotateAllWithRelease=true \
+  --values /tmp/contracts_release_image_scenario.yaml \
+  > /tmp/contracts_render_auto_enable_manual.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_auto_enable_manual.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+manual_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-manual-app' }
+abort 'Missing Deployment/release-manual-app in autoEnableApps=false render' unless manual_app
+
+image = manual_app.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected release image compat-report-only:3.19, got #{image.inspect}" unless image == 'compat-report-only:3.19'
+
+release = manual_app.dig('metadata', 'annotations', 'helm-apps/release')
+abort "Expected helm-apps/release=production-v1, got #{release.inspect}" unless release == 'production-v1'
+
+app_version = manual_app.dig('metadata', 'annotations', 'helm-apps/app-version')
+abort "Expected helm-apps/app-version=3.19, got #{app_version.inspect}" unless app_version == '3.19'
+RUBY
+
 echo "==> Env label opt-in checks"
 helm template contracts tests/contracts \
   --set global.env=production \

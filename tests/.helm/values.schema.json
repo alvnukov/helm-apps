@@ -1022,6 +1022,9 @@
             "enabled": {
               "$ref": "#/$defs/envValue"
             },
+            "autoEnableApps": {
+              "$ref": "#/$defs/envValue"
+            },
             "annotateAllWithRelease": {
               "$ref": "#/$defs/envValue"
             },

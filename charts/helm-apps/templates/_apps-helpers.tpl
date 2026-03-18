@@ -295,7 +295,8 @@ spec:
 {{- $_ := set $libAnnotations "werf.io/weight" (include "fl.value" (list $ . $.CurrentApp.werfWeight)) }}
 {{- end }}
 {{- $releaseAnnotationValue := "" }}
-{{- if hasKey $ "CurrentReleaseVersion" }}
+{{- $releaseLogicDisabled := eq (include "apps-release.logicDisabled" $ | trim) "true" }}
+{{- if and (not $releaseLogicDisabled) (hasKey $ "CurrentReleaseVersion") }}
 {{- $releaseAnnotationValue = include "fl.value" (list $ . $.CurrentReleaseVersion) | trim }}
 {{- else }}
 {{- $deploy := dict }}
@@ -308,7 +309,7 @@ spec:
 {{- $annotateAllWithRelease = true }}
 {{- end }}
 {{- end }}
-{{- if $annotateAllWithRelease }}
+{{- if and (not $releaseLogicDisabled) $annotateAllWithRelease }}
 {{- if not (hasKey $deploy "release") }}
 {{- include "apps-utils.error" (list $ "E_RELEASE_ANNOTATE_REQUIRED" "global.deploy.annotateAllWithRelease=true requires global.deploy.release" "set global.deploy.release for current global.env or disable annotateAllWithRelease" "docs/reference-values.md#param-global-deploy") }}
 {{- end }}
@@ -321,7 +322,7 @@ spec:
 {{- if not (empty $releaseAnnotationValue) }}
 {{- $_ := set $libAnnotations "helm-apps/release" $releaseAnnotationValue }}
 {{- end }}
-{{- if hasKey $.CurrentApp "CurrentAppVersion" }}
+{{- if and (not $releaseLogicDisabled) (hasKey $.CurrentApp "CurrentAppVersion") }}
 {{- $_ := set $libAnnotations "helm-apps/app-version" (include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion)) }}
 {{- end }}
 {{- $libVersion := include "apps-version.getLibraryVersion" $ | trim }}

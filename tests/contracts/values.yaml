@@ -7,6 +7,7 @@ global:
     allowNativeListsInBuiltInListFields: true
   deploy:
     enabled: true
+    autoEnableApps: true
     annotateAllWithRelease: false
     release:
       _default: production-v1

@@ -8,6 +8,7 @@ global:
       report-only: registry.example/test/report-only:1.2.3
   deploy:
     enabled: true
+    autoEnableApps: true
     annotateAllWithRelease: false
     release:
       _default: legacy-prod-v1
