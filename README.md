@@ -313,10 +313,12 @@ apps-stateless:
 - релиз выбирается по `global.env` через `global.deploy.release`;
 - матрица версий хранится в `global.releases`;
 - app key берется из `versionKey`, а если он не задан — из имени app;
-- `global.deploy.enabled` включает built-in release logic;
+- `global.deploy.enabled` строго включает built-in release logic; если ключ не задан, built-in release logic выключена;
 - `global.deploy.autoEnableApps` включает auto-enable app по найденной версии;
-- при `global.deploy.enabled=false` built-in release logic полностью выключается, включая version resolve и release annotations;
+- при `global.deploy.enabled` не задан или равен `false` built-in release logic полностью выключается, включая version resolve и release annotations;
 - при `global.deploy.annotateAllWithRelease=true` аннотация `helm-apps/release` добавляется всем ресурсам деплоя;
+- если release entry после env-resolve дает пустую версию, app считается не попавшим в release для текущего env;
+- если задан `image.repository`, библиотека собирает tag-based image как `repository/name:tag`;
 - если `image.staticTag` не задан, используется версия из релизной матрицы.
 
 Практический пример: [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy)

@@ -131,7 +131,7 @@ ports: |
 
 `global.deploy` и `global.releases` включают режим декларативных релизов:
 - `global.deploy.release`: имя релиза, выбираемое через env-map по `global.env`;
-- `global.deploy.enabled`: master-switch built-in release logic;
+- `global.deploy.enabled`: strict master-switch built-in release logic; если ключ не задан, built-in release logic выключена;
 - `global.deploy.autoEnableApps`: автоматически включает app, если для него найдена версия;
 - `global.deploy.annotateAllWithRelease`: если `true`, аннотация `helm-apps/release` ставится на все ресурсы текущего деплоя;
 - `global.releases`: матрица `релиз -> appKey -> tag/version`.
@@ -168,6 +168,7 @@ apps-stateless:
     containers:
       main:
         image:
+          repository: registry.example/project
           name: alpine
 ```
 
@@ -175,8 +176,11 @@ apps-stateless:
 - библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion` только для app, которые найдены в `global.releases.<release>`;
 - `helm-apps/release` по умолчанию ставится только для app, найденных в release map;
 - при `global.deploy.annotateAllWithRelease=true` `helm-apps/release` ставится всем ресурсам текущего деплоя;
-- при `global.deploy.enabled=false` built-in release logic полностью отключается: библиотека не резолвит `CurrentReleaseVersion`/`CurrentAppVersion`, не авто-включает app и игнорирует `annotateAllWithRelease`;
+- при `global.deploy.enabled` не задан или равен `false`, built-in release logic полностью отключается: библиотека не резолвит `CurrentReleaseVersion`/`CurrentAppVersion`, не авто-включает app и игнорирует `annotateAllWithRelease`;
 - при `global.deploy.autoEnableApps=true` app автоматически включается, когда версия найдена;
+- если release entry есть, но после env-resolve версия пустая, app считается не попавшим в release для текущего env;
+- если задан `image.repository`, библиотека сама собирает tag-based image как `repository/name:tag`;
+- при `image.repository` поле `image.name` должно быть именем образа или suffix path, а не полным image ref;
 - если `image.staticTag` не задан, используется `CurrentAppVersion`;
 - если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
 - если `Values.werf.image` тоже не задан, используется последний fallback `Values.global.werfReport.image`;
@@ -200,6 +204,7 @@ global:
 
 Поведение:
 - `global.werfReport.image.<name>` используется только как последний fallback для container image;
+- `image.repository` влияет только на image refs, которые библиотека собирает сама из `image.name` + tag; fallback lookup по `werf.image` и `werfReport.image` по-прежнему идет по ключу `image.name`;
 - текущий порядок резолва не меняется: `image.staticTag` -> `CurrentAppVersion` -> `Values.werf.image` -> `Values.global.werfReport.image`;
 - отсутствие `global`, `werfReport` или `image` не роняет рендер;
 - подробный pipeline `werf build report -> jq/zq -> helm -f` вынесен в отдельную страницу: [werf-build-report.md](werf-build-report.md).
@@ -440,6 +445,7 @@ containers:
   main:
     enabled: true
     image:
+      repository: registry.example/project
       name: app
       staticTag: "1.0.0"
     command: |
@@ -457,9 +463,13 @@ containers:
 <a id="param-envyaml"></a>
 - `enabled`
 - `name`
+- `image.repository`
 - `image.name`
 - `image.staticTag`
 - `image.generateSignatureBasedTag`
+
+Примечание:
+- если задан `image.repository`, поле `image.name` интерпретируется как suffix path (`app`, `backend/api`), а не как полный image ref.
 - `command`
 - `args`
 - `envVars`

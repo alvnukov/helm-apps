@@ -160,6 +160,9 @@
     "image": {
       "type": "object",
       "properties": {
+        "repository": {
+          "$ref": "#/$defs/envValue"
+        },
         "name": {
           "$ref": "#/$defs/envValue"
         },

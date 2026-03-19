@@ -26,6 +26,8 @@ global:
 
 Важно:
 - `global.werfReport.image` используется только как последний fallback;
+- `image.repository` влияет только на image refs, которые библиотека собирает сама из `image.name` + tag;
+- lookup в `global.werfReport.image` по-прежнему идет по ключу `image.name`;
 - текущий порядок резолва не меняется:
   - `image.staticTag`
   - `CurrentAppVersion`
@@ -98,5 +100,6 @@ Helm принимает и YAML, и JSON values files, поэтому допол
 ## Ограничения
 
 - `global.werfReport.image` не override-ит `image.staticTag`, `CurrentAppVersion` и локальный `Values.werf.image`;
+- `image.repository` не префиксует `global.werfReport.image` и `Values.werf.image`; эти источники считаются уже готовыми full refs;
 - если в chart уже задан более приоритетный источник image, будет использован он;
 - для live `werf render/deploy` по-прежнему главным остаётся локальный `Values.werf.image`.

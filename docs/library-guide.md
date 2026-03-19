@@ -281,7 +281,7 @@ ports: |
 ## 8. Контейнерный слой
 
 `containers` и `initContainers` поддерживают:
-- image: `name`, `staticTag`, `generateSignatureBasedTag`;
+- image: `repository`, `name`, `staticTag`, `generateSignatureBasedTag`;
 - process: `command`, `args`, `workingDir`;
 - env: `envVars`, `sharedEnvConfigMaps`, `sharedEnvSecrets`, `secretEnvVars`, `envFrom`, `envYAML`, `fromSecretsEnvVars`;
 - resources: `requests/limits` (`mcpu`, `memoryMb`, `ephemeralStorageMb`);

@@ -6,7 +6,7 @@ Focus: what each field changes in runtime behavior and when to touch it.
 ## image
 <a id="image"></a>
 
-What it is: container image settings (`name`, `staticTag`).
+What it is: container image settings (`repository`, `name`, `staticTag`).
 
 Use it when:
 - releasing a new app version;

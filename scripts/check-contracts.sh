@@ -198,7 +198,72 @@ apps-stateless:
         args: |
           - -c
           - sleep 3600
+  release-manual-repository-app:
+    enabled: true
+    versionKey: release-web
+    containers:
+      main:
+        image:
+          repository: registry.example/contracts
+          name: compat-report-only
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  release-static-repository-app:
+    enabled: true
+    versionKey: release-web
+    containers:
+      main:
+        image:
+          repository: registry.example/contracts
+          name: compat-report-only
+          staticTag: "9.9.9"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
 YAML
+
+echo "==> Release mode default-off checks"
+tmp_contracts_release_default_off_dir="$(mktemp -d)"
+cp -R tests/contracts/. "${tmp_contracts_release_default_off_dir}/"
+ruby -ryaml -e 'path = ARGV[0]; data = YAML.load_file(path); data.fetch("global").fetch("deploy").delete("enabled"); File.write(path, data.to_yaml)' \
+  "${tmp_contracts_release_default_off_dir}/values.yaml"
+
+helm template contracts "${tmp_contracts_release_default_off_dir}" \
+  --set global.env=production \
+  --set global.deploy.annotateAllWithRelease=true \
+  --values /tmp/contracts_release_image_scenario.yaml \
+  > /tmp/contracts_render_release_enabled_absent.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_release_enabled_absent.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+release_auto_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-auto-app' }
+abort 'release-auto-app must stay disabled when global.deploy.enabled is absent' unless release_auto_app.nil?
+
+compat_service = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'compat-service' }
+abort 'Missing Deployment/compat-service in release-enabled-absent render' unless compat_service
+release = compat_service.dig('metadata', 'annotations', 'helm-apps/release')
+abort "compat-service must not get helm-apps/release when global.deploy.enabled is absent, got #{release.inspect}" unless release.nil?
+app_version = compat_service.dig('metadata', 'annotations', 'helm-apps/app-version')
+abort "compat-service must not get helm-apps/app-version when global.deploy.enabled is absent, got #{app_version.inspect}" unless app_version.nil?
+
+manual_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-manual-app' }
+abort 'Missing Deployment/release-manual-app when global.deploy.enabled is absent' unless manual_app
+image = manual_app.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected fallback image registry.example/contracts/compat-report-only:2.4.6 when global.deploy.enabled is absent, got #{image.inspect}" unless image == 'registry.example/contracts/compat-report-only:2.4.6'
+release = manual_app.dig('metadata', 'annotations', 'helm-apps/release')
+abort "release-manual-app must not get helm-apps/release when global.deploy.enabled is absent, got #{release.inspect}" unless release.nil?
+app_version = manual_app.dig('metadata', 'annotations', 'helm-apps/app-version')
+abort "release-manual-app must not get helm-apps/app-version when global.deploy.enabled is absent, got #{app_version.inspect}" unless app_version.nil?
+RUBY
+
+rm -rf "${tmp_contracts_release_default_off_dir}"
 
 helm template contracts tests/contracts \
   --set global.env=production \
@@ -224,10 +289,93 @@ abort 'Missing Deployment/release-manual-app in release-enabled render' unless e
 enabled_image = enabled.dig('spec', 'template', 'spec', 'containers', 0, 'image')
 abort "Expected release-derived image compat-report-only:3.19, got #{enabled_image.inspect}" unless enabled_image == 'compat-report-only:3.19'
 
+enabled_repository = find_deployment('/tmp/contracts_render_release_image_enabled.yaml', 'release-manual-repository-app')
+abort 'Missing Deployment/release-manual-repository-app in release-enabled render' unless enabled_repository
+enabled_repository_image = enabled_repository.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected repository-aware release image registry.example/contracts/compat-report-only:3.19, got #{enabled_repository_image.inspect}" unless enabled_repository_image == 'registry.example/contracts/compat-report-only:3.19'
+
+enabled_static_repository = find_deployment('/tmp/contracts_render_release_image_enabled.yaml', 'release-static-repository-app')
+abort 'Missing Deployment/release-static-repository-app in release-enabled render' unless enabled_static_repository
+enabled_static_repository_image = enabled_static_repository.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected repository-aware static image registry.example/contracts/compat-report-only:9.9.9, got #{enabled_static_repository_image.inspect}" unless enabled_static_repository_image == 'registry.example/contracts/compat-report-only:9.9.9'
+
 disabled = find_deployment('/tmp/contracts_render_release_image_disabled.yaml', 'release-manual-app')
 abort 'Missing Deployment/release-manual-app in release-disabled render' unless disabled
 disabled_image = disabled.dig('spec', 'template', 'spec', 'containers', 0, 'image')
 abort "Expected fallback image registry.example/contracts/compat-report-only:2.4.6, got #{disabled_image.inspect}" unless disabled_image == 'registry.example/contracts/compat-report-only:2.4.6'
+
+disabled_repository = find_deployment('/tmp/contracts_render_release_image_disabled.yaml', 'release-manual-repository-app')
+abort 'Missing Deployment/release-manual-repository-app in release-disabled render' unless disabled_repository
+disabled_repository_image = disabled_repository.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected repository app to keep werfReport fallback registry.example/contracts/compat-report-only:2.4.6, got #{disabled_repository_image.inspect}" unless disabled_repository_image == 'registry.example/contracts/compat-report-only:2.4.6'
+
+disabled_static_repository = find_deployment('/tmp/contracts_render_release_image_disabled.yaml', 'release-static-repository-app')
+abort 'Missing Deployment/release-static-repository-app in release-disabled render' unless disabled_static_repository
+disabled_static_repository_image = disabled_static_repository.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected repository-aware static image registry.example/contracts/compat-report-only:9.9.9, got #{disabled_static_repository_image.inspect}" unless disabled_static_repository_image == 'registry.example/contracts/compat-report-only:9.9.9'
+RUBY
+
+echo "==> Empty env-resolved release version checks"
+cat > /tmp/contracts_release_empty_env_version.yaml <<'YAML'
+global:
+  deploy:
+    release:
+      _default: production-empty-v1
+      production: production-empty-v1
+  releases:
+    production-empty-v1:
+      release-empty-web:
+        dev: "9.9.9"
+apps-stateless:
+  release-empty-auto-app:
+    enabled: false
+    versionKey: release-empty-web
+    containers:
+      main:
+        image:
+          name: compat-report-only
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+  release-empty-manual-app:
+    enabled: true
+    versionKey: release-empty-web
+    containers:
+      main:
+        image:
+          name: compat-report-only
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+YAML
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_release_empty_env_version.yaml \
+  > /tmp/contracts_render_release_empty_env_version.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_release_empty_env_version.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+auto_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-empty-auto-app' }
+abort 'release-empty-auto-app must stay disabled when release version resolves to empty for current env' unless auto_app.nil?
+
+manual_app = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'release-empty-manual-app' }
+abort 'Missing Deployment/release-empty-manual-app in empty resolved version render' unless manual_app
+
+image = manual_app.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected fallback image registry.example/contracts/compat-report-only:2.4.6 for empty resolved version, got #{image.inspect}" unless image == 'registry.example/contracts/compat-report-only:2.4.6'
+
+release = manual_app.dig('metadata', 'annotations', 'helm-apps/release')
+abort "release-empty-manual-app must not get helm-apps/release for empty resolved version, got #{release.inspect}" unless release.nil?
+
+app_version = manual_app.dig('metadata', 'annotations', 'helm-apps/app-version')
+abort "release-empty-manual-app must not get helm-apps/app-version for empty resolved version, got #{app_version.inspect}" unless app_version.nil?
 RUBY
 
 echo "==> Release auto-enable option checks"

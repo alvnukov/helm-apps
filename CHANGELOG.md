@@ -7,6 +7,16 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.9] - 2026-03-19
+
+### Fixed
+- Tightened built-in release-mode enablement:
+  - `global.deploy.enabled` is now strict; if the key is absent, built-in release logic stays disabled;
+  - `annotateAllWithRelease` and release-derived image/app-version logic no longer activate when `enabled` is absent.
+- Fixed empty env-resolved release versions:
+  - a release entry that resolves to an empty value for current `global.env` is now treated as "app not in release";
+  - such entries no longer auto-enable apps, set empty `helm-apps/app-version`, or render broken image refs like `name:`.
+
 ## [1.8.8] - 2026-03-18
 
 ### Fixed

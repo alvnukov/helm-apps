@@ -4,10 +4,14 @@
 {{- if and (hasKey $ "CurrentApp") (kindIs "map" $.CurrentApp) -}}
   {{- $relativeScope = $.CurrentApp -}}
 {{- end -}}
+{{- $releaseLogicEnabled := false -}}
 {{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) (hasKey $.Values.global "deploy") (kindIs "map" $.Values.global.deploy) (hasKey $.Values.global.deploy "enabled") -}}
-  {{- if not (include "fl.isTrue" (list $ $relativeScope $.Values.global.deploy.enabled)) -}}
-true
+  {{- if include "fl.isTrue" (list $ $relativeScope $.Values.global.deploy.enabled) -}}
+    {{- $releaseLogicEnabled = true -}}
   {{- end -}}
+{{- end -}}
+{{- if not $releaseLogicEnabled -}}
+true
 {{- end -}}
 {{- end -}}
 
@@ -41,11 +45,6 @@ true
   {{- $global := $.Values.global -}}
   {{- if and (hasKey $global "deploy") (kindIs "map" $global.deploy) -}}
     {{- $deploy := $global.deploy -}}
-    {{- $releaseLogicEnabled := false -}}
-    {{- if hasKey $deploy "enabled" -}}
-      {{- $releaseLogicEnabled = include "fl.isTrue" (list $ $.CurrentApp $deploy.enabled) -}}
-    {{- end -}}
-
     {{- if not $releaseLogicDisabled -}}
       {{- if hasKey $deploy "release" -}}
         {{- $currentRelease := include "fl.value" (list $ $.CurrentApp $deploy.release) | trim -}}
@@ -73,15 +72,17 @@ true
           {{- include "apps-utils.error" (list $ "E_VERSION_KEY_EMPTY" (printf "versionKey is empty for app '%s'" $.CurrentApp.name) "set versionKey or remove it to fallback to app name" "docs/reference-values.md#param-versionkey") -}}
         {{- end -}}
 
-        {{- $appVersion := index $releaseVersions $versionKey -}}
-        {{- if $appVersion -}}
+        {{- if hasKey $releaseVersions $versionKey -}}
+          {{- $resolvedAppVersion := include "fl.value" (list $ $.CurrentApp (index $releaseVersions $versionKey)) | trim -}}
+          {{- if not (empty $resolvedAppVersion) -}}
           {{- $_ := set $ "CurrentReleaseVersion" $currentRelease -}}
-          {{- $_ := set $.CurrentApp "CurrentAppVersion" (include "fl.value" (list $ $.CurrentApp $appVersion)) -}}
+          {{- $_ := set $.CurrentApp "CurrentAppVersion" $resolvedAppVersion -}}
           {{- if $autoEnableApps -}}
             {{- $_ := set $.CurrentApp "enabled" true -}}
           {{- end -}}
+          {{- end -}}
         {{- end -}}
-      {{- else if $releaseLogicEnabled -}}
+      {{- else -}}
         {{- include "apps-utils.error" (list $ "E_RELEASE_REQUIRED" "global.deploy.enabled=true requires global.deploy.release" "set global.deploy.release or disable global.deploy.enabled" "docs/reference-values.md#param-global-deploy") -}}
       {{- end -}}
     {{- end -}}
