@@ -78,9 +78,10 @@ Values
 {{- end }}
 {{- end }}
 {{- $releaseLogicDisabled := eq (include "apps-release.logicDisabled" $ | trim) "true" }}
+{{- $isInitContainer := eq $.CurrentApp._currentContainersType "initContainers" }}
 {{- if include "fl.value" (list $ . $imageConfig.staticTag) }}
 {{- $taggedImageName }}:{{ include "fl.value" (list $ . $imageConfig.staticTag) }}
-{{- else if and (not $releaseLogicDisabled) (hasKey $.CurrentApp "CurrentAppVersion") }}
+{{- else if and (not $releaseLogicDisabled) (not $isInitContainer) (hasKey $.CurrentApp "CurrentAppVersion") }}
 {{- $taggedImageName }}:{{ include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion) }}
 {{- else if $werfImage }}
 {{- $werfImage }}

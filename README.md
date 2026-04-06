@@ -319,7 +319,7 @@ apps-stateless:
 - при `global.deploy.annotateAllWithRelease=true` аннотация `helm-apps/release` добавляется всем ресурсам деплоя;
 - если release entry после env-resolve дает пустую версию, app считается не попавшим в release для текущего env;
 - если задан `image.repository`, библиотека собирает tag-based image как `repository/name:tag`;
-- если `image.staticTag` не задан, используется версия из релизной матрицы.
+- если `image.staticTag` не задан, release version применяется только к обычным `containers`, но не к `initContainers`.
 
 Практический пример: [`docs/reference-values.md#param-global-deploy`](docs/reference-values.md#param-global-deploy)
 

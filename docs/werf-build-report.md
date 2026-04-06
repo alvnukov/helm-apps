@@ -30,7 +30,7 @@ global:
 - lookup в `global.werfReport.image` по-прежнему идет по ключу `image.name`;
 - текущий порядок резолва не меняется:
   - `image.staticTag`
-  - `CurrentAppVersion`
+  - `CurrentAppVersion` только для обычных `containers`
   - `Values.werf.image`
   - `Values.global.werfReport.image`
 - отсутствие `global.werfReport` не роняет рендер.

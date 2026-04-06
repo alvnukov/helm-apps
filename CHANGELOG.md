@@ -7,6 +7,12 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.10] - 2026-04-06
+
+### Fixed
+- Release-derived app version no longer overrides `initContainers` image resolution.
+- `apps-jobs` and other built-in workloads now keep using `image.staticTag`, `Values.werf.image`, and `Values.global.werfReport.image` for `initContainers`, even when the parent app participates in release mode.
+
 ## [1.8.9] - 2026-03-19
 
 ### Fixed

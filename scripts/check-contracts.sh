@@ -225,6 +225,29 @@ apps-stateless:
         args: |
           - -c
           - sleep 3600
+apps-jobs:
+  release-init-report-app:
+    enabled: true
+    versionKey: release-web
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+    initContainers:
+      prepare:
+        image:
+          name: compat-report-only
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
 YAML
 
 echo "==> Release mode default-off checks"
@@ -284,6 +307,11 @@ def find_deployment(path, name)
   docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == name }
 end
 
+def find_job(path, name)
+  docs = YAML.load_stream(File.read(path)).compact.select { |doc| doc.is_a?(Hash) }
+  docs.find { |doc| doc['kind'] == 'Job' && doc.dig('metadata', 'name') == name }
+end
+
 enabled = find_deployment('/tmp/contracts_render_release_image_enabled.yaml', 'release-manual-app')
 abort 'Missing Deployment/release-manual-app in release-enabled render' unless enabled
 enabled_image = enabled.dig('spec', 'template', 'spec', 'containers', 0, 'image')
@@ -299,6 +327,13 @@ abort 'Missing Deployment/release-static-repository-app in release-enabled rende
 enabled_static_repository_image = enabled_static_repository.dig('spec', 'template', 'spec', 'containers', 0, 'image')
 abort "Expected repository-aware static image registry.example/contracts/compat-report-only:9.9.9, got #{enabled_static_repository_image.inspect}" unless enabled_static_repository_image == 'registry.example/contracts/compat-report-only:9.9.9'
 
+enabled_job = find_job('/tmp/contracts_render_release_image_enabled.yaml', 'release-init-report-app')
+abort 'Missing Job/release-init-report-app in release-enabled render' unless enabled_job
+enabled_job_init_image = enabled_job.dig('spec', 'template', 'spec', 'initContainers', 0, 'image')
+abort "Expected initContainer werfReport fallback registry.example/contracts/compat-report-only:2.4.6, got #{enabled_job_init_image.inspect}" unless enabled_job_init_image == 'registry.example/contracts/compat-report-only:2.4.6'
+enabled_job_main_image = enabled_job.dig('spec', 'template', 'spec', 'containers', 0, 'image')
+abort "Expected main container static image alpine:3, got #{enabled_job_main_image.inspect}" unless enabled_job_main_image == 'alpine:3'
+
 disabled = find_deployment('/tmp/contracts_render_release_image_disabled.yaml', 'release-manual-app')
 abort 'Missing Deployment/release-manual-app in release-disabled render' unless disabled
 disabled_image = disabled.dig('spec', 'template', 'spec', 'containers', 0, 'image')
@@ -313,6 +348,11 @@ disabled_static_repository = find_deployment('/tmp/contracts_render_release_imag
 abort 'Missing Deployment/release-static-repository-app in release-disabled render' unless disabled_static_repository
 disabled_static_repository_image = disabled_static_repository.dig('spec', 'template', 'spec', 'containers', 0, 'image')
 abort "Expected repository-aware static image registry.example/contracts/compat-report-only:9.9.9, got #{disabled_static_repository_image.inspect}" unless disabled_static_repository_image == 'registry.example/contracts/compat-report-only:9.9.9'
+
+disabled_job = find_job('/tmp/contracts_render_release_image_disabled.yaml', 'release-init-report-app')
+abort 'Missing Job/release-init-report-app in release-disabled render' unless disabled_job
+disabled_job_init_image = disabled_job.dig('spec', 'template', 'spec', 'initContainers', 0, 'image')
+abort "Expected initContainer werfReport fallback registry.example/contracts/compat-report-only:2.4.6 when release logic disabled, got #{disabled_job_init_image.inspect}" unless disabled_job_init_image == 'registry.example/contracts/compat-report-only:2.4.6'
 RUBY
 
 echo "==> Empty env-resolved release version checks"

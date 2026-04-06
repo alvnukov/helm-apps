@@ -181,7 +181,8 @@ apps-stateless:
 - если release entry есть, но после env-resolve версия пустая, app считается не попавшим в release для текущего env;
 - если задан `image.repository`, библиотека сама собирает tag-based image как `repository/name:tag`;
 - при `image.repository` поле `image.name` должно быть именем образа или suffix path, а не полным image ref;
-- если `image.staticTag` не задан, используется `CurrentAppVersion`;
+- если `image.staticTag` не задан, для обычных `containers` используется `CurrentAppVersion`;
+- для `initContainers` release-derived `CurrentAppVersion` не применяется;
 - если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
 - если `Values.werf.image` тоже не задан, используется последний fallback `Values.global.werfReport.image`;
 - в metadata добавляются аннотации:
