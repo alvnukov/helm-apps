@@ -127,6 +127,26 @@ apps-ingresses:
       enabled: true
 ```
 
+Связанные built-in ресурсы можно держать рядом с workload через `childApps`:
+
+```yaml
+apps-stateless:
+  api:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+    childApps:
+      apps-configmaps:
+        runtime-config:
+          enabled: true
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
+```
+
 ### 5. Проверить рендер
 
 ```bash

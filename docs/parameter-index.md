@@ -28,6 +28,7 @@
 
 | Параметр | Описание | Пример |
 |---|---|---|
+| `childApps` | [Описание](reference-values.md#param-childapps) | [Пример](reference-values.md#param-childapps) |
 | `containers` | [Описание](reference-values.md#param-containers) | [Пример](cookbook.md#example-basic-api) |
 | `service` | [Описание](reference-values.md#param-service) | [Пример](cookbook.md#example-basic-api) |
 | `podDisruptionBudget` | [Описание](reference-values.md#param-pdb) | [Пример](../tests/.helm/values.yaml) |

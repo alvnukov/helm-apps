@@ -54,6 +54,7 @@ spec:
 {{- include "apps-components.horizontalPodAutoscaler" (list $ . "Deployment") -}}
 {{- include "apps-deckhouse.metrics" $ -}}
 {{ $serviceAccount -}}
+{{- include "apps-utils.renderChildApps" $ -}}
 
 {{- end }}
 {{- end }}

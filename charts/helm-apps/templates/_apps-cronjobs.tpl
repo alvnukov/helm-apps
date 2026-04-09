@@ -38,6 +38,7 @@ spec:
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}
 
 {{- include "apps-components.verticalPodAutoscaler" (list $ . .verticalPodAutoscaler "CronJob") -}}
+{{- include "apps-utils.renderChildApps" $ -}}
 
 {{- end }}
 {{- end }}

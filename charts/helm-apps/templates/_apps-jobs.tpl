@@ -32,6 +32,7 @@ kind: Job
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}
 
 {{- include "apps-components.verticalPodAutoscaler" (list $ . .verticalPodAutoscaler "Job") -}}
+{{- include "apps-utils.renderChildApps" $ -}}
 
 {{- end }}
 {{- end }}

@@ -494,6 +494,130 @@ app_version = manual_app.dig('metadata', 'annotations', 'helm-apps/app-version')
 abort "Expected helm-apps/app-version=3.19, got #{app_version.inspect}" unless app_version == '3.19'
 RUBY
 
+echo "==> childApps checks"
+cat > /tmp/contracts_child_apps.yaml <<'YAML'
+apps-stateless:
+  child-parent-enabled:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+    childApps:
+      apps-configmaps:
+        derived-config:
+          enabled: true
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
+        disabled-by-default:
+          name: "{{ $.ParentApp.name }}-default-disabled"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
+      apps-ingresses:
+        public:
+          enabled: true
+          name: "{{ $.ParentApp.name }}"
+          host: child.example.com
+          paths: |
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: compat-service
+                  port:
+                    number: 80
+  child-parent-disabled:
+    enabled: false
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+    childApps:
+      apps-configmaps:
+        should-not-render:
+          enabled: true
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
+YAML
+
+helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.validation.strict=true \
+  --values /tmp/contracts_child_apps.yaml \
+  > /tmp/contracts_render_child_apps.yaml
+
+ruby <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render_child_apps.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+parent = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'child-parent-enabled' }
+abort 'Missing Deployment/child-parent-enabled in childApps render' unless parent
+
+config = docs.find { |doc| doc['kind'] == 'ConfigMap' && doc.dig('metadata', 'name') == 'child-parent-enabled-config' }
+abort 'Missing ConfigMap/child-parent-enabled-config in childApps render' unless config
+parent_name = config.dig('data', 'parentName')
+abort "Expected ConfigMap child to see ParentApp.name=child-parent-enabled, got #{parent_name.inspect}" unless parent_name == 'child-parent-enabled'
+
+ingress = docs.find { |doc| doc['kind'] == 'Ingress' && doc.dig('metadata', 'name') == 'child-parent-enabled' }
+abort 'Missing Ingress/child-parent-enabled in childApps render' unless ingress
+host = ingress.dig('spec', 'rules', 0, 'host')
+abort "Expected child ingress host child.example.com, got #{host.inspect}" unless host == 'child.example.com'
+
+default_disabled = docs.find { |doc| doc['kind'] == 'ConfigMap' && doc.dig('metadata', 'name') == 'child-parent-enabled-default-disabled' }
+abort 'child app without enabled must keep default disabled semantics' unless default_disabled.nil?
+
+disabled_parent_child = docs.find { |doc| doc['kind'] == 'ConfigMap' && doc.dig('metadata', 'name') == 'child-parent-disabled-config' }
+abort 'childApps must not render when parent app is disabled' unless disabled_parent_child.nil?
+RUBY
+
+echo "==> childApps negative checks"
+cat > /tmp/contracts_child_apps_invalid_group.yaml <<'YAML'
+apps-stateless:
+  child-parent-invalid:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+    childApps:
+      apps-stateless:
+        nested-workload:
+          enabled: true
+          containers:
+            main:
+              image:
+                name: alpine
+                staticTag: "3"
+YAML
+
+! helm template contracts tests/contracts \
+  --set global.env=production \
+  --values /tmp/contracts_child_apps_invalid_group.yaml \
+  >/tmp/contracts_child_apps_invalid_group.out 2>/tmp/contracts_child_apps_invalid_group.err
+
+grep -q "\[helm-apps:E_CHILD_APPS_GROUP\]" /tmp/contracts_child_apps_invalid_group.err
+grep -q "path=apps-stateless.child-parent-invalid.childApps.apps-stateless" /tmp/contracts_child_apps_invalid_group.err
+
 echo "==> Env label opt-in checks"
 helm template contracts tests/contracts \
   --set global.env=production \

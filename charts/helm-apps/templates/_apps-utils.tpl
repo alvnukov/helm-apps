@@ -214,6 +214,60 @@ Values
 {{- end }}
 {{- end -}}
 
+{{- define "apps-utils.childAppAllowedGroups" -}}
+{{- list
+"apps-certificates"
+"apps-configmaps"
+"apps-ingresses"
+"apps-k8s-manifests"
+"apps-network-policies"
+"apps-pvcs"
+"apps-secrets"
+"apps-service-accounts"
+"apps-services"
+| toJson -}}
+{{- end -}}
+
+{{- define "apps-utils.renderChildApps" -}}
+{{- $ := . -}}
+{{- if kindIs "invalid" $.CurrentApp.childApps -}}
+{{- else if not (kindIs "map" $.CurrentApp.childApps) -}}
+{{- include "apps-utils.error" (list $ "E_CHILD_APPS_TYPE" "childApps must be a map keyed by built-in child app groups" "use childApps.<apps-group>.<appName>.<field>" "docs/reference-values.md#param-childapps") -}}
+{{- else -}}
+{{- $allowedGroups := include "apps-utils.childAppAllowedGroups" (list $) | fromJsonArray -}}
+{{- $parentCurrentApp := $.CurrentApp -}}
+{{- $childApps := $.CurrentApp.childApps -}}
+{{- $parentApp := deepCopy $.CurrentApp -}}
+{{- $hadParentApp := hasKey $ "ParentApp" -}}
+{{- $previousParentApp := dict -}}
+{{- if $hadParentApp -}}
+{{- $_ := set $previousParentApp "value" (deepCopy $.ParentApp) -}}
+{{- end -}}
+{{- $_ := set $ "ParentApp" $parentApp -}}
+{{- include "apps-utils.enterScope" (list $ "childApps") -}}
+{{- $groupNames := keys $childApps | sortAlpha -}}
+{{- range $_, $groupName := $groupNames }}
+{{- if not (has $groupName $allowedGroups) -}}
+{{- include "apps-utils.error" (list $ "E_CHILD_APPS_GROUP" (printf "unsupported childApps group '%s'" $groupName) "use one of built-in non-workload groups only" "docs/reference-values.md#param-childapps" (printf "%s.%s" (include "apps-utils.currentPath" (list $) | trim) $groupName)) -}}
+{{- end -}}
+{{- $groupValue := index $childApps $groupName -}}
+{{- if not (kindIs "map" $groupValue) -}}
+{{- include "apps-utils.error" (list $ "E_CHILD_APPS_GROUP_TYPE" (printf "childApps.%s must be a map of app definitions" $groupName) "define childApps.<group>.<appName>.<field>" "docs/reference-values.md#param-childapps" (printf "%s.%s" (include "apps-utils.currentPath" (list $) | trim) $groupName)) -}}
+{{- end -}}
+{{- $groupScope := deepCopy $groupValue -}}
+{{- $_ := set $groupScope "__GroupVars__" (dict "type" $groupName "name" $groupName) -}}
+{{- include "apps-utils.renderApps" (list $ $groupScope) -}}
+{{- $_ := set $ "CurrentApp" $parentCurrentApp -}}
+{{- end }}
+{{- include "apps-utils.leaveScope" $ -}}
+{{- if $hadParentApp -}}
+{{- $_ := set $ "ParentApp" (index $previousParentApp "value") -}}
+{{- else -}}
+{{- $_ := unset $ "ParentApp" -}}
+{{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "apps-utils.renderApps" }}
 {{- $ := index . 0 }}
 {{- $appScope := index . 1 }}

@@ -1658,6 +1658,13 @@ test-group:
               number: 80
   test-app-stateless:
     _include: ["apps-default-library-app"]
+    childApps:
+      apps-configmaps:
+        derived-config:
+          enabled: false
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
     containers:
       main:
         image:

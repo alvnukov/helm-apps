@@ -397,6 +397,7 @@ apps-stateless:
 ### 4.1 Pod/workload common
 
 - `containers`
+- `childApps`
 - `initContainers`
 - `imagePullSecrets`
 - `affinity`
@@ -406,7 +407,61 @@ apps-stateless:
 - `serviceAccount`
 - `verticalPodAutoscaler`
 
-### 4.2 Stateless/Stateful
+### 4.2 `childApps`
+<a id="param-childapps"></a>
+
+`childApps` позволяет держать рядом с workload связанные built-in ресурсы, но без неявного merge родителя в child.
+
+Правила:
+- поддерживается только у `apps-stateless`, `apps-stateful`, `apps-jobs`, `apps-cronjobs`;
+- если parent workload не рендерится, весь `childApps` subtree игнорируется;
+- если parent workload рендерится, child app дальше живёт по своей обычной семантике;
+- child app рендерится из копии своего scope, а в шаблонах доступен `$.ParentApp`;
+- поддерживаются только built-in non-workload группы:
+  - `apps-certificates`
+  - `apps-configmaps`
+  - `apps-ingresses`
+  - `apps-k8s-manifests`
+  - `apps-network-policies`
+  - `apps-pvcs`
+  - `apps-secrets`
+  - `apps-service-accounts`
+  - `apps-services`
+
+Пример:
+
+```yaml
+apps-stateless:
+  api:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+    childApps:
+      apps-configmaps:
+        runtime-config:
+          enabled: true
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
+      apps-ingresses:
+        public:
+          enabled: true
+          name: "{{ $.ParentApp.name }}"
+          host: app.example.com
+          paths: |
+            - path: /
+              pathType: Prefix
+              backend:
+                service:
+                  name: api
+                  port:
+                    number: 80
+```
+
+### 4.3 Stateless/Stateful
 
 Дополнительно:
 - `replicas`
@@ -421,7 +476,7 @@ Stateful-specific:
 - `persistentVolumeClaimRetentionPolicy`,
 - `volumeClaimTemplates`.
 
-### 4.3 Jobs/CronJobs
+### 4.4 Jobs/CronJobs
 
 Общие job-поля:
 - `backoffLimit`

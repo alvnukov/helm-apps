@@ -7,6 +7,14 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.11] - 2026-04-09
+
+### Added
+- `childApps` for workload apps (`apps-stateless`, `apps-stateful`, `apps-jobs`, `apps-cronjobs`):
+  - built-in child groups are rendered only when the parent workload itself renders;
+  - child apps keep their normal semantics and render from a copied child scope;
+  - `$.ParentApp` is exposed to child app templates for explicit parent references.
+
 ## [1.8.10] - 2026-04-06
 
 ### Fixed

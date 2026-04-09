@@ -577,6 +577,9 @@
             ]
           }
         },
+        "childApps": {
+          "$ref": "#/$defs/childApps"
+        },
         "verticalPodAutoscaler": {
           "$ref": "#/$defs/vpa"
         },
@@ -755,6 +758,39 @@
         }
       },
       "additionalProperties": true
+    },
+    "childApps": {
+      "type": "object",
+      "properties": {
+        "apps-certificates": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-configmaps": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-ingresses": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-k8s-manifests": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-network-policies": {
+          "$ref": "#/$defs/networkPolicyAppMap"
+        },
+        "apps-pvcs": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-secrets": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-service-accounts": {
+          "$ref": "#/$defs/appMap"
+        },
+        "apps-services": {
+          "$ref": "#/$defs/appMap"
+        }
+      },
+      "additionalProperties": false
     },
     "appMap": {
       "type": "object",

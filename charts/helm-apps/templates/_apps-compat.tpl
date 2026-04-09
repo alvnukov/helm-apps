@@ -165,6 +165,7 @@
 "CurrentAppVersion"
 "werfWeight"
 "versionKey"
+"childApps"
 "annotations"
 "labels"
 "selector"

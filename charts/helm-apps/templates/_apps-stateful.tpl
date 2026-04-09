@@ -58,6 +58,7 @@ spec:
 {{- include "apps-components.verticalPodAutoscaler" (list $ . .verticalPodAutoscaler "StatefulSet") -}}
 {{- include "apps-deckhouse.metrics" $ -}}
 {{ $serviceAccount -}}
+{{- include "apps-utils.renderChildApps" $ -}}
 
 {{- end }}
 {{- end }}
