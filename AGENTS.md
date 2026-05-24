@@ -1,27 +1,39 @@
 # AGENTS.md
 
-This file defines how AI agents should work with the `helm-apps` library in this repository.
+This file is the operating contract for AI agents working with the `helm-apps` Helm library.
+It must keep agents from guessing syntax: read the canonical sources first, use the schema-backed contract, and verify rendered output.
 
-## 1. Goal
+No instruction can guarantee perfect answers without verification. Treat this file as a guardrail: if syntax is not confirmed by schema, docs, examples, or templates, do not invent it.
 
-When a user asks to deploy/update an app with this library, the agent should:
+## 1. Required Workflow
 
-1. Pick the correct `apps-*` entity.
-2. Produce valid values in library style.
-3. Keep behavior compatible across environments and Kubernetes versions.
-4. Run required checks before finishing.
+For every task involving this library:
 
-## 2. Required Library Entry Point
+1. Classify the task: consumer values, documentation, tests, or library behavior.
+2. Read the smallest relevant source set before editing:
+   - `docs/ai/helm-apps-capabilities.prompt.md` for machine-oriented syntax summary.
+   - `tests/.helm/values.schema.json` for allowed keys and types.
+   - `docs/reference-values.md` for parameter semantics.
+   - `tests/.helm/values.yaml` and `tests/contracts/values.yaml` for working examples.
+   - `charts/helm-apps/templates/` only when changing render behavior.
+3. State the concrete hypothesis before changing anything.
+4. Make the smallest local change that satisfies the contract.
+5. Run the narrowest meaningful checks, plus the mandatory repository checks below when required.
+6. If evidence conflicts, stop and report the conflict instead of guessing.
 
-Any consumer chart must initialize the library with:
+## 2. Consumer Chart Entrypoint
+
+Every consumer chart must initialize the library exactly once from templates:
 
 ```yaml
 {{- include "apps-utils.init-library" $ }}
 ```
 
-## 3. Supported Top-Level Sections
+Do not replace this with a direct include of individual render templates.
 
-Use these built-in groups when possible:
+## 3. Canonical Values Shape
+
+Top-level `values.yaml` keys are schema-backed. Built-in render groups are:
 
 - `apps-stateless`
 - `apps-stateful`
@@ -41,147 +53,297 @@ Use these built-in groups when possible:
 - `apps-grafana-dashboards`
 - `apps-kafka-strimzi`
 - `apps-infra`
+- `apps-k8s-manifests`
+- `apps-service-accounts`
 
-Custom groups are allowed via:
+Other schema-backed top-level keys:
 
-```yaml
-my-group:
-  __GroupVars__:
-    type: apps-stateless
-```
+- `global`
+- `helm-apps`
+- `werf`
 
-`__GroupVars__.type` may be a string or env-map.
+Unknown top-level `apps-*` keys are allowed only as custom groups with `__GroupVars__.type`; otherwise they must fail under strict validation.
 
-Custom renderers are also supported:
+## 4. App Map Syntax
 
-1. Set `__GroupVars__.type` to your custom renderer name.
-2. Define template `"<type>.render"` in the consumer chart templates.
-3. Library will call `include (printf "%s.render" $type) $`.
-
-Context available inside custom renderer:
-
-- `$` (root context)
-- `$.Values`
-- `$.CurrentApp`
-- `$.CurrentGroupVars`
-- `$.CurrentGroup`
-- `$.CurrentPath`
-- `$.Release`
-- `$.Capabilities`
-- `$.Files`
-
-Any app fields from `custom-services.<app>.*` are passed as-is into `$.CurrentApp`.
-
-Minimal example:
+Most built-in groups use this app map shape:
 
 ```yaml
-custom-services:
-  __GroupVars__:
-    type: custom-services
-  minio:
+apps-stateless:
+  api:
     enabled: true
-    host:
-      ip: minio.example.local
-      port: 9000
-    extraLabels:
-      app.kubernetes.io/component: storage
+    name: api
+    _include: ["apps-stateless-defaultApp"]
 ```
+
+Rules:
+
+- App keys must match schema app-name rules: start with an alphanumeric character; then use alphanumeric, `_`, `.`, or `-`.
+- `__GroupVars__` is reserved for group settings.
+- `_include` is a native YAML list of include profile names.
+- `__AppType__` may override the renderer for one app inside a custom group.
+- Local app values override included values.
+
+## 5. Environment Values
+
+Environment selection is always through `global.env`.
+Any env-specific value should use an env-map:
 
 ```yaml
-{{- define "custom-services.render" -}}
-{{- $ := . -}}
-apiVersion: v1
-kind: Service
-metadata:
-  name: {{ $.CurrentApp.name | quote }}
-  labels:
-    app.kubernetes.io/name: {{ $.CurrentApp.name | quote }}
-    app.kubernetes.io/enabled: {{ printf "%v" $.CurrentApp.enabled | quote }}
-{{- with $.CurrentApp.extraLabels }}
-{{ toYaml . | indent 4 }}
-{{- end }}
-spec:
-  type: ExternalName
-  externalName: {{ printf "%v" $.CurrentApp.host.ip | quote }}
-  ports:
-    - port: {{ $.CurrentApp.host.port }}
-{{- end -}}
+global:
+  env: prod
+
+apps-stateless:
+  api:
+    replicas:
+      _default: 1
+      prod: 3
+      "^stage-.*$": 2
 ```
 
-## 4. Values Rules (Critical)
+Resolution order:
 
-1. Environment selection is done through `global.env`.
-2. Prefer env-maps (`_default`, `prod`, regex keys) for env-specific values.
-3. For most Kubernetes blocks, use YAML block strings (`|`) instead of native YAML lists/maps.
-4. Native YAML lists are forbidden except allowed paths:
-   - `_include`
-   - `_include_files`
-   - `global._includes.*`
-   - `*.configFilesYAML.*.content.*`
-   - `*.envYAML.*`
-   - `apps-kafka-strimzi.*.kafka.brokers.hosts.*`
-   - `apps-kafka-strimzi.*.kafka.ui.dex.allowedGroups.*`
+1. exact `global.env` key;
+2. regex key;
+3. `_default`.
 
-If a forbidden list is used, render must fail with exact values path.
+Multiple regex matches for the same value are an error. For nested env structures like `envYAML` and `configFilesYAML`, provide `_default` unless the docs prove another shape is valid.
 
-## 5. Includes and Merge
+## 6. YAML Block String Rule
 
-1. Reuse profiles via `global._includes` + `_include`.
-2. Merge is recursive for maps.
-3. `_include` chains are concatenated.
-4. Local app values override included values.
+Default rule: Kubernetes maps/lists in values should be YAML block strings (`|`), not native YAML lists/maps.
 
-## 6. Release Mode
+Correct:
 
-Release matrix mode uses:
+```yaml
+ports: |
+  - name: http
+    containerPort: 80
+annotations: |
+  prometheus.io/scrape: "true"
+```
 
-- `global.deploy.enabled` (auto-enable apps when version is found)
-- `global.deploy.release` (env-map/string -> release name)
-- `global.releases` (release -> appKey -> version)
-- app-level `versionKey` (optional, fallback to app name)
+Avoid unless a documented exception applies:
 
-Behavior:
+```yaml
+ports:
+  - name: http
+    containerPort: 80
+```
 
-- resolves `CurrentReleaseVersion` and `CurrentAppVersion`;
-- uses `CurrentAppVersion` as image tag when `image.staticTag` is absent;
-- adds annotations `helm-apps/release` and `helm-apps/app-version`.
+Native YAML lists are always allowed for `_include` and `_include_files`. Other native-list allowances are documented exceptions or opt-in behavior; verify them in `docs/reference-values.md`, `docs/faq.md`, or `charts/helm-apps/templates/_apps-compat.tpl` before using them.
+If unsure, use a YAML block string.
 
-## 7. Network Policies
+`global.validation.allowNativeListsInBuiltInListFields: true` is experimental opt-in. It permits selected built-in list fields, but it is not the default contract and does not replace block strings for templated scalar values.
 
-For `apps-network-policies`, select implementation via `type`:
+## 7. Includes And Merge
+
+Reusable profiles live under `global._includes` and are attached with `_include`:
+
+```yaml
+global:
+  _includes:
+    profile-base:
+      service:
+        enabled: true
+        ports: |
+          - name: http
+            port: 80
+
+apps-stateless:
+  api:
+    _include: ["profile-base"]
+```
+
+Merge contract:
+
+- map merge is recursive;
+- include order matters, later include overrides earlier include;
+- local app values override all includes;
+- `_include` chains are concatenated.
+
+Do not change merge semantics without contract tests.
+
+## 8. Workload Syntax
+
+Use `apps-stateless` for `Deployment`, `apps-stateful` for `StatefulSet`, `apps-jobs` for `Job`, and `apps-cronjobs` for `CronJob`.
+
+Common workload shape:
+
+```yaml
+apps-stateless:
+  api:
+    enabled: true
+    replicas: 2
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+        ports: |
+          - name: http
+            containerPort: 80
+    service:
+      enabled: true
+      ports: |
+        - name: http
+          port: 80
+```
+
+Container layer supports `containers` and `initContainers`; use documented keys for image, env, resources, probes, lifecycle, security context, config files, and mounts.
+For new RBAC, prefer `apps-service-accounts`; `serviceAccount.clusterRole` is legacy and can be forbidden with `global.validation.forbidLegacyServiceAccountClusterRole: true`.
+
+## 9. Child Apps
+
+Workload apps may define related built-in resources under `childApps`.
+Allowed child groups are schema-backed:
+
+- `apps-certificates`
+- `apps-configmaps`
+- `apps-ingresses`
+- `apps-k8s-manifests`
+- `apps-network-policies`
+- `apps-pvcs`
+- `apps-secrets`
+- `apps-service-accounts`
+- `apps-services`
+
+Example:
+
+```yaml
+apps-stateless:
+  api:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+    childApps:
+      apps-configmaps:
+        runtime-config:
+          enabled: true
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parentName: {{ $.ParentApp.name | quote }}
+```
+
+Use `$.ParentApp` only inside child app values that are rendered in parent context.
+
+## 10. Networking
+
+For services use either standalone `apps-services` or workload-local `service`.
+For ingress use `apps-ingresses` with `host`, `paths`, `class`/`ingressClassName`, and optional `tls`/`dexAuth`.
+
+Network policy implementation is selected with `type`:
 
 - `kubernetes` -> `networking.k8s.io/v1` + `NetworkPolicy`
 - `cilium` -> `cilium.io/v2` + `CiliumNetworkPolicy`
 - `calico` -> `projectcalico.org/v3` + `NetworkPolicy`
 
-## 8. Mandatory Checks Before Final Answer
+Do not mix provider-specific fields unless the selected type supports them.
 
-Run (or equivalent):
+## 11. Release Mode
+
+Release matrix mode uses:
+
+- `global.deploy.enabled` as the master switch;
+- `global.deploy.release` as release name, string or env-map;
+- `global.deploy.autoEnableApps` to auto-enable apps with a release version;
+- `global.deploy.annotateAllWithRelease` to annotate all rendered resources;
+- `global.releases` as `release -> appKey -> tag/version` matrix;
+- app-level `versionKey` to override lookup key; fallback is app name.
+
+When `image.staticTag` is absent and a release version is resolved, the library uses `CurrentAppVersion` as image tag and adds release/version annotations according to the release settings.
+
+## 12. Custom Groups And Renderers
+
+Custom group using a built-in renderer:
+
+```yaml
+payment-group:
+  __GroupVars__:
+    type:
+      _default: apps-stateless
+      prod: apps-stateful
+  api:
+    _include: ["apps-stateless-defaultApp"]
+```
+
+Per-app renderer override:
+
+```yaml
+payment-group:
+  __GroupVars__:
+    type: apps-stateless
+  edge:
+    __AppType__: apps-ingresses
+```
+
+Custom renderer contract:
+
+1. Set `__GroupVars__.type: <custom-type>`.
+2. Define template `"<custom-type>.render"` in the consumer chart.
+3. The library calls `include (printf "%s.render" $type) $`.
+
+Renderer context includes `$`, `$.Values`, `$.CurrentApp`, `$.CurrentGroupVars`, `$.CurrentGroup`, `$.CurrentPath`, `$.Release`, `$.Capabilities`, and `$.Files`.
+
+## 13. Validation Flags
+
+Known `global.validation` flags:
+
+- `strict`: opt-in contract validation; default is `false` for 1.x compatibility.
+- `allowNativeListsInBuiltInListFields`: experimental opt-in native lists for selected built-in list fields.
+- `forbidLegacyServiceAccountClusterRole`: forbids workload-local legacy `serviceAccount.clusterRole`.
+- `validateTplDelimiters`: checks balance of `{{`/`}}` and rejects `{{{`/`}}}` in strings processed through `fl.value`.
+
+Do not enable stricter flags in examples or defaults unless the task explicitly asks for that compatibility change.
+
+## 14. Source Of Truth Rules
+
+When syntax is unclear, priority is:
+
+1. `tests/.helm/values.schema.json` for allowed keys/types.
+2. `charts/helm-apps/templates/` for actual render behavior.
+3. `tests/contracts/` for required behavior.
+4. `docs/reference-values.md` and `docs/ai/helm-apps-capabilities.prompt.md` for documented syntax.
+5. `README.md` and cookbook examples for onboarding patterns.
+
+If these sources disagree, report the mismatch and do not silently choose the convenient interpretation.
+
+## 15. Editing Scope
+
+If you modify library behavior, update all relevant artifacts:
+
+1. templates in `charts/helm-apps/templates/`;
+2. examples in `tests/.helm/values.yaml`;
+3. schema in `tests/.helm/values.schema.json`;
+4. contract tests in `tests/contracts/`;
+5. CI checks in `.github/workflows/ci.yml`;
+6. docs and changelog/release notes when user-facing behavior changes.
+
+Do not mix behavior changes with unrelated formatting or documentation cleanup.
+
+## 16. Mandatory Checks Before Final Answer
+
+For library behavior, schema, contract, or examples changes, run:
 
 ```bash
 werf helm lint tests/.helm --values tests/.helm/values.yaml
-werf helm template contracts tests/contracts
+helm template contracts tests/contracts --set global.env=production
 ```
 
-If you changed compatibility behavior, also check:
+If compatibility behavior changed, also run:
 
 ```bash
-werf helm template tests tests/.helm --set global.env=prod --set global._includes.apps-defaults.enabled=true --kube-version 1.29.0
-werf helm template tests tests/.helm --set global.env=prod --set global._includes.apps-defaults.enabled=true --kube-version 1.20.15
+helm template tests tests/.helm --set global.env=prod --set global._includes.apps-defaults.enabled=true --kube-version 1.29.0
+helm template tests tests/.helm --set global.env=prod --set global._includes.apps-defaults.enabled=true --kube-version 1.20.15
 ```
 
-## 9. If You Modify Library Behavior
+For AGENTS.md-only changes, at minimum verify that its schema-backed section lists match `tests/.helm/values.schema.json`, then run the mandatory checks above unless there is a concrete blocker.
 
-Update all relevant artifacts:
+## 17. Stability Priority
 
-1. Templates in `charts/helm-apps/templates/`.
-2. Examples in `tests/.helm/values.yaml`.
-3. Schema in `tests/.helm/values.schema.json`.
-4. Contract tests in `tests/contracts/`.
-5. CI checks in `.github/workflows/ci.yml`.
-6. Docs (`README.md`, `docs/*`) and release notes/changelog when needed.
-
-## 10. Stability Priority
-
-For this repository, stability is higher priority than micro-optimizations.
-Avoid risky shortcuts that reduce validation coverage or change merge semantics implicitly.
+Stability is more important than micro-optimizations.
+Never reduce validation coverage, weaken tests, remove assertions, or change merge semantics to make a check pass.
+Prefer a small verified fix over a broad refactor.
