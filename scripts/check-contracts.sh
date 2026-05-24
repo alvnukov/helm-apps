@@ -140,6 +140,40 @@ ruby scripts/verify-contracts-structure.rb main \
   --k120 /tmp/contracts_render_120.yaml \
   --k119 /tmp/contracts_render_119.yaml
 
+echo "==> Managed job hook dependency checks"
+ruby - <<'RUBY'
+require 'yaml'
+
+docs = YAML.load_stream(File.read('/tmp/contracts_render.yaml')).compact.select { |doc| doc.is_a?(Hash) }
+
+job = docs.find { |doc| doc['kind'] == 'Job' && doc.dig('metadata', 'name') == 'compat-job' }
+abort 'Missing hook Job/compat-job in contracts render' unless job
+job_delete_policy = job.dig('metadata', 'annotations', 'helm.sh/hook-delete-policy')
+abort "Job hook-delete-policy scenario not rendered, got #{job_delete_policy.inspect}" unless job_delete_policy == 'hook-succeeded'
+
+managed_resources = [
+  ['Secret', 'envs-containers-compat-job-main', 'compat.example/secret-env'],
+  ['ConfigMap', 'config-containers-compat-job-main-app-conf', 'compat.example/config-file'],
+  ['ConfigMap', 'config-yaml-containers-compat-job-main-app-yaml', 'compat.example/config-yaml'],
+  ['Secret', 'config-containers-compat-job-main-token-txt', 'compat.example/secret-file']
+]
+
+managed_resources.each do |kind, name, custom_annotation|
+  resource = docs.find { |doc| doc['kind'] == kind && doc.dig('metadata', 'name') == name }
+  abort "Missing managed #{kind}/#{name}" unless resource
+
+  annotations = resource.dig('metadata', 'annotations') || {}
+  abort "#{kind}/#{name} must inherit helm.sh/hook" unless annotations['helm.sh/hook'] == 'pre-install'
+  delete_policies = annotations.fetch('helm.sh/hook-delete-policy', '').split(',').map(&:strip)
+  abort "#{kind}/#{name} must not inherit hook-succeeded delete policy" if delete_policies.include?('hook-succeeded')
+  abort "#{kind}/#{name} must use before-hook-creation delete policy" unless delete_policies.include?('before-hook-creation')
+  abort "#{kind}/#{name} missing custom annotation #{custom_annotation}" unless annotations[custom_annotation] == 'true'
+end
+
+secret_env = docs.find { |doc| doc['kind'] == 'Secret' && doc.dig('metadata', 'name') == 'envs-containers-compat-job-main' }
+abort 'secretEnvVars __annotations__ leaked into Secret.data' if secret_env.fetch('data', {}).key?('__annotations__')
+RUBY
+
 echo "==> Release annotate-all option checks"
 helm template contracts tests/contracts \
   --set global.env=production \

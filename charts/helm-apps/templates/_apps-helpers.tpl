@@ -227,7 +227,7 @@ spec:
     {{- . | nindent 0 }}
     {{- end }}
     {{- /* Mount envs from Secret created by "secretEnvVars:" option */ -}}
-    {{- if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
+    {{- if include "apps-components.generateSecretEnvVarsData" (list $ . .secretEnvVars) }}
 - secretRef:
     name: {{ print "envs-" $.CurrentApp._currentContainersType "-" $.CurrentApp.name "-" .name | include "fl.formatStringAsDNSLabel" | quote }}
     {{- end }}
@@ -288,7 +288,7 @@ spec:
 {{- with $RelatedScope }}
 {{- $annotationsMap := dict }}
 {{- $libAnnotations := dict }}
-{{- if hasKey . "__annotations__" }}
+{{- if and (hasKey $.CurrentApp "__annotations__") (kindIs "map" $.CurrentApp.__annotations__) }}
 {{- $annotationsMap = $.CurrentApp.__annotations__ | mustDeepCopy }}
 {{- end }}
 {{- if hasKey $.CurrentApp "werfWeight" }}
@@ -335,7 +335,29 @@ spec:
 {{- end }}
 {{- $userAnnotations := fromYaml (include "fl.value" (list $ . $.CurrentApp.annotations)) }}
 {{- $relatedScopeAnnotations := fromYaml (include "fl.value" (list $ . .annotations)) }}
-{{- $annotationsMap = mergeOverwrite $annotationsMap $userAnnotations  $relatedScopeAnnotations $libAnnotations }}
+{{- $relatedScopeInternalAnnotations := dict }}
+{{- if hasKey . "__annotations__" }}
+{{- if kindIs "map" .__annotations__ }}
+{{- $relatedScopeInternalAnnotations = .__annotations__ | mustDeepCopy }}
+{{- else }}
+{{- $relatedScopeInternalAnnotations = fromYaml (include "fl.value" (list $ . .__annotations__)) }}
+{{- end }}
+{{- end }}
+{{- $annotationsMap = mergeOverwrite $annotationsMap $userAnnotations $relatedScopeAnnotations $relatedScopeInternalAnnotations $libAnnotations }}
+{{- if and (hasKey . "__sanitizeHookDeletePolicy") .__sanitizeHookDeletePolicy (hasKey $annotationsMap "helm.sh/hook-delete-policy") }}
+{{- $hookDeletePolicies := list }}
+{{- range $policy := splitList "," (toString (get $annotationsMap "helm.sh/hook-delete-policy")) }}
+{{- $trimmedPolicy := trim $policy }}
+{{- if and $trimmedPolicy (ne $trimmedPolicy "hook-succeeded") }}
+{{- $hookDeletePolicies = append $hookDeletePolicies $trimmedPolicy }}
+{{- end }}
+{{- end }}
+{{- if gt (len $hookDeletePolicies) 0 }}
+{{- $_ := set $annotationsMap "helm.sh/hook-delete-policy" (join "," $hookDeletePolicies) }}
+{{- else }}
+{{- $_ := set $annotationsMap "helm.sh/hook-delete-policy" "before-hook-creation" }}
+{{- end }}
+{{- end }}
   {{- if gt (len $annotationsMap) 0 }}
 annotations:
 {{- range $a, $v := $annotationsMap }}

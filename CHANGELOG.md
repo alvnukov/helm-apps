@@ -7,6 +7,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.12] - 2026-05-24
+
+### Added
+- Added managed-resource `__annotations__` for `secretEnvVars`, `configFiles`, `configFilesYAML`, and `secretConfigFiles`.
+
+### Fixed
+- Prevented generated Secret/ConfigMap resources for hook Jobs from inheriting `helm.sh/hook-delete-policy: hook-succeeded`, replacing it with `before-hook-creation` so dependencies stay available until the Job Pod starts.
+- Aligned CI/local checks to avoid `werf helm template`; test chart renders now use `werf render`, while contract-only charts use `helm template`.
+
 ## [1.8.11] - 2026-04-09
 
 ### Added

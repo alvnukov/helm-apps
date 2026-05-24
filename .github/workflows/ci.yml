@@ -56,10 +56,10 @@ jobs:
           set -euo pipefail
 
           # New clusters: stable APIs must be rendered.
-          werf helm template tests tests/.helm \
-            --set "global.env=prod" \
+          (cd tests && werf render --dev \
             --set "global._includes.apps-defaults.enabled=true" \
-            --kube-version 1.29.0 > /tmp/tests_k8s_129.yaml
+            --env=prod \
+            --kube-version 1.29.0) > /tmp/tests_k8s_129.yaml
           grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_129.yaml
           grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_129.yaml
           grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_129.yaml
@@ -69,10 +69,10 @@ jobs:
           kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/tests_k8s_129.yaml
 
           # Legacy clusters: beta APIs remain supported.
-          werf helm template tests tests/.helm \
-            --set "global.env=prod" \
+          (cd tests && werf render --dev \
             --set "global._includes.apps-defaults.enabled=true" \
-            --kube-version 1.20.15 > /tmp/tests_k8s_120.yaml
+            --env=prod \
+            --kube-version 1.20.15) > /tmp/tests_k8s_120.yaml
           grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_120.yaml
           grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_120.yaml
           grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_120.yaml
@@ -174,10 +174,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          werf helm template tests tests/.helm \
-            --set "global.env=prod" \
+          (cd tests && werf render --dev \
             --set "global._includes.apps-defaults.enabled=true" \
-            --kube-version "${{ matrix.kube_version }}" > "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
+            --env=prod \
+            --kube-version "${{ matrix.kube_version }}") > "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
 
           grep -q "^apiVersion: ${{ matrix.expect_policy }}$" "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
           grep -q "^apiVersion: ${{ matrix.expect_cronjob }}$" "/tmp/tests_k8s_${{ matrix.kube_version }}.yaml"
@@ -190,7 +190,7 @@ jobs:
       - name: Render contracts for Kubernetes ${{ matrix.kube_version }}
         run: |
           set -euo pipefail
-          werf helm template contracts tests/contracts \
+          helm template contracts tests/contracts \
             --set global.env=production \
             --kube-version "${{ matrix.kube_version }}" > "/tmp/contracts_k8s_${{ matrix.kube_version }}.yaml"
           grep -q '^apiVersion:' "/tmp/contracts_k8s_${{ matrix.kube_version }}.yaml"
@@ -237,7 +237,7 @@ jobs:
       - name: Render contracts for server-side validation
         run: |
           set -euo pipefail
-          werf helm template contracts tests/contracts \
+          helm template contracts tests/contracts \
             --set "global.env=production" \
             --kube-version 1.29.0 \
             --set "apps-jobs.compat-job.restartPolicy=Never" \

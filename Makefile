@@ -6,7 +6,7 @@ save_tests:
 	cd tests; werf render --set "global._includes.apps-defaults.enabled=true" --env=prod --dev | sed '/werf.io\//d' > test_render.yaml
 save_contracts_snapshot:
 	werf helm dependency update tests/contracts
-	werf helm template contracts tests/contracts --set global.env=production | sed '/werf.io\//d' > tests/contracts/test_render.snapshot.yaml
+	helm template contracts tests/contracts --set global.env=production | sed '/werf.io\//d' > tests/contracts/test_render.snapshot.yaml
 ci_local:
 	bash scripts/ci-local.sh
 fuzz_contracts:

@@ -315,6 +315,9 @@ apps-stateless:
 apps-jobs:
   compat-job:
     enabled: true
+    annotations: |
+      helm.sh/hook: pre-install
+      helm.sh/hook-delete-policy: hook-succeeded
     verticalPodAutoscaler:
       enabled: true
     containers:
@@ -327,6 +330,30 @@ apps-jobs:
         args: |
           - -c
           - echo test
+        secretEnvVars:
+          JOB_SECRET: "secret"
+          __annotations__:
+            compat.example/secret-env: "true"
+        configFiles:
+          app.conf:
+            mountPath: /etc/app/app.conf
+            content: |
+              key=value
+            __annotations__:
+              compat.example/config-file: "true"
+        configFilesYAML:
+          app.yaml:
+            mountPath: /etc/app/app.yaml
+            content:
+              key: value
+            __annotations__:
+              compat.example/config-yaml: "true"
+        secretConfigFiles:
+          token.txt:
+            mountPath: /etc/app/token.txt
+            content: token
+            __annotations__:
+              compat.example/secret-file: "true"
     jobTemplateExtraSpec: |
       podFailurePolicy:
         rules: []

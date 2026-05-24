@@ -571,6 +571,21 @@ envVars:
 - `envVars` работает на уровне контейнера (`containers.*` / `initContainers.*`);
 - при конфликте имен явные `env` значения имеют приоритет над значениями из `envFrom`.
 
+### 5.0.1 `secretEnvVars`
+
+`secretEnvVars` создаёт managed Secret и подключает его через `envFrom.secretRef`.
+
+```yaml
+secretEnvVars:
+  PASSWORD: super-secret
+  __annotations__:
+    example.com/managed-secret: "true"
+```
+
+Контракт:
+- `__annotations__` добавляет metadata annotations только в generated Secret и не попадает в `Secret.data`;
+- для hook Job generated Secret наследует hook-аннотации Job, но `helm.sh/hook-delete-policy: hook-succeeded` заменяется на `before-hook-creation`, чтобы Secret не удалился до старта Pod.
+
 ### 5.1 `sharedEnvSecrets`
 
 Назначение:
@@ -693,6 +708,8 @@ configFiles:
     mountPath: /etc/app/app.yaml
     content: |
       key: value
+    __annotations__:
+      example.com/managed-config: "true"
 ```
 
 ### 8.2 `configFilesYAML`
@@ -705,6 +722,8 @@ configFilesYAML:
       key:
         _default: value
         production: prod-value
+    __annotations__:
+      example.com/managed-config-yaml: "true"
 ```
 
 Контракт для list-значений в `content`:
@@ -720,10 +739,14 @@ secretConfigFiles:
   token.txt:
     mountPath: /etc/secret/token.txt
     content: super-secret
+    __annotations__:
+      example.com/managed-secret-file: "true"
 ```
 
 Контракт:
 - для каждого файла должен быть задан `content` (создать Secret в библиотеке) или `name` (смонтировать существующий Secret);
+- `annotations` или `__annotations__` добавляют metadata annotations только в generated ConfigMap/Secret;
+- для hook Job generated ConfigMap/Secret наследуют hook-аннотации Job, но `helm.sh/hook-delete-policy: hook-succeeded` заменяется на `before-hook-creation`, чтобы ресурс не удалился до старта Pod;
 - при отсутствии обоих значений рендер падает с явной ошибкой конфигурации.
 
 Навигация: [Parameter Index](parameter-index.md#containers-envconfig) | [Наверх](#top)

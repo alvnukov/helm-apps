@@ -124,8 +124,25 @@
         }
       ]
     },
+    "resourceAnnotations": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/yamlScalar"
+      }
+    },
     "envMap": {
       "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/yamlScalar"
+      }
+    },
+    "secretEnvVars": {
+      "type": "object",
+      "properties": {
+        "__annotations__": {
+          "$ref": "#/$defs/resourceAnnotations"
+        }
+      },
       "additionalProperties": {
         "$ref": "#/$defs/yamlScalar"
       }
@@ -190,6 +207,12 @@
         },
         "content": {
           "$ref": "#/$defs/yamlScalar"
+        },
+        "annotations": {
+          "$ref": "#/$defs/envStringValue"
+        },
+        "__annotations__": {
+          "$ref": "#/$defs/resourceAnnotations"
         }
       },
       "anyOf": [
@@ -228,7 +251,7 @@
           "additionalProperties": true
         },
         "secretEnvVars": {
-          "$ref": "#/$defs/envMap"
+          "$ref": "#/$defs/secretEnvVars"
         },
         "fromSecretsEnvVars": {
           "type": "object",

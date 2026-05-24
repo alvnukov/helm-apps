@@ -237,6 +237,7 @@ data:
 kind: ConfigMap
 metadata:
   annotations:
+    example.com/managed-config-file: "true"
     helm-apps/version: TEST
     testAnnotation: testVal
   labels:
@@ -2220,6 +2221,7 @@ data:
 kind: Secret
 metadata:
   annotations:
+    example.com/managed-secret-file: "true"
     helm-apps/version: TEST
     testAnnotation: testVal
   labels:
@@ -2367,6 +2369,7 @@ data:
 kind: Secret
 metadata:
   annotations:
+    example.com/managed-secret-env: "true"
     helm-apps/version: TEST
     testAnnotation: testVal
   labels:

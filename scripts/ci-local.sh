@@ -110,10 +110,10 @@ werf helm lint tests/.helm --values tests/.helm/values.yaml
 
 if [[ "${RUN_API}" -eq 1 ]]; then
   echo "==> Verify Kubernetes API compatibility"
-  werf helm template tests tests/.helm \
-    --set "global.env=prod" \
+  (cd tests && werf render --dev \
     --set "global._includes.apps-defaults.enabled=true" \
-    --kube-version 1.29.0 > /tmp/tests_k8s_129.yaml
+    --env=prod \
+    --kube-version 1.29.0) > /tmp/tests_k8s_129.yaml
   grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_129.yaml
   grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_129.yaml
   grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_129.yaml
@@ -122,10 +122,10 @@ if [[ "${RUN_API}" -eq 1 ]]; then
   ! grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_129.yaml
   kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/tests_k8s_129.yaml
 
-  werf helm template tests tests/.helm \
-    --set "global.env=prod" \
+  (cd tests && werf render --dev \
     --set "global._includes.apps-defaults.enabled=true" \
-    --kube-version 1.20.15 > /tmp/tests_k8s_120.yaml
+    --env=prod \
+    --kube-version 1.20.15) > /tmp/tests_k8s_120.yaml
   grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_120.yaml
   grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_120.yaml
   grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_120.yaml

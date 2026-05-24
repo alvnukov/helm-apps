@@ -125,7 +125,7 @@ for i in $(seq 1 "${ITERATIONS}"); do
     --set "apps-infra.node-groups.compat-group.enabled=${enable_infra_group}"
   )
 
-  if ! werf helm template contracts tests/contracts --kube-version "${kv}" "${args[@]}" >"${out}" 2>"${err}"; then
+  if ! helm template contracts tests/contracts --kube-version "${kv}" "${args[@]}" >"${out}" 2>"${err}"; then
     echo "Fuzz iteration ${i} failed (kube=${kv}, strict=${strict}, deployEnabled=${deploy_enabled})" >&2
     echo "See: ${err}" >&2
     sed -n '1,120p' "${err}" >&2 || true

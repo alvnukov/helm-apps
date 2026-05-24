@@ -194,6 +194,27 @@ spec:
 {{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 
+{{- define "apps-components.generateManagedResourceAnnotations" }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- $scope := dict }}
+{{- if kindIs "map" $RelatedScope }}
+{{- $scope = mustDeepCopy $RelatedScope }}
+{{- end }}
+{{- $_ := set $scope "__sanitizeHookDeletePolicy" true }}
+{{- include "apps-helpers.generateAnnotations" (list $ $scope) }}
+{{- end }}
+
+{{- define "apps-components.generateSecretEnvVarsData" }}
+{{- $ := index . 0 }}
+{{- $RelatedScope := index . 1 }}
+{{- $secretEnvVars := index . 2 }}
+{{- if kindIs "map" $secretEnvVars }}
+{{- $secretEnvVars = omit $secretEnvVars "__annotations__" }}
+{{- end }}
+{{- include "fl.generateSecretEnvVars" (list $ $RelatedScope $secretEnvVars) }}
+{{- end }}
+
 {{- define "apps-components.generateConfigMapsAndSecrets" }}
 {{- $ := . }}
 {{- /* Loop through containers to generate ConfigMaps and Secrets */ -}}
@@ -214,7 +235,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel" | quote }}
-  {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
+  {{- with  include "apps-components.generateManagedResourceAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
   labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
@@ -234,7 +255,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: {{ print "config-yaml-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel" | quote }}
-  {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
+  {{- with  include "apps-components.generateManagedResourceAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
   labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
@@ -254,7 +275,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: {{ print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $secretConfigFileName | include "fl.formatStringAsDNSLabel" | quote }}
-  {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
+  {{- with  include "apps-components.generateManagedResourceAnnotations" (list $ .) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
   labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
@@ -265,19 +286,25 @@ data:
 {{- end }}
 {{- end }}
 {{- /* Secret created by "secretEnvVars:" option */ -}}
-{{- if include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) }}
+{{- if include "apps-components.generateSecretEnvVarsData" (list $ . .secretEnvVars) }}
 {{- include "apps-utils.enterScope" (list $ "secretEnvVars") }}
+{{- $secretEnvVarsScope := dict }}
+{{- if kindIs "map" .secretEnvVars }}
+{{- with (index .secretEnvVars "__annotations__") }}
+{{- $_ := set $secretEnvVarsScope "__annotations__" . }}
+{{- end }}
+{{- end }}
 {{- include "apps-utils.printPath" $ -}}
 apiVersion: v1
 kind: Secret
 metadata:
   name: {{ print "envs-" $containersType "-" $.CurrentApp.name "-" .name | include "fl.formatStringAsDNSLabel" | quote }}
-  {{- with  include "apps-helpers.generateAnnotations" (list $ .) | trim }}
+  {{- with  include "apps-components.generateManagedResourceAnnotations" (list $ $secretEnvVarsScope) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
   labels:{{ include "fl.generateLabels" (list $ . $.CurrentApp.name) | trim | nindent 4 }}
 type: Opaque
-data:{{ include "fl.generateSecretEnvVars" (list $ . .secretEnvVars) | trim | nindent 2 }}
+data:{{ include "apps-components.generateSecretEnvVarsData" (list $ . .secretEnvVars) | trim | nindent 2 }}
 {{- include "apps-utils.leaveScope" $ }}
 {{- end }}
 {{- end }}

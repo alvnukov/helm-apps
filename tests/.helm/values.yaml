@@ -604,6 +604,8 @@ apps-jobs:
         secretEnvVars:
           TEST1: "val1"
           TEST2: "val2"
+          __annotations__:
+            example.com/managed-secret-env: "true"
         ## Пробросить переменные окружения из ConfigMap или Secret в контейнер.
         # Пробрасывается как есть в Job.spec.template.spec.containers.envFrom.
         # https://v1-19.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#envfromsource-v1-core
@@ -649,6 +651,8 @@ apps-jobs:
             content: |
               configline1
               configline2
+            __annotations__:
+              example.com/managed-config-file: "true"
         ## Секретные конфигурационные файлы контейнера. Можно указывать несколько.
         # Автоматически создадут Secrets и примонтируют их в контейнер по указанному пути.
         secretConfigFiles:
@@ -662,6 +666,8 @@ apps-jobs:
             content: |
               secretline1
               secretline2
+            __annotations__:
+              example.com/managed-secret-file: "true"
 
     ## Список инит-контейнеров Job'ы. Можно указать несколько.
     # Конфигурация доступных параметров идентична конфигурации containers, описанной выше ^^

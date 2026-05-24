@@ -182,6 +182,8 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `memoryMb`
 
 ### configFile
+- `__annotations__`
+- `annotations`
 - `content`
 - `defaultMode`
 - `mountPath`
