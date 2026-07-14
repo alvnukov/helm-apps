@@ -249,9 +249,17 @@ jobs:
             --set "apps-cronjobs.compat-cron.restartPolicy=Never" \
             --set "apps-kafka-strimzi.compat-kafka.enabled=false" \
             --set "apps-infra.node-groups.compat-group.enabled=false" \
+            --set "apps-stateless.compat-native-list-envlike-default.enabled=false" \
+            --set "apps-stateless.compat-native-list-envlike-dev.enabled=false" \
+            --set "apps-k8s-manifests.compat-generic-lease.enabled=false" \
+            --set "apps-k8s-manifests.compat-generic-cr.enabled=false" \
+            --set "apps-k8s-manifests.compat-generic-envlike-default.enabled=false" \
+            --set "apps-k8s-manifests.compat-generic-envlike-dev.enabled=false" \
+            --set "apps-k8s-manifests.compat-generic-string-list-tpl.enabled=false" \
             > /tmp/contracts_k8s_135_server.yaml
 
       - name: Server-side dry-run apply
         run: |
           set -euo pipefail
+          kubectl create namespace compat
           kubectl apply --dry-run=server -f /tmp/contracts_k8s_135_server.yaml
