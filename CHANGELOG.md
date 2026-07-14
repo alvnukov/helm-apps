@@ -7,6 +7,11 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.13] - 2026-07-14
+
+### Changed
+- Removed non-runtime `docs` and `AGENTS.md` symlinks from the packaged chart, reducing its archive size by about 95%.
+
 ### Fixed
 - `fromSecretsEnvVars` now resolves Secret keys through the standard environment selection order (exact, regex, `_default`).
 
