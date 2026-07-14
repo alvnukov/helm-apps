@@ -1,1 +1,13 @@
 {{- include "apps-utils.init-library" $ }}
+{{ if .Values.global.valueReferenceHelperContract }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: value-reference-helpers
+data:
+  flValue: {{ include "fl.value" (list $ . "$fl.value{global.refs.text}") | quote }}
+  flValueQuoted: {{ include "fl.valueQuoted" (list $ . "$fl.value{global.refs.text}") }}
+  flValueSingleQuoted: {{ include "fl.valueSingleQuoted" (list $ . "$fl.value{global.refs.text}") }}
+  appsValue: {{ include "apps.value" (list $ . "$fl.value{global.refs.text}" "appsValue") | quote }}
+{{ end }}

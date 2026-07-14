@@ -5,6 +5,7 @@
   {{- $currentEnv := include "fl.currentEnv" (list $) | trim }}
   {{- $prefix := "" }}  {{- /* Optional */ -}}
   {{- $suffix := "" }}  {{- /* Optional */ -}}
+  {{- $referenceStack := list }}  {{- /* Internal */ -}}
   {{- if gt (len .) 3 }}
     {{- $optionalArgs := index . 3 }}
     {{- if hasKey $optionalArgs "prefix" }}
@@ -12,6 +13,9 @@
     {{- end }}
     {{- if hasKey $optionalArgs "suffix" }}
       {{- $suffix = $optionalArgs.suffix }}
+    {{- end }}
+    {{- if hasKey $optionalArgs "referenceStack" }}
+      {{- $referenceStack = $optionalArgs.referenceStack }}
     {{- end }}
   {{- end }}
 
@@ -24,9 +28,9 @@
     {{- else if hasKey $val "_default" }}
       {{- $currentEnvVal = index $val "_default" }}
     {{- end }}
-    {{- include "fl._renderValue" (list $ $relativeScope $currentEnvVal $prefix $suffix) }}
+    {{- include "fl._renderValue" (list $ $relativeScope $currentEnvVal $prefix $suffix $referenceStack) }}
   {{- else }}
-    {{- include "fl._renderValue" (list $ $relativeScope $val $prefix $suffix) }}
+    {{- include "fl._renderValue" (list $ $relativeScope $val $prefix $suffix $referenceStack) }}
   {{- end }}
 {{- end }}
 
@@ -36,10 +40,14 @@
   {{- $val := index . 2 }}
   {{- $prefix := index . 3 }}
   {{- $suffix := index . 4 }}
+  {{- $referenceStack := index . 5 }}
 
   {{- if and (not (kindIs "map" $val)) (not (kindIs "slice" $val)) }}
     {{- $valAsString := toString $val }}
     {{- if not (regexMatch "^<(nil|no value)>$" $valAsString) }}
+      {{- if contains "$fl.value{" $valAsString }}
+        {{- $valAsString = include "fl._expandValueReferences" (list $ $relativeScope $valAsString $referenceStack) }}
+      {{- end }}
       {{- $result := "" }}
       {{- if contains "{{" $valAsString }}
         {{- include "fl._validateTplValue" (list $ $valAsString) }}
@@ -53,6 +61,45 @@
       {{- if ne $result "" }}{{ $result }}{{ end }}
     {{- end }}
   {{- end }}
+{{- end -}}
+
+{{- define "fl._expandValueReferences" -}}
+{{- $ := index . 0 -}}
+{{- $relativeScope := index . 1 -}}
+{{- $value := toString (index . 2) -}}
+{{- $referenceStack := index . 3 -}}
+{{- $escapedOpen := printf "__HELM_APPS_ESCAPED_FL_VALUE_%s__" (sha256sum $value) -}}
+{{- $value = replace "$$fl.value{" $escapedOpen $value -}}
+{{- $pattern := "\\$fl\\.value\\{[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*\\}" -}}
+{{- $references := uniq (regexFindAll $pattern $value -1) -}}
+{{- $withoutValidReferences := $value -}}
+{{- range $reference := $references -}}
+  {{- $withoutValidReferences = replace $reference "" $withoutValidReferences -}}
+{{- end -}}
+{{- if contains "$fl.value{" $withoutValidReferences -}}
+  {{- include "apps-utils.error" (list $ "E_VALUE_REF_SYNTAX" "invalid $fl.value reference syntax" "use $fl.value{global.path} with dot-separated [A-Za-z0-9_-] path segments" "docs/reference-values.md#param-value-references") -}}
+{{- end -}}
+{{- range $reference := $references -}}
+  {{- $path := trimSuffix "}" (trimPrefix "$fl.value{" $reference) -}}
+  {{- if has $path $referenceStack -}}
+    {{- include "apps-utils.error" (list $ "E_VALUE_REF_CYCLE" (printf "cyclic $fl.value reference detected: %s" (append $referenceStack $path)) "remove the reference cycle" "docs/reference-values.md#param-value-references") -}}
+  {{- end -}}
+  {{- $current := $.Values -}}
+  {{- $found := true -}}
+  {{- range $segment := splitList "." $path -}}
+    {{- if and $found (kindIs "map" $current) (hasKey $current $segment) -}}
+      {{- $current = index $current $segment -}}
+    {{- else -}}
+      {{- $found = false -}}
+    {{- end -}}
+  {{- end -}}
+  {{- if not $found -}}
+    {{- include "apps-utils.error" (list $ "E_VALUE_REF_NOT_FOUND" (printf "$fl.value reference path not found: %s" $path) "define the path under .Values or fix the reference" "docs/reference-values.md#param-value-references") -}}
+  {{- end -}}
+  {{- $resolved := include "fl.value" (list $ $relativeScope $current (dict "referenceStack" (append $referenceStack $path))) -}}
+  {{- $value = replace $reference $resolved $value -}}
+{{- end -}}
+{{- replace $escapedOpen "$fl.value{" $value -}}
 {{- end -}}
 
 {{- define "fl.currentEnv" -}}

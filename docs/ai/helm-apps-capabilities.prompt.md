@@ -418,6 +418,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps.value`
 - `fl.Result`
 - `fl._concatLists`
+- `fl._expandValueReferences`
 - `fl._getJoinedIncludesInJson`
 - `fl._recursiveMapsMerge`
 - `fl._recursiveMergeAndExpandIncludes`
@@ -472,6 +473,12 @@ Native lists are generally forbidden, except allowed paths/fields detected in co
 ## Tpl Delimiter Validation
 - `global.validation.validateTplDelimiters` controls `E_TPL_DELIMITERS`/`E_TPL_BRACES` checks in tpl-like strings
 - default behavior is backward-compatible (disabled unless enabled explicitly)
+
+## Value Reference Interpolation
+- `$fl.value{global.path}` is available in every string resolved through `fl.value`
+- paths are relative to `.Values`; embedded, multiple, env-aware and recursive references are supported
+- `$$fl.value{global.path}` escapes a literal marker; missing paths, invalid syntax and cycles fail explicitly
+- values without the marker keep existing behavior
 
 ## Library Entry Point
 - Consumer chart must call: `{{ include "apps-utils.init-library" $ }}`

@@ -28,6 +28,11 @@ global:
   # Default=false keeps backward compatibility; prefer apps-service-accounts.
   # validation:
   #   forbidLegacyServiceAccountClusterRole: true
+  # Short references are available in every string rendered through fl.value.
+  # vars:
+  #   replicas: 3
+  # Example: replicas: '$fl.value{global.vars.replicas}'
+  # Escape a literal marker as '$$fl.value{global.vars.replicas}'.
   # Opt-in validation for '{{'/'}}' balance in fl.value string templates.
   # Default=false keeps backward compatibility for literal template-like payloads (e.g. dashboards/alerts).
   # validation:

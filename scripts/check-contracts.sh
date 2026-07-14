@@ -856,6 +856,213 @@ YAML
 
 grep -q "\[helm-apps:E_TPL_DELIMITERS\]" /tmp/contracts_invalid_tpl_delimiters.err
 
+echo "==> Value reference interpolation checks"
+cat > /tmp/contracts_value_refs.yaml <<'YAML'
+global:
+  valueReferenceHelperContract: true
+  refs:
+    name: value-ref-config
+    text: alpha
+    number: 3
+    empty: ""
+    boolean: false
+    host: value-ref.example.com
+    segment-key:
+      under_score1: segment-value
+    byEnv:
+      _default: default-value
+      "^prod-.+$": regex-value
+      production: production-value
+    recursive: '$fl.value{global.refs.text}-recursive'
+    recursiveTwice: '$fl.value{global.refs.recursive}-twice'
+    template: '{{ $.Values.global.refs.text }}-template'
+apps-configmaps:
+  value-ref-contract:
+    enabled: true
+    name: '$fl.value{global.refs.name}'
+    data: |
+      direct: "$fl.value{global.refs.text}"
+      embedded: "pre-$fl.value{global.refs.text}-post"
+      repeated: "$fl.value{global.refs.text}:$fl.value{global.refs.text}"
+      multiple: "$fl.value{global.refs.text}-$fl.value{global.refs.byEnv}"
+      environment: "$fl.value{global.refs.byEnv}"
+      recursive: "$fl.value{global.refs.recursive}"
+      recursiveTwice: "$fl.value{global.refs.recursiveTwice}"
+      referencedTpl: "$fl.value{global.refs.template}"
+      escaped: "$$fl.value{global.refs.text}"
+      escapedMixed: "$$fl.value{global.refs.text}|$fl.value{global.refs.text}"
+      escapedMalformed: "$$fl.value{global.bad path}"
+      empty: "$fl.value{global.refs.empty}"
+      boolean: "$fl.value{global.refs.boolean}"
+      segmented: "$fl.value{global.refs.segment-key.under_score1}"
+      plain: "unchanged"
+      legacyTpl: "{{ $.Values.global.refs.text }}"
+      mixed: "$fl.value{global.refs.text}-{{ $.Values.global.refs.byEnv.production }}"
+apps-stateless:
+  value-ref-replicas:
+    enabled: true
+    name: value-ref-replicas
+    replicas: '$fl.value{global.refs.number}'
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+apps-ingresses:
+  value-ref-ingress:
+    enabled: true
+    name: value-ref-ingress
+    host: '$fl.value{global.refs.host}'
+    paths: |
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: value-ref-replicas
+            port:
+              number: 80
+YAML
+
+for env in production prod-east staging; do
+  helm template contracts tests/contracts \
+    --set "global.env=${env}" \
+    --values /tmp/contracts_value_refs.yaml \
+    > "/tmp/contracts_value_refs_${env}.out"
+done
+
+ruby - <<'RUBY'
+require 'yaml'
+
+resolved_by_env = {
+  'production' => 'production-value',
+  'prod-east' => 'regex-value',
+  'staging' => 'default-value'
+}
+common_data = {
+  'direct' => 'alpha',
+  'embedded' => 'pre-alpha-post',
+  'repeated' => 'alpha:alpha',
+  'recursive' => 'alpha-recursive',
+  'recursiveTwice' => 'alpha-recursive-twice',
+  'referencedTpl' => 'alpha-template',
+  'escaped' => '$fl.value{global.refs.text}',
+  'escapedMixed' => '$fl.value{global.refs.text}|alpha',
+  'escapedMalformed' => '$fl.value{global.bad path}',
+  'empty' => '',
+  'boolean' => 'false',
+  'segmented' => 'segment-value',
+  'plain' => 'unchanged',
+  'legacyTpl' => 'alpha',
+  'mixed' => 'alpha-production-value'
+}
+helper_data = {
+  'flValue' => 'alpha',
+  'flValueQuoted' => 'alpha',
+  'flValueSingleQuoted' => 'alpha',
+  'appsValue' => 'alpha'
+}
+
+resolved_by_env.each do |env, resolved|
+  docs = YAML.load_stream(File.read("/tmp/contracts_value_refs_#{env}.out")).compact
+  cm = docs.find { |doc| doc['kind'] == 'ConfigMap' && doc.dig('metadata', 'name') == 'value-ref-config' }
+  expected = common_data.merge(
+    'multiple' => "alpha-#{resolved}",
+    'environment' => resolved
+  )
+  abort "unexpected value reference data for #{env}: #{cm&.fetch('data', nil).inspect}" unless cm&.fetch('data', nil) == expected
+
+  helpers = docs.find { |doc| doc['kind'] == 'ConfigMap' && doc.dig('metadata', 'name') == 'value-reference-helpers' }
+  abort "value helper delegation failed for #{env}: #{helpers&.fetch('data', nil).inspect}" unless helpers&.fetch('data', nil) == helper_data
+
+  deployment = docs.find { |doc| doc['kind'] == 'Deployment' && doc.dig('metadata', 'name') == 'value-ref-replicas' }
+  abort "whole-value numeric reference failed for #{env}" unless deployment&.dig('spec', 'replicas') == 3
+
+  ingress = docs.find { |doc| doc['kind'] == 'Ingress' && doc.dig('metadata', 'name') == 'value-ref-ingress' }
+  abort "fl.valueQuoted reference failed for #{env}" unless ingress&.dig('spec', 'rules', 0, 'host') == 'value-ref.example.com'
+end
+RUBY
+
+assert_value_ref_error() {
+  local case_name="$1"
+  local error_code="$2"
+  local values_file="/tmp/contracts_value_ref_${case_name}.yaml"
+  local output_file="/tmp/contracts_value_ref_${case_name}.out"
+  local error_file="/tmp/contracts_value_ref_${case_name}.err"
+
+  if helm template contracts tests/contracts \
+    --set global.env=production \
+    --values "${values_file}" \
+    >"${output_file}" 2>"${error_file}"; then
+    echo "expected ${error_code} for value reference case ${case_name}"
+    exit 1
+  fi
+  grep -q "\\[helm-apps:${error_code}\\]" "${error_file}"
+}
+
+cat > /tmp/contracts_value_ref_missing.yaml <<'YAML'
+global:
+  refs:
+    text: alpha
+apps-configmaps:
+  value-ref-missing:
+    enabled: true
+    name: value-ref-missing
+    data: |
+      value: "$fl.value{global.refs.text.child}"
+YAML
+assert_value_ref_error missing E_VALUE_REF_NOT_FOUND
+grep -q "global.refs.text.child" /tmp/contracts_value_ref_missing.err
+
+cat > /tmp/contracts_value_ref_syntax.yaml <<'YAML'
+apps-configmaps:
+  value-ref-syntax:
+    enabled: true
+    name: value-ref-syntax
+    data: |
+      value: "$fl.value{global.bad path}"
+YAML
+assert_value_ref_error syntax E_VALUE_REF_SYNTAX
+
+cat > /tmp/contracts_value_ref_empty_segment.yaml <<'YAML'
+apps-configmaps:
+  value-ref-empty-segment:
+    enabled: true
+    name: value-ref-empty-segment
+    data: |
+      value: "$fl.value{global..text}"
+YAML
+assert_value_ref_error empty_segment E_VALUE_REF_SYNTAX
+
+cat > /tmp/contracts_value_ref_cycle.yaml <<'YAML'
+global:
+  refs:
+    first: '$fl.value{global.refs.second}'
+    second: '$fl.value{global.refs.first}'
+apps-configmaps:
+  value-ref-cycle:
+    enabled: true
+    name: value-ref-cycle
+    data: |
+      value: "$fl.value{global.refs.first}"
+YAML
+assert_value_ref_error cycle E_VALUE_REF_CYCLE
+grep -q "global.refs.first" /tmp/contracts_value_ref_cycle.err
+grep -q "global.refs.second" /tmp/contracts_value_ref_cycle.err
+
+cat > /tmp/contracts_value_ref_self_cycle.yaml <<'YAML'
+global:
+  refs:
+    self: '$fl.value{global.refs.self}'
+apps-configmaps:
+  value-ref-self-cycle:
+    enabled: true
+    name: value-ref-self-cycle
+    data: |
+      value: "$fl.value{global.refs.self}"
+YAML
+assert_value_ref_error self_cycle E_VALUE_REF_CYCLE
+
+
 echo "==> Internal-like release/deploy flow checks"
 helm template contracts tests/contracts \
   --set global.env=production \

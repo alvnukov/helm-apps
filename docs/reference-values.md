@@ -124,6 +124,38 @@ ports: |
 - по умолчанию выключен (`false`) для обратной совместимости с literal-контентом, где `{{ ... }}` — это данные (например dashboards/alerts/templates);
 - при включении ошибки рендера будут вида `E_TPL_DELIMITERS` / `E_TPL_BRACES`.
 
+<a id="param-value-references"></a>
+### Короткие ссылки `$fl.value{...}`
+
+Синтаксис доступен сразу во всех строках, которые библиотека обрабатывает через `fl.value`:
+
+```yaml
+global:
+  vars:
+    replicas: 3
+    registry: registry.example.com
+
+apps-stateless:
+  api:
+    replicas: '$fl.value{global.vars.replicas}'
+    containers:
+      main:
+        image:
+          name: '$fl.value{global.vars.registry}/api'
+          staticTag: "1.0"
+```
+
+Контракт:
+- путь задаётся относительно `.Values`; разрешены dot-сегменты `[A-Za-z0-9_-]+`;
+- поддерживаются несколько ссылок, ссылки внутри текста и рекурсивные ссылки;
+- целевое значение проходит обычное env-разрешение `fl.value` (exact -> regex -> `_default`);
+- `$$fl.value{global.path}` выводит literal `$fl.value{global.path}`;
+- отсутствующий путь, неверный синтаксис и цикл дают `E_VALUE_REF_NOT_FOUND`, `E_VALUE_REF_SYNTAX` и `E_VALUE_REF_CYCLE`;
+- старые `{{ ... }}`-значения продолжают работать и могут сочетаться с новым синтаксисом;
+- поддержка централизована в `fl.value`, поэтому действует также через `fl.valueQuoted`, `fl.valueSingleQuoted` и `apps.value`; custom renderer, обходящий эти helpers, должен вызвать `fl.value` явно.
+
+Значения без нового маркера не меняют поведение. Если нужен literal `$fl.value{...}`, используйте escape `$$fl.value{...}`.
+
 ### 2.1 `global.deploy` + `global.releases`
 <a id="param-global-deploy"></a>
 <a id="param-global-releases"></a>

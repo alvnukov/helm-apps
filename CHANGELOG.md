@@ -7,6 +7,12 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-07-14
+
+### Added
+- Added `$fl.value{global.path}` interpolation to every string resolved through `fl.value`, including embedded, multiple, env-aware and recursive references.
+- Kept existing behavior for values without the new marker; added `$$fl.value{...}` for literal markers and explicit errors for missing paths, invalid syntax and cycles.
+
 ## [1.8.13] - 2026-07-14
 
 ### Changed

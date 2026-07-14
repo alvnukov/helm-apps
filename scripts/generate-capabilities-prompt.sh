@@ -91,6 +91,12 @@ mkdir -p "$(dirname "$OUT")"
   printf -- '- `global.validation.validateTplDelimiters` controls `E_TPL_DELIMITERS`/`E_TPL_BRACES` checks in tpl-like strings\n'
   printf -- '- default behavior is backward-compatible (disabled unless enabled explicitly)\n\n'
 
+  printf '## Value Reference Interpolation\n'
+  printf -- '- `$fl.value{global.path}` is available in every string resolved through `fl.value`\n'
+  printf -- '- paths are relative to `.Values`; embedded, multiple, env-aware and recursive references are supported\n'
+  printf -- '- `$$fl.value{global.path}` escapes a literal marker; missing paths, invalid syntax and cycles fail explicitly\n'
+  printf -- '- values without the marker keep existing behavior\n\n'
+
   printf '## Library Entry Point\n'
   printf -- '- Consumer chart must call: `{{ include "apps-utils.init-library" $ }}`\n\n'
 
