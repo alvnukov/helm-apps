@@ -7,6 +7,9 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- `fromSecretsEnvVars` now resolves Secret keys through the standard environment selection order (exact, regex, `_default`).
+
 ## [1.8.12] - 2026-05-24
 
 ### Added

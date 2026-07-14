@@ -214,6 +214,18 @@ def verify_main!(paths)
 
   compat_env_mixed = find_one!(prod_docs, kind: 'Deployment', name: 'compat-env-mixed')
   assert_eq!(env_from_refs(compat_env_mixed), ['secretRef:common-runtime', 'secretRef:manual-env-mixed', 'secretRef:envs-containers-compat-env-mixed-main'], 'compat-env-mixed envFrom order')
+  compat_env_mixed_prod_env = compat_env_mixed.dig('spec', 'template', 'spec', 'containers', 0, 'env')
+  prod_exact = compat_env_mixed_prod_env.find { |entry| entry['name'] == 'FROM_SECRET_EXACT' }
+  prod_regex = compat_env_mixed_prod_env.find { |entry| entry['name'] == 'FROM_SECRET_REGEX' }
+  assert_eq!(prod_exact.dig('valueFrom', 'secretKeyRef', 'key'), 'exact-production-key', 'fromSecretsEnvVars exact env selection')
+  assert_eq!(prod_regex.dig('valueFrom', 'secretKeyRef', 'key'), 'regex-default-key', 'fromSecretsEnvVars default selection')
+
+  compat_env_mixed_dev = find_one!(dev_docs, kind: 'Deployment', name: 'compat-env-mixed')
+  compat_env_mixed_dev_env = compat_env_mixed_dev.dig('spec', 'template', 'spec', 'containers', 0, 'env')
+  dev_exact = compat_env_mixed_dev_env.find { |entry| entry['name'] == 'FROM_SECRET_EXACT' }
+  dev_regex = compat_env_mixed_dev_env.find { |entry| entry['name'] == 'FROM_SECRET_REGEX' }
+  assert_eq!(dev_exact.dig('valueFrom', 'secretKeyRef', 'key'), 'exact-default-key', 'fromSecretsEnvVars dev default selection')
+  assert_eq!(dev_regex.dig('valueFrom', 'secretKeyRef', 'key'), 'regex-dev-key', 'fromSecretsEnvVars regex selection')
 
   compat_env_list_miss_prod = find_one!(prod_docs, kind: 'Deployment', name: 'compat-env-list-miss')
   assert_eq!(compat_env_list_miss_prod.dig('spec', 'template', 'spec', 'imagePullSecrets'), nil, 'compat-env-list-miss(prod) imagePullSecrets must be absent')

@@ -311,6 +311,14 @@ apps-stateless:
               name: "manual-env-mixed"
         secretEnvVars:
           ORDER_KEY: "from-secret-env-vars"
+        fromSecretsEnvVars:
+          external-runtime:
+            FROM_SECRET_EXACT:
+              _default: exact-default-key
+              production: exact-production-key
+            FROM_SECRET_REGEX:
+              _default: regex-default-key
+              "^dev$": regex-dev-key
 
 apps-jobs:
   compat-job:

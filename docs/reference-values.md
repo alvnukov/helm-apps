@@ -586,6 +586,21 @@ secretEnvVars:
 - `__annotations__` добавляет metadata annotations только в generated Secret и не попадает в `Secret.data`;
 - для hook Job generated Secret наследует hook-аннотации Job, но `helm.sh/hook-delete-policy: hook-succeeded` заменяется на `before-hook-creation`, чтобы Secret не удалился до старта Pod.
 
+### 5.0.2 `fromSecretsEnvVars`
+
+`fromSecretsEnvVars` подключает отдельные ключи существующего Secret как env-переменные. Имя ключа Secret поддерживает стандартный env-map:
+
+```yaml
+fromSecretsEnvVars:
+  external-runtime:
+    API_TOKEN:
+      _default: api_token
+      production: api_token_production
+      "^stage-.*$": api_token_stage
+```
+
+Выбор выполняется в порядке: точное окружение, regex, `_default`. Если значение не разрешилось, соответствующая env-переменная не рендерится.
+
 ### 5.1 `sharedEnvSecrets`
 
 Назначение:

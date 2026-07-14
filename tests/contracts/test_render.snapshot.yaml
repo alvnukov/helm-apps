@@ -612,6 +612,17 @@ spec:
       containers:
       - name: "main"
         image: alpine:3
+        env:
+        - name: "FROM_SECRET_EXACT"
+          valueFrom:
+            secretKeyRef:
+              name: "external-runtime"
+              key: "exact-production-key"
+        - name: "FROM_SECRET_REGEX"
+          valueFrom:
+            secretKeyRef:
+              name: "external-runtime"
+              key: "regex-default-key"
         envFrom:
         - secretRef:
             name: "common-runtime"
