@@ -71,14 +71,14 @@ jobs:
           helm template tests tests/.helm \
             --set "global.env=prod" \
             --set "global._includes.apps-defaults.enabled=true" \
-            --kube-version 1.29.0 > /tmp/tests_k8s_129.yaml
-          grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_129.yaml
-          grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_129.yaml
-          grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_129.yaml
-          ! grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_129.yaml
-          ! grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_129.yaml
-          ! grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_129.yaml
-          kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/tests_k8s_129.yaml
+            --kube-version 1.36.0 > /tmp/tests_k8s_136.yaml
+          grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_136.yaml
+          grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_136.yaml
+          grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_136.yaml
+          ! grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_136.yaml
+          ! grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_136.yaml
+          ! grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_136.yaml
+          kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.36.0 /tmp/tests_k8s_136.yaml
 
           # Legacy clusters: beta APIs remain supported.
           helm template tests tests/.helm \

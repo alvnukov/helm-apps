@@ -59,14 +59,14 @@ jobs:
           (cd tests && werf render --dev \
             --set "global._includes.apps-defaults.enabled=true" \
             --env=prod \
-            --kube-version 1.29.0) > /tmp/tests_k8s_129.yaml
-          grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_129.yaml
-          grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_129.yaml
-          grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_129.yaml
-          ! grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_129.yaml
-          ! grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_129.yaml
-          ! grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_129.yaml
-          kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.29.0 /tmp/tests_k8s_129.yaml
+            --kube-version 1.36.0) > /tmp/tests_k8s_136.yaml
+          grep -q '^apiVersion: policy/v1$' /tmp/tests_k8s_136.yaml
+          grep -q '^apiVersion: batch/v1$' /tmp/tests_k8s_136.yaml
+          grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_136.yaml
+          ! grep -q '^apiVersion: policy/v1beta1$' /tmp/tests_k8s_136.yaml
+          ! grep -q '^apiVersion: batch/v1beta1$' /tmp/tests_k8s_136.yaml
+          ! grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_136.yaml
+          kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.36.0 /tmp/tests_k8s_136.yaml
 
           # Legacy clusters: beta APIs remain supported.
           (cd tests && werf render --dev \
@@ -138,6 +138,10 @@ jobs:
             expect_cronjob: "batch/v1"
             expect_hpa: "autoscaling/v2"
           - kube_version: "1.29.0"
+            expect_policy: "policy/v1"
+            expect_cronjob: "batch/v1"
+            expect_hpa: "autoscaling/v2"
+          - kube_version: "1.36.0"
             expect_policy: "policy/v1"
             expect_cronjob: "batch/v1"
             expect_hpa: "autoscaling/v2"
@@ -216,12 +220,13 @@ jobs:
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
         with:
-          version: v1.29.0
+          version: v1.35.0
 
       - name: Create kind cluster
         uses: helm/kind-action@v1.10.0
         with:
-          node_image: kindest/node:v1.29.2
+          version: v0.32.0
+          node_image: kindest/node:v1.35.0
 
       - name: Install compatibility CRDs
         run: |
@@ -239,14 +244,14 @@ jobs:
           set -euo pipefail
           helm template contracts tests/contracts \
             --set "global.env=production" \
-            --kube-version 1.29.0 \
+            --kube-version 1.35.0 \
             --set "apps-jobs.compat-job.restartPolicy=Never" \
             --set "apps-cronjobs.compat-cron.restartPolicy=Never" \
             --set "apps-kafka-strimzi.compat-kafka.enabled=false" \
             --set "apps-infra.node-groups.compat-group.enabled=false" \
-            > /tmp/contracts_k8s_129_server.yaml
+            > /tmp/contracts_k8s_135_server.yaml
 
       - name: Server-side dry-run apply
         run: |
           set -euo pipefail
-          kubectl apply --dry-run=server -f /tmp/contracts_k8s_129_server.yaml
+          kubectl apply --dry-run=server -f /tmp/contracts_k8s_135_server.yaml
