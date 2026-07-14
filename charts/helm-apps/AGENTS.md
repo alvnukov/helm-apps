@@ -1,1 +1,0 @@
-../../docs/ai/helm-apps-offline-agents.md
