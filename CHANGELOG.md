@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.0] - 2026-09-14
+
 ### Added
 - Added the `apps-daemonsets` built-in group rendering `apps/v1` `DaemonSet`, with the shared container, `childApps`, `service`, `serviceAccount`, `verticalPodAutoscaler` and `podDisruptionBudget` layers.
 - Added `apps-daemonsets-defaultDaemonSet`, `apps-daemonsets-defaultDaemonSetContainer` and `apps-daemonsets-defaultDaemonSetInitContainer` include profiles.
