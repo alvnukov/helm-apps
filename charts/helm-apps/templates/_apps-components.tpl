@@ -65,6 +65,7 @@ spec:
 {{- $podDisruptionBudget := index . 2 }}
 {{- include "apps-utils.enterScope" (list $ "podDisruptionBudget") }}
 
+{{- include "apps-compat.normalizePodDisruptionBudgetSpec" (list $ $podDisruptionBudget) -}}
 {{- with $podDisruptionBudget }}
 {{- if include "fl.isTrue" (list $ . .enabled) }}
 {{- include "apps-utils.printPath" $ -}}
@@ -84,6 +85,9 @@ spec:
 {{- end }}
 {{- with include "fl.value" (list $ . .minAvailable) }}
   minAvailable: {{ . }}
+{{- end }}
+{{- with include "fl.value" (list $ . .unhealthyPodEvictionPolicy) }}
+  unhealthyPodEvictionPolicy: {{ . | quote }}
 {{- end }}
   {{- with include "apps-compat.renderRaw" (list $ . .extraSpec) | trim }}
   {{- . | nindent 2 }}
@@ -128,7 +132,7 @@ spec:
   {{- $specs := dict -}}
   {{- $_ := set $specs "Bools" (list "publishNotReadyAddresses" "allocateLoadBalancerNodePorts") -}}
   {{- $_ = set $specs "Lists" (list "clusterIPs" "externalIPs" "ipFamilies" "loadBalancerSourceRanges" "ports") -}}
-  {{- $_ = set $specs "Strings" (list "externalName" "externalTrafficPolicy" "internalTrafficPolicy" "ipFamilyPolicy" "loadBalancerClass" "loadBalancerIP" "sessionAffinity" "type" "clusterIP") -}}
+  {{- $_ = set $specs "Strings" (list "externalName" "externalTrafficPolicy" "internalTrafficPolicy" "ipFamilyPolicy" "loadBalancerClass" "loadBalancerIP" "sessionAffinity" "trafficDistribution" "type" "clusterIP") -}}
   {{- $_ = set $specs "Numbers" (list "healthCheckNodePort") -}}
   {{- $_ = set $specs "Maps" (list "sessionAffinityConfig" "selector") -}}
   {{- with include "apps-utils.generateSpecs" (list $ $RelatedScope $specs) | trim }}

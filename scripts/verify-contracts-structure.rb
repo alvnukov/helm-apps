@@ -99,6 +99,10 @@ end
 
 def verify_required_entities!(docs)
   required = [
+    ['Deployment', 'compat-modern-apis'],
+    ['PodDisruptionBudget', 'compat-modern-apis'],
+    ['Service', 'compat-modern-apis'],
+    ['Job', 'compat-job-indexed'],
     ['StatefulSet', 'compat-stateful'],
     ['DaemonSet', 'compat-daemonset'],
     ['CronJob', 'compat-cron'],
@@ -123,6 +127,111 @@ def verify_required_entities!(docs)
   assert!(kafka.any? { |doc| doc.dig('metadata', 'name').to_s.start_with?('compat-kafka-') }, 'Kafka name must start with compat-kafka-')
 end
 
+# Kubernetes API version gates.
+#
+# Every field below is emitted only at or above the Kubernetes release that
+# introduced it in the API schema. The three renders bracket the gates:
+#   1.20  - none of them exist yet
+#   1.29  - everything introduced up to 1.28 exists, the 1.30 fields do not
+#   modern - all of them exist
+# See docs/operations.md#kubernetes-api-compatibility.
+def verify_version_gates!(modern_docs, k129_docs, k120_docs)
+  modern = find_one!(modern_docs, kind: 'Deployment', name: 'compat-modern-apis')
+  modern_129 = find_one!(k129_docs, kind: 'Deployment', name: 'compat-modern-apis')
+  modern_120 = find_one!(k120_docs, kind: 'Deployment', name: 'compat-modern-apis')
+
+  # hostUsers: 1.25+
+  assert_eq!(modern.dig('spec', 'template', 'spec', 'hostUsers'), false, 'modern hostUsers')
+  assert_eq!(modern_129.dig('spec', 'template', 'spec', 'hostUsers'), false, 'k8s 1.29 hostUsers')
+  assert_eq!(modern_120.dig('spec', 'template', 'spec', 'hostUsers'), nil, 'k8s 1.20 hostUsers must be absent')
+
+  # schedulingGates: 1.26+
+  assert_eq!(modern.dig('spec', 'template', 'spec', 'schedulingGates', 0, 'name'), 'compat.example/gate', 'modern schedulingGates[0].name')
+  assert_eq!(modern_129.dig('spec', 'template', 'spec', 'schedulingGates', 0, 'name'), 'compat.example/gate', 'k8s 1.29 schedulingGates[0].name')
+  assert_eq!(modern_120.dig('spec', 'template', 'spec', 'schedulingGates'), nil, 'k8s 1.20 schedulingGates must be absent')
+
+  # container resizePolicy: 1.27+
+  assert_eq!(modern.dig('spec', 'template', 'spec', 'containers', 0, 'resizePolicy', 0, 'resourceName'), 'cpu', 'modern resizePolicy[0].resourceName')
+  assert_eq!(modern_129.dig('spec', 'template', 'spec', 'containers', 0, 'resizePolicy', 0, 'resourceName'), 'cpu', 'k8s 1.29 resizePolicy[0].resourceName')
+  assert_eq!(modern_120.dig('spec', 'template', 'spec', 'containers', 0, 'resizePolicy'), nil, 'k8s 1.20 resizePolicy must be absent')
+
+  # native sidecar (initContainer restartPolicy): 1.28+
+  assert_eq!(modern.dig('spec', 'template', 'spec', 'initContainers', 0, 'restartPolicy'), 'Always', 'modern initContainer restartPolicy')
+  assert_eq!(modern_129.dig('spec', 'template', 'spec', 'initContainers', 0, 'restartPolicy'), 'Always', 'k8s 1.29 initContainer restartPolicy')
+  assert_eq!(modern_120.dig('spec', 'template', 'spec', 'initContainers', 0, 'restartPolicy'), nil, 'k8s 1.20 initContainer restartPolicy must be absent')
+
+  # unhealthyPodEvictionPolicy: 1.26+
+  pdb_modern = find_one!(modern_docs, kind: 'PodDisruptionBudget', name: 'compat-modern-apis')
+  pdb_129 = find_one!(k129_docs, kind: 'PodDisruptionBudget', name: 'compat-modern-apis')
+  pdb_120 = find_one!(k120_docs, kind: 'PodDisruptionBudget', name: 'compat-modern-apis')
+  assert_eq!(pdb_modern.dig('spec', 'unhealthyPodEvictionPolicy'), 'AlwaysAllow', 'modern unhealthyPodEvictionPolicy')
+  assert_eq!(pdb_129.dig('spec', 'unhealthyPodEvictionPolicy'), 'AlwaysAllow', 'k8s 1.29 unhealthyPodEvictionPolicy')
+  assert_eq!(pdb_120.dig('spec', 'unhealthyPodEvictionPolicy'), nil, 'k8s 1.20 unhealthyPodEvictionPolicy must be absent')
+  assert_eq!(pdb_modern['apiVersion'], 'policy/v1', 'modern PodDisruptionBudget apiVersion')
+  assert_eq!(pdb_120['apiVersion'], 'policy/v1beta1', 'k8s 1.20 PodDisruptionBudget apiVersion')
+
+  # trafficDistribution: 1.30+
+  svc_modern = find_one!(modern_docs, kind: 'Service', name: 'compat-modern-apis')
+  svc_129 = find_one!(k129_docs, kind: 'Service', name: 'compat-modern-apis')
+  svc_120 = find_one!(k120_docs, kind: 'Service', name: 'compat-modern-apis')
+  assert_eq!(svc_modern.dig('spec', 'trafficDistribution'), 'PreferClose', 'modern trafficDistribution')
+  assert_eq!(svc_129.dig('spec', 'trafficDistribution'), nil, 'k8s 1.29 trafficDistribution must be absent')
+  assert_eq!(svc_120.dig('spec', 'trafficDistribution'), nil, 'k8s 1.20 trafficDistribution must be absent')
+
+  # Job: podFailurePolicy 1.25+, backoffLimitPerIndex/maxFailedIndexes/podReplacementPolicy 1.28+,
+  # managedBy/successPolicy 1.30+.
+  job_modern = find_one!(modern_docs, kind: 'Job', name: 'compat-job-indexed')
+  job_129 = find_one!(k129_docs, kind: 'Job', name: 'compat-job-indexed')
+  job_120 = find_one!(k120_docs, kind: 'Job', name: 'compat-job-indexed')
+
+  # completionMode and JobSpec.suspend are 1.21+.
+  assert_eq!(job_modern.dig('spec', 'completionMode'), 'Indexed', 'modern job completionMode')
+  assert_eq!(job_modern.dig('spec', 'suspend'), false, 'modern job suspend')
+  assert_eq!(job_120.dig('spec', 'completionMode'), nil, 'k8s 1.20 job completionMode must be absent')
+  assert_eq!(job_120.dig('spec', 'suspend'), nil, 'k8s 1.20 job suspend must be absent')
+
+  assert_eq!(job_modern.dig('spec', 'podFailurePolicy', 'rules', 0, 'action'), 'FailIndex', 'modern job podFailurePolicy')
+  assert_eq!(job_129.dig('spec', 'podFailurePolicy', 'rules', 0, 'action'), 'FailIndex', 'k8s 1.29 job podFailurePolicy')
+  assert_eq!(job_120.dig('spec', 'podFailurePolicy'), nil, 'k8s 1.20 job podFailurePolicy must be absent')
+
+  %w[backoffLimitPerIndex maxFailedIndexes podReplacementPolicy].each do |field|
+    assert!(!job_modern.dig('spec', field).nil?, "modern job #{field} must be present")
+    assert!(!job_129.dig('spec', field).nil?, "k8s 1.29 job #{field} must be present")
+    assert_eq!(job_120.dig('spec', field), nil, "k8s 1.20 job #{field} must be absent")
+  end
+
+  assert_eq!(job_modern.dig('spec', 'managedBy'), 'compat.example/job-controller', 'modern job managedBy')
+  assert_eq!(job_modern.dig('spec', 'successPolicy', 'rules', 0, 'succeededCount'), 2, 'modern job successPolicy')
+  %w[managedBy successPolicy].each do |field|
+    assert_eq!(job_129.dig('spec', field), nil, "k8s 1.29 job #{field} must be absent")
+    assert_eq!(job_120.dig('spec', field), nil, "k8s 1.20 job #{field} must be absent")
+  end
+
+  # StatefulSet ordinals: 1.26+; persistentVolumeClaimRetentionPolicy: 1.23+.
+  sts_modern = find_one!(modern_docs, kind: 'StatefulSet', name: 'compat-stateful')
+  sts_129 = find_one!(k129_docs, kind: 'StatefulSet', name: 'compat-stateful')
+  sts_120 = find_one!(k120_docs, kind: 'StatefulSet', name: 'compat-stateful')
+  assert_eq!(sts_modern.dig('spec', 'ordinals', 'start'), 1, 'modern statefulset ordinals.start')
+  assert_eq!(sts_129.dig('spec', 'ordinals', 'start'), 1, 'k8s 1.29 statefulset ordinals.start')
+  assert_eq!(sts_120.dig('spec', 'ordinals'), nil, 'k8s 1.20 statefulset ordinals must be absent')
+  assert_eq!(sts_120.dig('spec', 'persistentVolumeClaimRetentionPolicy'), nil, 'k8s 1.20 statefulset persistentVolumeClaimRetentionPolicy must be absent')
+  assert_eq!(sts_modern.dig('spec', 'progressDeadlineSeconds'), nil, 'statefulset progressDeadlineSeconds must never be emitted')
+
+  # CronJob timeZone: 1.24+.
+  cron_modern = find_one!(modern_docs, kind: 'CronJob', name: 'compat-cron')
+  cron_129 = find_one!(k129_docs, kind: 'CronJob', name: 'compat-cron')
+  cron_120 = find_one!(k120_docs, kind: 'CronJob', name: 'compat-cron')
+  assert_eq!(cron_modern.dig('spec', 'timeZone'), 'Europe/Moscow', 'modern cronjob timeZone')
+  assert_eq!(cron_129.dig('spec', 'timeZone'), 'Europe/Moscow', 'k8s 1.29 cronjob timeZone')
+  assert_eq!(cron_120.dig('spec', 'timeZone'), nil, 'k8s 1.20 cronjob timeZone must be absent')
+  assert_eq!(cron_modern['apiVersion'], 'batch/v1', 'modern CronJob apiVersion')
+  assert_eq!(cron_120['apiVersion'], 'batch/v1beta1', 'k8s 1.20 CronJob apiVersion')
+
+  # Strimzi KafkaTopic must use the group/version Strimzi still ships.
+  kafka_topic = find_one!(modern_docs, kind: 'KafkaTopic', name: 'compat-topic')
+  assert_eq!(kafka_topic['apiVersion'], 'kafka.strimzi.io/v1beta2', 'KafkaTopic apiVersion')
+end
+
 def verify_main!(paths)
   prod_docs = load_docs(paths[:production])
   dev_docs = load_docs(paths[:dev])
@@ -130,6 +239,7 @@ def verify_main!(paths)
   k129_docs = load_docs(paths[:k129])
   k120_docs = load_docs(paths[:k120])
   k119_docs = load_docs(paths[:k119])
+  kmodern_docs = load_docs(paths[:kmodern])
 
   merge_contract = find_one!(prod_docs, kind: 'ConfigMap', name: 'merge-contract')
   data = merge_contract['data'] || {}
@@ -311,6 +421,8 @@ def verify_main!(paths)
   assert_eq!(cron_vpa_119.dig('spec', 'targetRef', 'apiVersion'), 'batch/v1beta1', 'k8s 1.19 compat-cron VPA targetRef.apiVersion')
   job_vpa_119 = find_one!(k119_docs, kind: 'VerticalPodAutoscaler', name: 'compat-job')
   assert_eq!(job_vpa_119.dig('spec', 'targetRef', 'apiVersion'), 'batch/v1', 'k8s 1.19 compat-job VPA targetRef.apiVersion')
+
+  verify_version_gates!(kmodern_docs, k129_docs, k120_docs)
 end
 
 def verify_internal!(path)
@@ -328,17 +440,18 @@ end
 def parse_main_args(argv)
   options = {}
   parser = OptionParser.new do |opts|
-    opts.banner = 'Usage: scripts/verify-contracts-structure.rb main --production FILE --dev FILE --strict FILE --k129 FILE --k120 FILE --k119 FILE'
+    opts.banner = 'Usage: scripts/verify-contracts-structure.rb main --production FILE --dev FILE --strict FILE --k129 FILE --k120 FILE --k119 FILE --kmodern FILE'
     opts.on('--production FILE', String) { |v| options[:production] = v }
     opts.on('--dev FILE', String) { |v| options[:dev] = v }
     opts.on('--strict FILE', String) { |v| options[:strict] = v }
     opts.on('--k129 FILE', String) { |v| options[:k129] = v }
     opts.on('--k120 FILE', String) { |v| options[:k120] = v }
     opts.on('--k119 FILE', String) { |v| options[:k119] = v }
+    opts.on('--kmodern FILE', String) { |v| options[:kmodern] = v }
   end
   parser.parse!(argv)
 
-  required = %i[production dev strict k129 k120 k119]
+  required = %i[production dev strict k129 k120 k119 kmodern]
   missing = required.reject { |key| options.key?(key) }
   assert!(missing.empty?, "Missing required args for main mode: #{missing.join(', ')}")
 
@@ -370,7 +483,7 @@ begin
     puts 'Contract structure checks passed (internal).'
   else
     warn 'Usage:'
-    warn '  scripts/verify-contracts-structure.rb main --production FILE --dev FILE --strict FILE --k129 FILE --k120 FILE --k119 FILE'
+    warn '  scripts/verify-contracts-structure.rb main --production FILE --dev FILE --strict FILE --k129 FILE --k120 FILE --k119 FILE --kmodern FILE'
     warn '  scripts/verify-contracts-structure.rb internal --file FILE'
     exit 2
   end

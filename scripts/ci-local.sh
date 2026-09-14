@@ -131,6 +131,34 @@ if [[ "${RUN_API}" -eq 1 ]]; then
   grep -q '^apiVersion: autoscaling/v2beta2$' /tmp/tests_k8s_120.yaml
   ! grep -q '^apiVersion: autoscaling/v2$' /tmp/tests_k8s_120.yaml
   kubeconform -strict -summary -ignore-missing-schemas -kubernetes-version 1.20.15 /tmp/tests_k8s_120.yaml
+
+  echo "==> Verify Kubernetes API gates across the compatibility range"
+  helm dependency update tests/contracts >/dev/null
+  for kube_version in 1.19.16 1.20.15 1.21.14 1.22.17 1.23.17 1.24.17 1.25.16 \
+    1.26.15 1.27.16 1.28.15 1.29.0 1.30.0 1.31.0 1.34.0; do
+    helm template contracts tests/contracts \
+      --set global.env=production \
+      --kube-version "${kube_version}" > "/tmp/contracts_gates_${kube_version}.yaml"
+    ruby scripts/verify-kube-gates.rb \
+      --file "/tmp/contracts_gates_${kube_version}.yaml" \
+      --kube-version "${kube_version}"
+    # Two fixture groups are excluded from schema validation:
+    # - the envlike ones are deliberately invalid input shapes (CI disables them
+    #   for server-side validation too);
+    # - the raw escape hatches (podSpecExtra, extraFields, jobTemplateExtraSpec)
+    #   pass through untouched by design, so they carry modern fields into old
+    #   schemas on purpose.
+    helm template contracts tests/contracts \
+      --set global.env=production \
+      --kube-version "${kube_version}" \
+      --set "apps-stateless.compat-native-list-envlike-default.enabled=false" \
+      --set "apps-stateless.compat-native-list-envlike-dev.enabled=false" \
+      --set "apps-stateless.compat-service.podSpecExtra=null" \
+      --set "apps-stateless.compat-service.containers.main.extraFields=null" \
+      --set "apps-jobs.compat-job.jobTemplateExtraSpec=null" \
+      | kubeconform -strict -summary -ignore-missing-schemas \
+        -kubernetes-version "${kube_version}" -
+  done
 fi
 
 if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then

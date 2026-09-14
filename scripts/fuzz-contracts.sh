@@ -53,7 +53,9 @@ fi
 
 RANDOM="${SEED}"
 
-kube_versions=("1.19.16" "1.20.15" "1.23.17" "1.29.0")
+# Oldest supported release, the batch/v1 + policy/v1 boundary, and the gate
+# boundaries added by newer field sets (see _apps-compat.tpl).
+kube_versions=("1.19.16" "1.20.15" "1.23.17" "1.25.16" "1.27.16" "1.29.0" "1.31.0" "1.34.0")
 
 pick_bool() {
   if (( RANDOM % 2 )); then
@@ -72,9 +74,11 @@ for i in $(seq 1 "${ITERATIONS}"); do
 
   # Keep at least one workload enabled so manifests are always meaningful.
   enable_stateless="true"
+  enable_modern_apis="$(pick_bool)"
   enable_stateful="$(pick_bool)"
   enable_daemonset="$(pick_bool)"
   enable_job="$(pick_bool)"
+  enable_job_indexed="$(pick_bool)"
   enable_cron="$(pick_bool)"
   enable_ingress="$(pick_bool)"
   enable_netpol="$(pick_bool)"
@@ -102,10 +106,12 @@ for i in $(seq 1 "${ITERATIONS}"); do
     --set "global.validation.strict=${strict}"
     --set "global.deploy.enabled=${deploy_enabled}"
     --set "apps-stateless.compat-service.enabled=${enable_stateless}"
+    --set "apps-stateless.compat-modern-apis.enabled=${enable_modern_apis}"
     --set "apps-stateful.compat-stateful.enabled=${enable_stateful}"
     --set "apps-daemonsets.compat-daemonset.enabled=${enable_daemonset}"
     --set "apps-jobs.compat-job.enabled=${enable_job}"
     --set "apps-jobs.compat-job.restartPolicy=Never"
+    --set "apps-jobs.compat-job-indexed.enabled=${enable_job_indexed}"
     --set "apps-cronjobs.compat-cron.enabled=${enable_cron}"
     --set "apps-cronjobs.compat-cron.restartPolicy=Never"
     --set "apps-ingresses.compat-ingress.enabled=${enable_ingress}"

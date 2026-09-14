@@ -1,34 +1,110 @@
+{{- /*
+Kubernetes version gating.
+
+A field is emitted only when it is present in the API schema of the target
+Kubernetes version. Below that version the manifest itself is invalid and the
+API server, kubectl --validate and admission webhooks reject it, so the library
+strips the field. At or above that version the worst case is a cluster whose
+feature gate is still closed silently pruning the field, which is harmless and
+resolves itself on upgrade.
+
+Gate versions are therefore schema introduction versions, not GA versions. They
+are verified against the per-version Kubernetes JSON schemas; see
+docs/operations.md#kubernetes-api-compatibility.
+*/ -}}
+
+{{- define "apps-compat.kubeVersion" -}}
+{{- $ := index . 0 -}}
+{{- $override := "" -}}
+{{- if kindIs "map" $.Values.global -}}
+  {{- $compat := index $.Values.global "compat" -}}
+  {{- if kindIs "map" $compat -}}
+    {{- $override = index $compat "kubeVersion" | default "" | toString -}}
+  {{- end -}}
+{{- end -}}
+{{- if $override -}}
+{{- $override -}}
+{{- else -}}
+{{- $.Capabilities.KubeVersion.GitVersion -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-compat.kubeAtLeast" -}}
+{{- $ := index . 0 -}}
+{{- $min := index . 1 -}}
+{{- if semverCompare (printf ">=%s-0" $min) (include "apps-compat.kubeVersion" (list $)) -}}
+true
+{{- end -}}
+{{- end -}}
+
+{{- /* Drop $keys from $scope when the target cluster predates $min. */ -}}
+{{- define "apps-compat.pruneBelow" -}}
+{{- $ := index . 0 -}}
+{{- $scope := index . 1 -}}
+{{- $min := index . 2 -}}
+{{- $keys := index . 3 -}}
+{{- if and (kindIs "map" $scope) (not (include "apps-compat.kubeAtLeast" (list $ $min))) -}}
+  {{- range $_, $key := $keys -}}
+    {{- $_ := unset $scope $key -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "apps-compat.normalizeServiceSpec" -}}
 {{- $ := index . 0 -}}
 {{- $service := index . 1 -}}
-{{- if and $service (kindIs "map" $service) -}}
-  {{- if not (semverCompare ">=1.20-0" $.Capabilities.KubeVersion.GitVersion) -}}
-    {{- $_ := unset $service "allocateLoadBalancerNodePorts" -}}
-    {{- $_ := unset $service "clusterIPs" -}}
-    {{- $_ := unset $service "ipFamilies" -}}
-    {{- $_ := unset $service "ipFamilyPolicy" -}}
-  {{- end -}}
-  {{- if not (semverCompare ">=1.21-0" $.Capabilities.KubeVersion.GitVersion) -}}
-    {{- $_ := unset $service "loadBalancerClass" -}}
-  {{- end -}}
-  {{- if not (semverCompare ">=1.22-0" $.Capabilities.KubeVersion.GitVersion) -}}
-    {{- $_ := unset $service "internalTrafficPolicy" -}}
-  {{- end -}}
-{{- end -}}
+{{- include "apps-compat.pruneBelow" (list $ $service "1.20" (list "allocateLoadBalancerNodePorts" "clusterIPs" "ipFamilies" "ipFamilyPolicy")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $service "1.21" (list "internalTrafficPolicy" "loadBalancerClass")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $service "1.30" (list "trafficDistribution")) -}}
 {{- end -}}
 
 {{- define "apps-compat.normalizeStatefulSetSpec" -}}
 {{- $ := index . 0 -}}
 {{- $app := index . 1 -}}
-{{- if and $app (kindIs "map" $app) -}}
+{{- if kindIs "map" $app -}}
+  {{- /* Not a StatefulSetSpec field at any version. */ -}}
   {{- $_ := unset $app "progressDeadlineSeconds" -}}
-  {{- if not (semverCompare ">=1.23-0" $.Capabilities.KubeVersion.GitVersion) -}}
-    {{- $_ := unset $app "persistentVolumeClaimRetentionPolicy" -}}
-  {{- end -}}
-  {{- if not (semverCompare ">=1.25-0" $.Capabilities.KubeVersion.GitVersion) -}}
-    {{- $_ := unset $app "minReadySeconds" -}}
-  {{- end -}}
 {{- end -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.22" (list "minReadySeconds")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.23" (list "persistentVolumeClaimRetentionPolicy")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.26" (list "ordinals")) -}}
+{{- end -}}
+
+{{- define "apps-compat.normalizePodDisruptionBudgetSpec" -}}
+{{- $ := index . 0 -}}
+{{- $pdb := index . 1 -}}
+{{- include "apps-compat.pruneBelow" (list $ $pdb "1.26" (list "unhealthyPodEvictionPolicy")) -}}
+{{- end -}}
+
+{{- define "apps-compat.normalizeJobSpec" -}}
+{{- $ := index . 0 -}}
+{{- $app := index . 1 -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.21" (list "completionMode")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.25" (list "podFailurePolicy")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.28" (list "backoffLimitPerIndex" "maxFailedIndexes" "podReplacementPolicy")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.30" (list "managedBy" "successPolicy")) -}}
+{{- end -}}
+
+{{- define "apps-compat.normalizeCronJobSpec" -}}
+{{- $ := index . 0 -}}
+{{- $app := index . 1 -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.24" (list "timeZone")) -}}
+{{- end -}}
+
+{{- define "apps-compat.normalizePodSpec" -}}
+{{- $ := index . 0 -}}
+{{- $app := index . 1 -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.20" (list "setHostnameAsFQDN")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.25" (list "hostUsers")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.26" (list "schedulingGates")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $app "1.31" (list "resourceClaims")) -}}
+{{- end -}}
+
+{{- define "apps-compat.normalizeContainerSpec" -}}
+{{- $ := index . 0 -}}
+{{- $container := index . 1 -}}
+{{- include "apps-compat.pruneBelow" (list $ $container "1.27" (list "resizePolicy")) -}}
+{{- include "apps-compat.pruneBelow" (list $ $container "1.28" (list "restartPolicy")) -}}
 {{- end -}}
 
 {{- define "apps-compat.renderRaw" -}}
@@ -202,6 +278,9 @@
 "hostIPC"
 "hostNetwork"
 "hostPID"
+"hostUsers"
+"resourceClaims"
+"schedulingGates"
 "setHostnameAsFQDN"
 "shareProcessNamespace"
 "podSpecExtra"
@@ -229,6 +308,7 @@
   "podDisruptionBudget"
   "service"
   "updateStrategy"
+  "ordinals"
   "persistentVolumeClaimRetentionPolicy"
   "podManagementPolicy"
   "volumeClaimTemplates"
@@ -252,11 +332,18 @@
   "manualSelector"
   "suspend"
   "jobTemplateExtraSpec"
+  "backoffLimitPerIndex"
+  "maxFailedIndexes"
+  "managedBy"
+  "podFailurePolicy"
+  "podReplacementPolicy"
+  "successPolicy"
   ) -}}
 {{- else if eq $type "apps-cronjobs" -}}
   {{- $allowed = concat $allowed (list
   "schedule"
   "concurrencyPolicy"
+  "timeZone"
   "successfulJobsHistoryLimit"
   "failedJobsHistoryLimit"
   "startingDeadlineSeconds"
@@ -268,6 +355,12 @@
   "manualSelector"
   "suspend"
   "jobTemplateExtraSpec"
+  "backoffLimitPerIndex"
+  "maxFailedIndexes"
+  "managedBy"
+  "podFailurePolicy"
+  "podReplacementPolicy"
+  "successPolicy"
   ) -}}
 {{- end -}}
 {{- $allowed | toJson -}}

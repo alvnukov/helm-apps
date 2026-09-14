@@ -61,6 +61,7 @@
 - `werfReport`: импортированный build report `werf` для fallback-резолва image в nested/shared charts;
 - `release`: декларативное управление версиями приложений;
 - `validation.strict`: opt-in strict contract для проверки values;
+- `compat.kubeVersion`: целевая версия Kubernetes для выбора API;
 - произвольные project-level переменные (`ci_url`, `baseUrl` и т.д.).
 
 Пример:
@@ -119,6 +120,22 @@ ports: |
 - запрещает legacy-путь `serviceAccount.clusterRole` внутри workload app;
 - по умолчанию выключен (`false`) для обратной совместимости;
 - рекомендуется миграция на `apps-service-accounts`, где RBAC описывается явно и отдельно от workload-конфига.
+
+Примечание по `compat.kubeVersion`:
+- задаёт версию кластера, под которую рендерится манифест: выбор group/version
+  (`batch/v1` vs `batch/v1beta1` и т.д.) и набор полей, доступных в схеме;
+- по умолчанию берётся `.Capabilities.KubeVersion` — то, что сообщает рендерер;
+- нужен при оффлайн-рендере: `werf render` без кластера подставляет **1.20**, то
+  есть по умолчанию выдаст beta-API, удалённые в 1.25/1.26;
+- формат — обычный semver-префикс: `"1.29"` или `"1.29.4"`.
+
+```yaml
+global:
+  compat:
+    kubeVersion: "1.29"
+```
+
+Полная таблица порогов: [Kubernetes API compatibility](operations.md#kubernetes-api-compatibility).
 
 Что делает `validateTplDelimiters`:
 - включает проверку баланса `{{`/`}}` и запрет `{{{`/`}}}` в строках, проходящих через `fl.value`;
@@ -440,6 +457,13 @@ apps-stateless:
 - `volumes`
 - `serviceAccount`
 - `verticalPodAutoscaler`
+- `hostUsers` (1.25+)
+- `schedulingGates` (1.26+)
+- `resourceClaims` (1.31+)
+
+Поля с пометкой версии рендерятся только на кластерах этой версии и выше; на
+более старых библиотека их убирает. Подробности и полная таблица —
+[Kubernetes API compatibility](operations.md#kubernetes-api-compatibility).
 
 ### 4.2 `childApps`
 <a id="param-childapps"></a>
@@ -507,7 +531,9 @@ apps-stateless:
 Stateful-specific:
 - `service.name` (для headless service),
 - `updateStrategy`,
-- `persistentVolumeClaimRetentionPolicy`,
+- `persistentVolumeClaimRetentionPolicy` (1.23+),
+- `minReadySeconds` (1.22+),
+- `ordinals` (1.26+),
 - `volumeClaimTemplates`.
 
 ### 4.3.1 DaemonSets
@@ -561,13 +587,23 @@ apps-daemonsets:
 - `activeDeadlineSeconds`
 - `restartPolicy`
 - `ttlSecondsAfterFinished` (в соответствующем API-блоке)
+- `completions`
+- `parallelism`
+- `manualSelector`
+- `completionMode` (1.21+)
+- `suspend` (1.21+; у CronJob это отдельное поле без ограничения версии)
+- `podFailurePolicy` (1.25+)
+- `backoffLimitPerIndex`, `maxFailedIndexes`, `podReplacementPolicy` (1.28+)
+- `managedBy`, `successPolicy` (1.30+)
 
 Только cron:
 - `schedule`
 - `concurrencyPolicy`
+- `timeZone` (1.24+)
 - `startingDeadlineSeconds`
 - `successfulJobsHistoryLimit`
 - `failedJobsHistoryLimit`
+- `suspend`
 
 ## 5. `containers` / `initContainers`
 <a id="param-containers"></a>
@@ -627,6 +663,8 @@ containers:
 - `configFilesYAML`
 - `secretConfigFiles`
 - `persistantVolumes`
+- `resizePolicy` (1.27+, in-place resize)
+- `restartPolicy` (1.28+, native sidecar; имеет смысл только у `initContainers`)
 
 ### 5.0 `envVars`
 <a id="param-envvars-usage"></a>
@@ -860,6 +898,9 @@ secretConfigFiles:
 - `clusterIP`
 - `sessionAffinity`
 - `annotations`
+- `ipFamilies`, `ipFamilyPolicy`, `clusterIPs`, `allocateLoadBalancerNodePorts` (1.20+)
+- `internalTrafficPolicy`, `loadBalancerClass` (1.21+)
+- `trafficDistribution` (1.30+)
 
 Навигация: [Parameter Index](parameter-index.md#workload) | [Наверх](#top)
 
@@ -917,6 +958,7 @@ secretConfigFiles:
 - `enabled`
 - `maxUnavailable`
 - `minAvailable`
+- `unhealthyPodEvictionPolicy` (1.26+)
 
 ## 13. `serviceAccount`
 <a id="param-serviceaccount"></a>

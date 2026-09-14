@@ -23,8 +23,9 @@ apiVersion: {{ include "apps-api-versions.cronJob" $ }}
 kind: CronJob
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
+{{- include "apps-compat.normalizeCronJobSpec" (list $ .) -}}
 {{- $specs := dict -}}
-{{- $_ = set $specs "Strings" (list "schedule" "concurrencyPolicy") -}}
+{{- $_ = set $specs "Strings" (list "schedule" "concurrencyPolicy" "timeZone") -}}
 {{- $_ = set $specs "Numbers" (list "failedJobsHistoryLimit" "startingDeadlineSeconds" "successfulJobsHistoryLimit") -}}
 {{- $_ = set $specs "Bools" (list "suspend") -}}
   {{- with include "apps-utils.generateSpecs" (list $ . $specs) | trim }}

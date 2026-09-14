@@ -49,7 +49,7 @@ jobs:
       - name: Install kubeconform
         run: |
           set -euo pipefail
-          KUBECONFORM_VERSION=0.6.7
+          KUBECONFORM_VERSION=0.8.0
           curl -sSL -o /tmp/kubeconform.tar.gz "https://github.com/yannh/kubeconform/releases/download/v${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
           tar -xzf /tmp/kubeconform.tar.gz -C /tmp kubeconform
           sudo install -m 0755 /tmp/kubeconform /usr/local/bin/kubeconform

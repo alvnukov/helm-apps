@@ -1081,6 +1081,16 @@
           },
           "additionalProperties": true
         },
+        "compat": {
+          "type": "object",
+          "properties": {
+            "kubeVersion": {
+              "type": "string",
+              "description": "Target Kubernetes version for API compatibility, e.g. \"1.29\". Overrides the version the renderer reports. This matters offline: werf render assumes 1.20 and helm template assumes its own built-in version, so without it the library can pick beta APIs that no longer exist on the real cluster, or strip fields that cluster supports."
+            }
+          },
+          "additionalProperties": true
+        },
         "deploy": {
           "type": "object",
           "properties": {

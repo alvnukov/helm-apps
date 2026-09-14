@@ -1222,6 +1222,21 @@ apps-stateless:
         maxSurge: 25%
         maxUnavailable: 25%
       type: RollingUpdate
+    ## Поля Pod'а, появившиеся в новых версиях Kubernetes.
+    # Библиотека рендерит их только на кластерах, где они есть в схеме API,
+    # и убирает на более старых. Полная таблица порогов:
+    # docs/operations.md#kubernetes-api-compatibility
+    #
+    # hostUsers: false запускает Pod в отдельном user namespace (1.25+).
+    # Значение по умолчанию в API — true, поэтому осмысленно только false.
+    # https://kubernetes.io/docs/concepts/workloads/pods/user-namespaces/
+    hostUsers: false
+    ## Scheduling gates: планировщик не рассматривает Pod, пока внешний
+    # контроллер не снимет все gates (1.26+). Пример выключен намеренно: без
+    # такого контроллера Pod никогда не будет запланирован.
+    # https://kubernetes.io/docs/concepts/scheduling-eviction/pod-scheduling-readiness/
+    # schedulingGates: |
+    #   - name: example.com/wait-for-quota
     ## Имена Secret'ов, в которых хранятся credentials для скачивания Docker-образов из Docker registry.
     # Пробрасываются как есть в Deployment.spec.template.spec.imagePullSecrets.
     # https://v1-19.docs.kubernetes.io/docs/reference/generated/kubernetes-api/v1.19/#podspec-v1-core

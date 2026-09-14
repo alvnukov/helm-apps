@@ -97,6 +97,24 @@ spec:
         memory: 128Mi
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.compat-modern-apis.podDisruptionBudget
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: "compat-modern-apis"
+  annotations:
+    helm-apps/version: "1.9.0"
+  labels:
+    app: "compat-modern-apis"
+    chart: "contracts"
+spec:
+  selector:
+    matchLabels:
+      app: "compat-modern-apis"
+  maxUnavailable: 1
+  unhealthyPodEvictionPolicy: "AlwaysAllow"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-service-accounts.compat-standalone-sa
 
 apiVersion: v1
@@ -513,6 +531,26 @@ subjects:
     namespace: compat
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.compat-modern-apis.service
+apiVersion: v1
+kind: Service
+metadata:
+  name: "compat-modern-apis"
+  annotations:
+    helm-apps/version: "1.9.0"
+  labels:
+    app: "compat-modern-apis"
+    chart: "contracts"
+spec:
+  ports:
+    - name: http
+      port: 83
+      targetPort: 8083
+  selector:
+    app: "compat-modern-apis"
+  trafficDistribution: "PreferClose"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.compat-service.service
 apiVersion: v1
 kind: Service
@@ -801,6 +839,63 @@ spec:
   selector:
     matchLabels:
       app: "compat-env-old"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-stateless.compat-modern-apis
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: "compat-modern-apis"
+  annotations:
+    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
+  labels:
+    app: "compat-modern-apis"
+    chart: "contracts"
+spec:
+  template:
+    metadata:
+      name: "compat-modern-apis"
+      annotations:
+        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      labels:
+        app: "compat-modern-apis"
+        chart: "contracts"
+    spec:
+      initContainers:
+      - name: "sidecar"
+        image: alpine:3
+        args:
+          - -c
+          - sleep 3600
+        command:
+          - sh
+        restartPolicy: "Always"
+      containers:
+      - name: "main"
+        image: alpine:3
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+        args:
+          - -c
+          - sleep 3600
+        command:
+          - sh
+        resizePolicy:
+          - resourceName: cpu
+            restartPolicy: NotRequired
+          - resourceName: memory
+            restartPolicy: RestartContainer
+      schedulingGates:
+        - name: compat.example/gate
+      hostUsers: false
+  selector:
+    matchLabels:
+      app: "compat-modern-apis"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.compat-native-list-envlike-default
@@ -1189,8 +1284,14 @@ spec:
   selector:
     matchLabels:
       app: "compat-stateful"
+  ordinals:
+    start: 1
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Delete
   serviceName: "compat-stateful"
   replicas: 1
+  minReadySeconds: 5
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-cronjobs.compat-cron
@@ -1206,6 +1307,7 @@ metadata:
     chart: "contracts"
 spec:
   schedule: "*/10 * * * *"
+  timeZone: "Europe/Moscow"
   failedJobsHistoryLimit: 1
   successfulJobsHistoryLimit: 1
   jobTemplate:
@@ -1584,7 +1686,7 @@ spec:
           memory: 256Mi
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
-apiVersion: kafka.strimzi.io/v1beta1
+apiVersion: kafka.strimzi.io/v1beta2
 kind: KafkaTopic
 metadata:
   name: compat-topic
@@ -1953,6 +2055,59 @@ spec:
         - name: "config-containers-compat-job-main-token-txt"
           secret:
             secretName: "config-containers-compat-job-main-token-txt"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-jobs.compat-job-indexed
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: "compat-job-indexed"
+  annotations:
+    helm-apps/version: "1.9.0"
+    helm.sh/hook: "pre-install"
+    helm.sh/hook-delete-policy: "hook-succeeded"
+  labels:
+    app: "compat-job-indexed"
+    chart: "contracts"
+spec:
+  podFailurePolicy:
+    rules:
+      - action: FailIndex
+        onExitCodes:
+          operator: In
+          values:
+            - 42
+  successPolicy:
+    rules:
+      - succeededCount: 2
+  completionMode: "Indexed"
+  managedBy: "compat.example/job-controller"
+  podReplacementPolicy: "Failed"
+  backoffLimitPerIndex: 1
+  completions: 3
+  maxFailedIndexes: 1
+  parallelism: 3
+  suspend: false
+  template:
+    metadata:
+      name: "compat-job-indexed"
+      annotations:
+        helm.sh/hook: "pre-install"
+        helm.sh/hook-delete-policy: "hook-succeeded"
+      labels:
+        app: "compat-job-indexed"
+        chart: "contracts"
+    spec:
+      containers:
+      - name: "main"
+        image: alpine:3
+        args:
+          - -c
+          - echo indexed
+        command:
+          - sh
+      restartPolicy: "Never"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-jobs.compat-job.verticalPodAutoscaler

@@ -301,6 +301,29 @@ Known `global.validation` flags:
 
 Do not enable stricter flags in examples or defaults unless the task explicitly asks for that compatibility change.
 
+## 13.1 Kubernetes API Compatibility
+
+The library renders for a target Kubernetes version: it picks the group/version
+for objects that moved between releases, and strips fields that do not exist in
+that release's API schema.
+
+- Target version: `global.compat.kubeVersion` wins, otherwise
+  `.Capabilities.KubeVersion`. Offline `werf render` reports **1.20**, so set the
+  override when an offline render is meant for a modern cluster.
+- A gate is the release that introduced the field in the **API schema**, not the
+  release where it went GA. Below that release the whole manifest is rejected;
+  at or above it a closed feature gate merely prunes the field.
+- Gates live in `apps-compat.normalize*` helpers via `apps-compat.pruneBelow`.
+  Raw escape hatches (`extraSpec`, `podSpecExtra`, `extraFields`,
+  `jobTemplateExtraSpec`) are never gated — that is deliberate.
+- The full table is in `docs/operations.md#kubernetes-api-compatibility`, and it
+  is executable: `scripts/verify-kube-gates.rb`.
+
+When adding a gated field: date it with `kubeconform -strict -kubernetes-version
+X.Y.Z` on a minimal manifest, add `apps-compat.pruneBelow`, add the row to the
+docs table, add the entry to `GATES` in `scripts/verify-kube-gates.rb`, and add a
+fixture in `tests/contracts/values.yaml`.
+
 ## 14. Source Of Truth Rules
 
 When syntax is unclear, priority is:

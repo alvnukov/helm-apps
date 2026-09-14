@@ -23,6 +23,7 @@
 - [5. Чеклист перед merge](#5-чеклист-изменения-values-перед-merge)
 - [6. Чеклист релиза](#6-чеклист-релиза)
 - [7. Rollback стратегия](#7-rollback-стратегия)
+- [12. Kubernetes API compatibility](#kubernetes-api-compatibility)
 
 ## 1. Operational Mindset
 
@@ -316,5 +317,109 @@ __GroupVars__:
 - Концепция: `docs/library-guide.md`
 - Reference: `docs/reference-values.md`
 - Cookbook: `docs/cookbook.md`
+
+## 12. Kubernetes API compatibility
+<a id="kubernetes-api-compatibility"></a>
+
+Библиотека рендерит манифест под конкретную версию Kubernetes: выбирает
+group/version у объектов, которые переезжали между релизами, и убирает поля,
+которых ещё нет в схеме целевого кластера.
+
+### 12.1 Откуда берётся версия кластера
+
+1. `global.compat.kubeVersion` — если задан, побеждает всё остальное.
+2. Иначе `.Capabilities.KubeVersion.GitVersion` — то, что сообщает рендерер.
+
+Важная ловушка оффлайн-рендера: `werf render` без подключения к кластеру
+подставляет **1.20**, а `helm template` — версию, зашитую в свой бинарь. То есть
+`werf render` по умолчанию выдаст `batch/v1beta1`, `policy/v1beta1` и
+`autoscaling/v2beta2`, которых уже нет в Kubernetes 1.25/1.26. Если рендер
+оффлайн уходит в реальный кластер (артефакт для ревью, diff, GitOps-коммит),
+задавайте версию явно:
+
+```yaml
+global:
+  compat:
+    kubeVersion: "1.29"
+```
+
+### 12.2 Правило выбора порога
+
+Поле включается с того релиза, в котором оно **появилось в схеме API**, а не с
+того, в котором стало GA. Ниже этого релиза манифест невалиден целиком: его
+отклонят API-сервер, `kubectl --validate` и admission-вебхуки. На версии и выше
+худший случай — закрытый feature gate молча отбросит поле, что безвредно и само
+исправляется при обновлении кластера.
+
+Пороги проверены по per-version JSON-схемам Kubernetes (`kubeconform -strict
+-kubernetes-version X.Y.Z`), а не по памяти.
+
+### 12.3 Таблица порогов
+
+Group/version (`_apps-api-versions.tpl`):
+
+| Объект | Stable group/version | С какого релиза | Fallback |
+| --- | --- | --- | --- |
+| CronJob | `batch/v1` | 1.21 | `batch/v1beta1` |
+| PodDisruptionBudget | `policy/v1` | 1.21 | `policy/v1beta1` |
+| HorizontalPodAutoscaler | `autoscaling/v2` | 1.23 | `autoscaling/v2beta2` |
+
+`KafkaTopic` — это Strimzi, а не Kubernetes: `kafka.strimzi.io/v1beta1` выпилен
+из CRD в Strimzi 0.23, поэтому по умолчанию рендерится `v1beta2`, а `v1beta1`
+берётся только если кластер его всё ещё отдаёт.
+
+Поля (`_apps-compat.tpl`):
+
+| Область | Поле | С какого релиза |
+| --- | --- | --- |
+| Service | `allocateLoadBalancerNodePorts`, `clusterIPs`, `ipFamilies`, `ipFamilyPolicy` | 1.20 |
+| Service | `internalTrafficPolicy`, `loadBalancerClass` | 1.21 |
+| Service | `trafficDistribution` | 1.30 |
+| StatefulSet | `minReadySeconds` | 1.22 |
+| StatefulSet | `persistentVolumeClaimRetentionPolicy` | 1.23 |
+| StatefulSet | `ordinals` | 1.26 |
+| PodDisruptionBudget | `unhealthyPodEvictionPolicy` | 1.26 |
+| CronJob | `timeZone` | 1.24 |
+| Job | `completionMode`, `suspend` | 1.21 |
+| Job | `podFailurePolicy` | 1.25 |
+| Job | `backoffLimitPerIndex`, `maxFailedIndexes`, `podReplacementPolicy` | 1.28 |
+| Job | `managedBy`, `successPolicy` | 1.30 |
+| PodSpec | `setHostnameAsFQDN` | 1.20 |
+| PodSpec | `hostUsers` | 1.25 |
+| PodSpec | `schedulingGates` | 1.26 |
+| PodSpec | `resourceClaims` | 1.31 |
+| Container | `resizePolicy` | 1.27 |
+| Container | `restartPolicy` (native sidecar) | 1.28 |
+
+`StatefulSet.spec.progressDeadlineSeconds` и `DaemonSet.spec.replicas`/`strategy`
+не существуют ни в одной версии API и удаляются всегда.
+
+`CronJobSpec.suspend` не ограничивается: он есть с самого `batch/v1beta1`.
+Порог 1.21 относится только к `JobSpec.suspend`.
+
+### 12.4 Raw escape hatches не нормализуются
+
+`extraSpec`, `podSpecExtra`, `extraFields` и `jobTemplateExtraSpec` проходят
+через `apps-compat.renderRaw` **как есть**: версия кластера на них не влияет.
+Это сделано намеренно — это аварийный выход для полей, которых библиотека ещё не
+знает. Отвечает за совместимость такого блока тот, кто его написал.
+
+### 12.5 Как это проверяется
+
+- `scripts/verify-kube-gates.rb --file FILE --kube-version X.Y.Z` — таблица
+  порогов как исполняемая проверка: поле обязано присутствовать на своей версии
+  и выше и отсутствовать ниже.
+- `scripts/check-contracts.sh` рендерит `tests/contracts` на каждой граничной
+  версии и прогоняет через этот скрипт.
+- `scripts/ci-local.sh --api` дополнительно валидирует каждый рендер через
+  `kubeconform -strict` против схемы соответствующего релиза.
+- Матрица `kube-compatibility-matrix` в `.github/workflows/ci.yml` делает то же
+  самое в CI.
+
+Если добавляете поле: найдите релиз по схемам (`kubeconform -strict
+-kubernetes-version X.Y.Z` на минимальном манифесте с этим полем), добавьте
+`apps-compat.pruneBelow` в соответствующий нормализатор, строку в таблицу выше,
+запись в `GATES` в `scripts/verify-kube-gates.rb` и фикстуру в
+`tests/contracts/values.yaml`.
 
 Навигация: [Наверх](#top)

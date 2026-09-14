@@ -304,6 +304,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `_getMapKeyValue`
 - `apps-adopt-utils.adopt-specs`
 - `apps-api-versions.cronJob`
+- `apps-api-versions.kafkaTopic`
 - `apps-api-versions.horizontalPodAutoscaler`
 - `apps-api-versions.podDisruptionBudget`
 - `apps-api-versions.verticalPodAutoscaler`
@@ -314,8 +315,16 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-compat.enforceAllowedKeys`
 - `apps-compat.forbidLegacyServiceAccountClusterRole`
 - `apps-compat.hasEnvValueSelection`
+- `apps-compat.kubeAtLeast`
+- `apps-compat.kubeVersion`
+- `apps-compat.normalizeContainerSpec`
+- `apps-compat.normalizeCronJobSpec`
+- `apps-compat.normalizeJobSpec`
+- `apps-compat.normalizePodDisruptionBudgetSpec`
+- `apps-compat.normalizePodSpec`
 - `apps-compat.normalizeServiceSpec`
 - `apps-compat.normalizeStatefulSetSpec`
+- `apps-compat.pruneBelow`
 - `apps-compat.renderListResolved`
 - `apps-compat.renderListText`
 - `apps-compat.renderRaw`

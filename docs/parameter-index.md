@@ -34,6 +34,10 @@
 | `service` | [Описание](reference-values.md#param-service) | [Пример](cookbook.md#example-basic-api) |
 | `podDisruptionBudget` | [Описание](reference-values.md#param-pdb) | [Пример](../tests/.helm/values.yaml) |
 | `serviceAccount` | [Описание](reference-values.md#param-serviceaccount) | [Пример](cookbook.md#example-serviceaccount) |
+| `hostUsers` / `schedulingGates` / `resourceClaims` | [Описание](reference-values.md#4-workload-app-поля) | [Пороги версий](operations.md#kubernetes-api-compatibility) |
+| `resizePolicy` / `restartPolicy` (container) | [Описание](reference-values.md#param-containers) | [Пороги версий](operations.md#kubernetes-api-compatibility) |
+| `ordinals` / `minReadySeconds` (StatefulSet) | [Описание](reference-values.md#43-statelessstateful) | [Пороги версий](operations.md#kubernetes-api-compatibility) |
+| job-поля (`completionMode`, `podFailurePolicy`, `successPolicy`, ...) | [Описание](reference-values.md#44-jobscronjobs) | [Пороги версий](operations.md#kubernetes-api-compatibility) |
 
 ## Containers Env/Config
 
@@ -75,6 +79,7 @@
 | `__GroupVars__.type` | [Описание](reference-values.md#param-custom-groups) | [Пример](cookbook.md#15-пользовательская-группа-и-mix-app-types) |
 | `__AppType__` | [Описание](reference-values.md#param-custom-groups) | [Пример](cookbook.md#15-пользовательская-группа-и-mix-app-types) |
 | `validation.strict` | [Описание](reference-values.md#2-global) | [Пример](../tests/.helm/values.yaml) |
+| `global.compat.kubeVersion` | [Описание](reference-values.md#2-global) | [Пороги версий](operations.md#kubernetes-api-compatibility) |
 | list-политика | [Cheat sheet](reference-values.md#param-cheat-sheet) | [FAQ](faq.md#2-почему-list-в-values-почти-везде-запрещены) |
 
 ## Дополнительно

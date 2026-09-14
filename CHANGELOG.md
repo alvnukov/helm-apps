@@ -11,6 +11,18 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - Added the `apps-daemonsets` built-in group rendering `apps/v1` `DaemonSet`, with the shared container, `childApps`, `service`, `serviceAccount`, `verticalPodAutoscaler` and `podDisruptionBudget` layers.
 - Added `apps-daemonsets-defaultDaemonSet`, `apps-daemonsets-defaultDaemonSetContainer` and `apps-daemonsets-defaultDaemonSetInitContainer` include profiles.
 - `apps-daemonsets` supports `updateStrategy`, `minReadySeconds` and `revisionHistoryLimit`; `replicas`, `strategy`, `progressDeadlineSeconds` and `horizontalPodAutoscaler` are rejected in strict mode because `DaemonSetSpec` has no such fields.
+- Added `global.compat.kubeVersion`, which sets the Kubernetes version the manifest is rendered for. It overrides what the renderer reports, and matters offline: `werf render` assumes 1.20, so without it the library picks beta APIs that modern clusters no longer serve.
+- Added Kubernetes API fields introduced after 1.24, each gated on the release that introduced it in the API schema: `trafficDistribution` (Service, 1.30); `ordinals` (StatefulSet, 1.26); `unhealthyPodEvictionPolicy` (PodDisruptionBudget, 1.26); `timeZone` (CronJob, 1.24); `podFailurePolicy` (1.25), `backoffLimitPerIndex`, `maxFailedIndexes`, `podReplacementPolicy` (1.28), `managedBy` and `successPolicy` (1.30) on Job; `hostUsers` (1.25), `schedulingGates` (1.26) and `resourceClaims` (1.31) on the pod spec; `resizePolicy` (1.27) and `restartPolicy` for native sidecars (1.28) on containers.
+- Added `scripts/verify-kube-gates.rb`, which checks the version gate table against a rendered manifest, and wired it into `scripts/check-contracts.sh`, `scripts/ci-local.sh` and the CI compatibility matrix across every gate boundary from 1.19 to 1.36.
+
+### Fixed
+- `KafkaTopic` now renders `kafka.strimzi.io/v1beta2`, the group/version Strimzi still ships; `v1beta1` was removed from the CRDs in Strimzi 0.23 and is used only when the cluster still serves it.
+- Boolean workload fields set to `false` now render as `false` instead of an empty value. This matters for `hostUsers`, where the API default is `true` and only `false` is meaningful.
+- `completionMode` and `JobSpec.suspend` are now gated at 1.21; previously a Job carrying them was rejected outright by older clusters. `CronJobSpec.suspend` is unaffected.
+
+### Changed
+- Relaxed two over-strict gates verified against the Kubernetes JSON schemas: `internalTrafficPolicy` from 1.22 to 1.21, and StatefulSet `minReadySeconds` from 1.25 to 1.22.
+- Bumped the `kubeconform` pin in CI from 0.6.7 to 0.8.0.
 
 ## [1.9.0] - 2026-07-14
 

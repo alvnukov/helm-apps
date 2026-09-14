@@ -219,7 +219,7 @@ spec:
   {{- $topics := index . 2 }}
 {{- range $name, $topic :=  $topics }}
 ---
-apiVersion: kafka.strimzi.io/v1beta1
+apiVersion: {{ include "apps-api-versions.kafkaTopic" $ }}
 kind: KafkaTopic
 metadata:
   name: {{ $name }}

@@ -275,6 +275,61 @@ apps-stateless:
           targetPort: 8080
       extraSpec: |
         externalTrafficPolicy: Local
+  # Fields that exist only in newer Kubernetes API schemas. The library drops
+  # each one when the target cluster predates the release that introduced it.
+  compat-modern-apis:
+    enabled: true
+    hostUsers: false
+    schedulingGates: |
+      - name: compat.example/gate
+    initContainers:
+      sidecar:
+        image:
+          name: alpine
+          staticTag: "3"
+        # Native sidecar: an init container that keeps running (1.28+).
+        restartPolicy: Always
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        # In-place resize policy (1.27+).
+        resizePolicy: |
+          - resourceName: cpu
+            restartPolicy: NotRequired
+          - resourceName: memory
+            restartPolicy: RestartContainer
+        resources:
+          requests:
+            mcpu: 100
+            memoryMb: 256
+          limits:
+            mcpu: null
+            memoryMb: 256
+    podDisruptionBudget:
+      enabled: true
+      maxUnavailable: 1
+      # 1.26+
+      unhealthyPodEvictionPolicy: AlwaysAllow
+    service:
+      enabled: true
+      # 1.30+
+      trafficDistribution: PreferClose
+      ports: |
+        - name: http
+          port: 83
+          targetPort: 8083
   compat-env-old:
     enabled: true
     containers:
@@ -365,6 +420,47 @@ apps-jobs:
     jobTemplateExtraSpec: |
       podFailurePolicy:
         rules: []
+
+  # JobSpec fields added after 1.24. Indexed completion is a prerequisite for
+  # backoffLimitPerIndex and successPolicy.
+  compat-job-indexed:
+    enabled: true
+    annotations: |
+      helm.sh/hook: pre-install
+      helm.sh/hook-delete-policy: hook-succeeded
+    restartPolicy: Never
+    # 1.21+ (JobSpec only; CronJobSpec.suspend is not gated)
+    suspend: false
+    completionMode: Indexed
+    completions: 3
+    parallelism: 3
+    # 1.28+
+    backoffLimitPerIndex: 1
+    maxFailedIndexes: 1
+    podReplacementPolicy: Failed
+    # 1.30+
+    managedBy: compat.example/job-controller
+    successPolicy: |
+      rules:
+        - succeededCount: 2
+    # 1.25+
+    podFailurePolicy: |
+      rules:
+        - action: FailIndex
+          onExitCodes:
+            operator: In
+            values:
+              - 42
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - echo indexed
 
 apps-ingresses:
   compat-ingress:
@@ -499,6 +595,15 @@ apps-stateful:
   compat-stateful:
     enabled: true
     replicas: 1
+    # 1.22+
+    minReadySeconds: 5
+    # 1.23+
+    persistentVolumeClaimRetentionPolicy: |
+      whenDeleted: Retain
+      whenScaled: Delete
+    # 1.26+
+    ordinals: |
+      start: 1
     containers:
       main:
         image:
@@ -556,6 +661,8 @@ apps-cronjobs:
     verticalPodAutoscaler:
       enabled: true
     schedule: "*/10 * * * *"
+    # 1.24+
+    timeZone: "Europe/Moscow"
     successfulJobsHistoryLimit: 1
     failedJobsHistoryLimit: 1
     containers:

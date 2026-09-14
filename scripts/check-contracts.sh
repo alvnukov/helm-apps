@@ -7,6 +7,10 @@ cd "${ROOT_DIR}"
 RUN_SNAPSHOT=1
 APPS_VERSION_FILE="charts/helm-apps/templates/_apps-version.tpl"
 
+# Kubernetes release used for the "everything is available" compatibility render.
+# Must be >= the newest gate in charts/helm-apps/templates/_apps-compat.tpl.
+KUBE_VERSION_MODERN="${KUBE_VERSION_MODERN:-1.34.0}"
+
 usage() {
   cat <<'USAGE'
 Usage: scripts/check-contracts.sh [options]
@@ -95,6 +99,7 @@ helm template contracts tests/contracts --set global.env=production --set global
 helm template contracts tests/contracts --set global.env=production --kube-version 1.29.0 > /tmp/contracts_render_129.yaml
 helm template contracts tests/contracts --set global.env=production --kube-version 1.20.15 > /tmp/contracts_render_120.yaml
 helm template contracts tests/contracts --set global.env=production --kube-version 1.19.16 > /tmp/contracts_render_119.yaml
+helm template contracts tests/contracts --set global.env=production --kube-version "${KUBE_VERSION_MODERN}" > /tmp/contracts_render_modern.yaml
 
 echo "==> Validate rendered contracts YAML streams"
 ruby scripts/validate-yaml-stream.rb \
@@ -103,7 +108,8 @@ ruby scripts/validate-yaml-stream.rb \
   /tmp/contracts_render_strict.yaml \
   /tmp/contracts_render_129.yaml \
   /tmp/contracts_render_120.yaml \
-  /tmp/contracts_render_119.yaml
+  /tmp/contracts_render_119.yaml \
+  /tmp/contracts_render_modern.yaml
 
 if [[ "${RUN_SNAPSHOT}" -eq 1 ]]; then
   echo "==> Contracts snapshot check (new features snapshot)"
@@ -138,7 +144,21 @@ ruby scripts/verify-contracts-structure.rb main \
   --strict /tmp/contracts_render_strict.yaml \
   --k129 /tmp/contracts_render_129.yaml \
   --k120 /tmp/contracts_render_120.yaml \
-  --k119 /tmp/contracts_render_119.yaml
+  --k119 /tmp/contracts_render_119.yaml \
+  --kmodern /tmp/contracts_render_modern.yaml
+
+echo "==> Kubernetes API gate sweep"
+# One render per gate boundary in charts/helm-apps/templates/_apps-compat.tpl,
+# so a wrong or missing gate fails on the exact release that introduced it.
+for kube_version in 1.19.16 1.20.15 1.21.14 1.22.17 1.23.17 1.24.17 1.25.16 \
+  1.26.15 1.27.16 1.28.15 1.29.0 1.30.0 1.31.0 "${KUBE_VERSION_MODERN}"; do
+  helm template contracts tests/contracts \
+    --set global.env=production \
+    --kube-version "${kube_version}" > "/tmp/contracts_gates_${kube_version}.yaml"
+  ruby scripts/verify-kube-gates.rb \
+    --file "/tmp/contracts_gates_${kube_version}.yaml" \
+    --kube-version "${kube_version}"
+done
 
 echo "==> Managed job hook dependency checks"
 ruby - <<'RUBY'

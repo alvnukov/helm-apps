@@ -109,6 +109,7 @@
     {{- if include "fl.isTrue" (list $ . .enabled) }}
     {{- $_ := set . "name" $_containerName }}
     {{- $_ = set $ "CurrentContainer" $_container }}
+    {{- include "apps-compat.normalizeContainerSpec" (list $ .) }}
 - name: {{ include "fl.valueQuoted" (list $ . .name) }}
   image: {{ include "fl.generateContainerImageQuoted" (list $ . .image) }}
   {{- with (include "apps-helpers.genereteContainersEnv" (list $ .) | trim) }}
@@ -130,9 +131,9 @@
   volumeMounts:{{ print $volumeMounts | trim | nindent 2 }}
   {{- end -}}
   {{- $specsContainers := dict -}}
-  {{- $_ = set $specsContainers "Lists" ( list "args" "command" "ports") -}}
+  {{- $_ = set $specsContainers "Lists" ( list "args" "command" "ports" "resizePolicy") -}}
   {{- $_ = set $specsContainers "Maps" (list "lifecycle" "livenessProbe" "readinessProbe" "securityContext" "startupProbe") -}}
-  {{- $_ = set $specsContainers "Strings" (list "imagePullPolicy" "terminationMessagePath" "terminationMessagePolicy" "workingDir") -}}
+  {{- $_ = set $specsContainers "Strings" (list "imagePullPolicy" "restartPolicy" "terminationMessagePath" "terminationMessagePolicy" "workingDir") -}}
   {{- $_ = set $specsContainers "Bools" (list "stdin" "stdinOnce" "tty" ) -}}
   {{- with include "apps-utils.generateSpecs" (list $ . $specsContainers) | trim }}
   {{- . | nindent 2 }}
@@ -151,6 +152,7 @@
     {{- $RelatedScope := index . 1 }}
 {{- with $RelatedScope }}
 {{- $_ := set . "__DO_NOT_ANNOTATE_WITH_LIB_VERSION__" true }}
+{{- include "apps-compat.normalizePodSpec" (list $ .) -}}
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
   {{- $_ := set $.CurrentApp "_currentContainersType" "initContainers" }}
@@ -162,11 +164,11 @@ spec:
   containers:
   {{- include "apps-helpers.generateContainers" (list $ . .containers) | trim | nindent 2 }}
   {{- $specsTemplate := dict -}}
-  {{- $_ = set $specsTemplate "Lists" ( list "tolerations" "imagePullSecrets" "hostAliases" "topologySpreadConstraints" "apps-specs.containers.volumes") -}}
+  {{- $_ = set $specsTemplate "Lists" ( list "tolerations" "imagePullSecrets" "hostAliases" "resourceClaims" "schedulingGates" "topologySpreadConstraints" "apps-specs.containers.volumes") -}}
   {{- $_ = set $specsTemplate "Maps" (list "affinity" "dnsConfig" "nodeSelector" "overhead" "readinessGates" "securityContext") -}}
   {{- $_ = set $specsTemplate "Strings" (list "dnsPolicy" "hostname" "nodeName" "preemptionPolicy" "priorityClassName" "restartPolicy" "runtimeClassName" "schedulerName" "serviceAccount" "serviceAccountName" "subdomain") -}}
   {{- $_ = set $specsTemplate "Numbers" (list "activeDeadlineSeconds" "priority" "terminationGracePeriodSeconds") -}}
-  {{- $_ = set $specsTemplate "Bools" (list "automountServiceAccountToken" "enableServiceLinks" "hostIPC" "hostNetwork" "hostPID" "setHostnameAsFQDN" "shareProcessNamespace") -}}
+  {{- $_ = set $specsTemplate "Bools" (list "automountServiceAccountToken" "enableServiceLinks" "hostIPC" "hostNetwork" "hostPID" "hostUsers" "setHostnameAsFQDN" "shareProcessNamespace") -}}
   {{- with include "apps-utils.generateSpecs" (list $ . $specsTemplate) | trim }}
   {{- . | nindent 2 }}
   {{- end }}
@@ -266,12 +268,22 @@ spec:
     {{- $ := index . 0 }}
     {{- $RelatedScope := index . 1 }}
 {{- with $RelatedScope }}
+{{- include "apps-compat.normalizeJobSpec" (list $ .) }}
 spec:
   {{- $specs := dict }}
-  {{- $_ := set $specs "Maps" (list "selector") }}
-  {{- $_ = set $specs "Strings" (list "completionMode") }}
-  {{- $_ = set $specs "Numbers" (list "activeDeadlineSeconds" "backoffLimit" "completions" "parallelism" "ttlSecondsAfterFinished") }}
-  {{- $_ = set $specs "Bools" (list "manualSelector" "suspend") }}
+  {{- $_ := set $specs "Maps" (list "selector" "podFailurePolicy" "successPolicy") }}
+  {{- $_ = set $specs "Strings" (list "completionMode" "managedBy" "podReplacementPolicy") }}
+  {{- $_ = set $specs "Numbers" (list "activeDeadlineSeconds" "backoffLimit" "backoffLimitPerIndex" "completions" "maxFailedIndexes" "parallelism" "ttlSecondsAfterFinished") }}
+  {{- /*
+  JobSpec.suspend is 1.21+, but the app scope is shared with CronJobSpec, where
+  suspend has always existed. Gate it here instead of unsetting it in the scope,
+  so a CronJob on an older cluster keeps its own suspend.
+  */ -}}
+  {{- $jobBools := list "manualSelector" }}
+  {{- if include "apps-compat.kubeAtLeast" (list $ "1.21") }}
+  {{- $jobBools = append $jobBools "suspend" }}
+  {{- end }}
+  {{- $_ = set $specs "Bools" $jobBools }}
   {{- with include "apps-utils.generateSpecs" (list $ . $specs) | trim }}
   {{- . | nindent 2 }}
   {{- end }}

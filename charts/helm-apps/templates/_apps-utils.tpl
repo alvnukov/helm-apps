@@ -168,8 +168,11 @@ Values
 {{ $relativeScope.__specName__ }}: {{ print $specValue }}
 {{- end }}
 {{- else }}
-{{- if and (hasKey $relativeScope $specName) (ne (include "fl.value" (list $ $relativeScope (index $relativeScope .))) "") }}
-{{ $specName }}: {{ include "fl.isTrue" (list $ $relativeScope (index $relativeScope .)) }}
+{{- if hasKey $relativeScope $specName }}
+{{- $boolValue := include "fl.value" (list $ $relativeScope (index $relativeScope .)) }}
+{{- if ne $boolValue "" }}
+{{ $specName }}: {{ eq $boolValue "true" }}
+{{- end }}
 {{- end }}
 {{- end }}
 {{- end }}
