@@ -37,6 +37,7 @@ Top-level `values.yaml` keys are schema-backed. Built-in render groups are:
 
 - `apps-stateless`
 - `apps-stateful`
+- `apps-daemonsets`
 - `apps-jobs`
 - `apps-cronjobs`
 - `apps-services`
@@ -166,7 +167,8 @@ Do not change merge semantics without contract tests.
 
 ## 8. Workload Syntax
 
-Use `apps-stateless` for `Deployment`, `apps-stateful` for `StatefulSet`, `apps-jobs` for `Job`, and `apps-cronjobs` for `CronJob`.
+Use `apps-stateless` for `Deployment`, `apps-stateful` for `StatefulSet`, `apps-daemonsets` for `DaemonSet`, `apps-jobs` for `Job`, and `apps-cronjobs` for `CronJob`.
+`apps-daemonsets` has no `replicas` and no `strategy`; rollout is configured through `updateStrategy`.
 
 Common workload shape:
 

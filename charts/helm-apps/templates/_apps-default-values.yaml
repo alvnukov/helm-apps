@@ -51,6 +51,42 @@ global:
     apps-cronjobs-defaultCronJobContainer:
       enabled: true
 
+    ## Конфигурация по умолчанию для DaemonSet в целом.
+    apps-daemonsets-defaultDaemonSet:
+      _include: ["apps-default-library-app"]
+      revisionHistoryLimit: 3
+      updateStrategy:
+        _default: |
+          rollingUpdate:
+            maxUnavailable: 1
+          type: RollingUpdate
+      terminationGracePeriodSeconds:
+        _default: 30
+        prod: 60
+        production: 60
+        rspec: 3
+      priorityClassName:
+        prod: "production-medium"
+        production: "production-medium"
+      podDisruptionBudget:
+        enabled: false
+      verticalPodAutoscaler:
+        enabled: true
+        updateMode: "Off"
+        resourcePolicy: |
+          {}
+      service:
+        enabled: false
+        name: "{{ $.CurrentApp.name }}"
+
+    ## Конфигурация по умолчанию для инит-контейнера DaemonSet.
+    apps-daemonsets-defaultDaemonSetInitContainer:
+      enabled: true
+
+    ## Конфигурация по умолчанию для контейнера DaemonSet.
+    apps-daemonsets-defaultDaemonSetContainer:
+      enabled: true
+
     apps-secrets-defaultSecret:
       _include: ["apps-default-library-app"]
     apps-ingresses-defaultIngress:

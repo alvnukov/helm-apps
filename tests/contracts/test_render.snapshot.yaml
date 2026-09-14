@@ -7,6 +7,8 @@ apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass
 metadata:
   name: "compat-generic-priorityclass"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-priorityclass"
     chart: "contracts"
@@ -22,6 +24,8 @@ apiVersion: projectcalico.org/v3
 kind: NetworkPolicy
 metadata:
   name: "compat-calico-netpol"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-calico-netpol"
     chart: "contracts"
@@ -46,6 +50,8 @@ apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
   name: "compat-netpol"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-netpol"
     chart: "contracts"
@@ -77,6 +83,8 @@ apiVersion: v1
 kind: LimitRange
 metadata:
   name: "compat-limit-range"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-limit-range"
     chart: "contracts"
@@ -95,6 +103,8 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: "compat-standalone-sa"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -113,6 +123,8 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: "compat-generic-serviceaccount"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-serviceaccount"
     chart: "contracts"
@@ -133,6 +145,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "envs-containers-compat-env-mixed-main"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-mixed"
     chart: "contracts"
@@ -146,6 +160,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "envs-containers-compat-env-old-main"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-old"
     chart: "contracts"
@@ -159,6 +175,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "config-containers-compat-service-main-runtime-secret-txt"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-service"
     chart: "contracts"
@@ -173,6 +191,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "common-runtime"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "common-runtime"
     chart: "contracts"
@@ -189,6 +209,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "compat-secret"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-secret"
     chart: "contracts"
@@ -204,6 +226,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "manual-env-mixed"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "manual-env-mixed"
     chart: "contracts"
@@ -218,6 +242,8 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: "manual-env-old"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "manual-env-old"
     chart: "contracts"
@@ -232,6 +258,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "custom-group-cm"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "custom-group-cm"
     chart: "contracts"
@@ -245,6 +273,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "common-runtime-cm"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "common-runtime-cm"
     chart: "contracts"
@@ -259,6 +289,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "compat-config"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-config"
     chart: "contracts"
@@ -273,6 +305,8 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: "merge-contract"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "merge-contract"
     chart: "contracts"
@@ -294,6 +328,8 @@ kind: PersistentVolumeClaim
 apiVersion: v1
 metadata:
   name: "compat-pvc"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-pvc"
     chart: "contracts"
@@ -310,6 +346,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: "compat-standalone-sa-metrics-reader"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -334,6 +372,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: "compat-standalone-sa-metrics-reader"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -351,6 +391,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: "compat-standalone-sa-reader"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -383,6 +425,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: "compat-standalone-sa-writer"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -404,6 +448,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "compat-reader-binding"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -425,6 +471,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "compat-standalone-sa-writer"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-sa"
     chart: "contracts"
@@ -446,6 +494,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
   name: "compat-generic-rolebinding"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-rolebinding"
     chart: "contracts"
@@ -468,6 +518,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: "compat-service"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-service"
     chart: "contracts"
@@ -493,6 +545,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: "native-list-env-optin"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "native-list-env-optin"
     chart: "contracts"
@@ -510,6 +564,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: "native-list-optin"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "native-list-optin"
     chart: "contracts"
@@ -527,6 +583,8 @@ apiVersion: v1
 kind: Service
 metadata:
   name: "compat-stateful"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-stateful"
     chart: "contracts"
@@ -539,11 +597,32 @@ spec:
     app: "compat-stateful"
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-daemonsets.compat-daemonset.service
+apiVersion: v1
+kind: Service
+metadata:
+  name: "compat-daemonset"
+  annotations:
+    helm-apps/version: "1.9.0"
+  labels:
+    app: "compat-daemonset"
+    chart: "contracts"
+spec:
+  ports:
+    - name: http
+      port: 82
+      targetPort: 8082
+  selector:
+    app: "compat-daemonset"
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-services.compat-standalone-service
 apiVersion: v1
 kind: Service
 metadata:
   name: "compat-standalone-service"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-standalone-service"
     chart: "contracts"
@@ -556,6 +635,49 @@ spec:
     app: compat-service
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-daemonsets.compat-daemonset
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: "compat-daemonset"
+  annotations:
+    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
+  labels:
+    app: "compat-daemonset"
+    chart: "contracts"
+spec:
+  template:
+    metadata:
+      name: "compat-daemonset"
+      annotations:
+        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      labels:
+        app: "compat-daemonset"
+        chart: "contracts"
+    spec:
+      containers:
+      - name: "main"
+        image: alpine:3
+        args:
+          - -c
+          - sleep 3600
+        command:
+          - sh
+        ports:
+          - name: http
+            containerPort: 8082
+  selector:
+    matchLabels:
+      app: "compat-daemonset"
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+  minReadySeconds: 5
+  revisionHistoryLimit: 3
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-stateless.compat-env-list-miss
 apiVersion: apps/v1
 kind: Deployment
@@ -563,6 +685,7 @@ metadata:
   name: "compat-env-list-miss"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-list-miss"
     chart: "contracts"
@@ -596,6 +719,7 @@ metadata:
   name: "compat-env-mixed"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-mixed"
     chart: "contracts"
@@ -647,6 +771,7 @@ metadata:
   name: "compat-env-old"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-old"
     chart: "contracts"
@@ -685,6 +810,7 @@ metadata:
   name: "compat-native-list-envlike-default"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-native-list-envlike-default"
     chart: "contracts"
@@ -722,6 +848,7 @@ metadata:
   name: "compat-native-list-envlike-dev"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-native-list-envlike-dev"
     chart: "contracts"
@@ -759,6 +886,7 @@ metadata:
   name: "compat-native-list-literal-tpl"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-native-list-literal-tpl"
     chart: "contracts"
@@ -794,6 +922,7 @@ metadata:
   name: "compat-service"
   annotations:
     checksum/config: "5be0410867946d64eeca94d189dcc027a1c8bc5d4d56fc9a8b9174fba4860d5c"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-service"
     chart: "contracts"
@@ -850,6 +979,7 @@ metadata:
   name: "compat-string-list-tpl"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-string-list-tpl"
     chart: "contracts"
@@ -885,6 +1015,7 @@ metadata:
   name: "compat-werf-report-fallback"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-werf-report-fallback"
     chart: "contracts"
@@ -918,6 +1049,7 @@ metadata:
   name: "native-list-env-optin"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "native-list-env-optin"
     chart: "contracts"
@@ -954,6 +1086,7 @@ metadata:
   name: "native-list-optin"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "native-list-optin"
     chart: "contracts"
@@ -992,6 +1125,7 @@ metadata:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     helm-apps/app-version: "3.19"
     helm-apps/release: "production-v1"
+    helm-apps/version: "1.9.0"
   labels:
     app: "release-auto-app"
     chart: "contracts"
@@ -1027,6 +1161,7 @@ metadata:
   name: "compat-stateful"
   annotations:
     checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-stateful"
     chart: "contracts"
@@ -1064,6 +1199,8 @@ apiVersion: batch/v1
 kind: CronJob
 metadata:
   name: "compat-cron"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-cron"
     chart: "contracts"
@@ -1148,6 +1285,8 @@ apiVersion: admissionregistration.k8s.io/v1
 kind: ValidatingWebhookConfiguration
 metadata:
   name: "compat-generic-validating-webhook"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-validating-webhook"
     chart: "contracts"
@@ -1204,6 +1343,8 @@ apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
   name: "compat-cilium-netpol"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-cilium-netpol"
     chart: "contracts"
@@ -1247,6 +1388,8 @@ apiVersion: deckhouse.io/v1
 kind: DexAuthenticator
 metadata:
   name: "compat-dex-auth"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-dex-auth"
     chart: "contracts"
@@ -1265,6 +1408,8 @@ apiVersion: deckhouse.io/v1alpha1
 kind: DexClient
 metadata:
   name: "compat-dex-client"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-dex-client"
     chart: "contracts"
@@ -1279,6 +1424,8 @@ apiVersion: deckhouse.io/v1alpha1
 kind: GrafanaDashboardDefinition
 metadata:
   name: "compat-dashboard"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-dashboard"
     chart: "contracts"
@@ -1460,6 +1607,8 @@ apiVersion: coordination.k8s.io/v1
 kind: Lease
 metadata:
   name: "compat-generic-lease"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-lease"
     chart: "contracts"
@@ -1494,11 +1643,33 @@ spec:
   isSudoer: true
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
+# Helm Apps Library: apps-daemonsets.compat-daemonset.verticalPodAutoscaler
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: "compat-daemonset"
+  annotations:
+    helm-apps/version: "1.9.0"
+  labels:
+    app: "compat-daemonset"
+    chart: "contracts"
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: DaemonSet
+    name: "compat-daemonset"
+  updatePolicy:
+    updateMode: "Off"
+  resourcePolicy: {}
+---
+# Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-cronjobs.compat-cron.verticalPodAutoscaler
 apiVersion: autoscaling.k8s.io/v1
 kind: VerticalPodAutoscaler
 metadata:
   name: "compat-cron"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-cron"
     chart: "contracts"
@@ -1572,6 +1743,7 @@ kind: WidgetPolicy
 metadata:
   name: "compat-generic-cr"
   annotations:
+    helm-apps/version: "1.9.0"
     importer/source-chart: "kube-prometheus-stack"
   labels:
     app: "compat-generic-cr"
@@ -1598,6 +1770,8 @@ apiVersion: example.io/v1alpha1
 kind: WidgetPolicy
 metadata:
   name: "compat-generic-envlike-default"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-envlike-default"
     chart: "contracts"
@@ -1615,6 +1789,8 @@ apiVersion: example.io/v1alpha1
 kind: WidgetPolicy
 metadata:
   name: "compat-generic-envlike-dev"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-envlike-dev"
     chart: "contracts"
@@ -1634,6 +1810,8 @@ apiVersion: example.io/v1alpha1
 kind: WidgetPolicy
 metadata:
   name: "compat-generic-string-list-tpl"
+  annotations:
+    helm-apps/version: "1.9.0"
   labels:
     app: "compat-generic-string-list-tpl"
     chart: "contracts"
@@ -1653,6 +1831,7 @@ metadata:
   name: "config-containers-compat-job-main-token-txt"
   annotations:
     compat.example/secret-file: "true"
+    helm-apps/version: "1.9.0"
     helm.sh/hook: "pre-install"
     helm.sh/hook-delete-policy: "before-hook-creation"
   labels:
@@ -1670,6 +1849,7 @@ metadata:
   name: "envs-containers-compat-job-main"
   annotations:
     compat.example/secret-env: "true"
+    helm-apps/version: "1.9.0"
     helm.sh/hook: "pre-install"
     helm.sh/hook-delete-policy: "before-hook-creation"
   labels:
@@ -1687,6 +1867,7 @@ metadata:
   name: "config-containers-compat-job-main-app-conf"
   annotations:
     compat.example/config-file: "true"
+    helm-apps/version: "1.9.0"
     helm.sh/hook: "pre-install"
     helm.sh/hook-delete-policy: "before-hook-creation"
   labels:
@@ -1704,6 +1885,7 @@ metadata:
   name: "config-yaml-containers-compat-job-main-app-yaml"
   annotations:
     compat.example/config-yaml: "true"
+    helm-apps/version: "1.9.0"
     helm.sh/hook: "pre-install"
     helm.sh/hook-delete-policy: "before-hook-creation"
   labels:
@@ -1721,6 +1903,7 @@ kind: Job
 metadata:
   name: "compat-job"
   annotations:
+    helm-apps/version: "1.9.0"
     helm.sh/hook: "pre-install"
     helm.sh/hook-delete-policy: "hook-succeeded"
   labels:
@@ -1778,6 +1961,7 @@ kind: VerticalPodAutoscaler
 metadata:
   name: "compat-job"
   annotations:
+    helm-apps/version: "1.9.0"
     helm.sh/hook: "pre-install"
     helm.sh/hook-delete-policy: "hook-succeeded"
   labels:

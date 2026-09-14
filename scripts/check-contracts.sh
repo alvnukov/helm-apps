@@ -687,6 +687,15 @@ echo "==> Strict negative checks"
 grep -q "\[helm-apps:E_STRICT_UNKNOWN_KEY\]" /tmp/contracts_render_strict_workload_fail.err
 grep -q "path=apps-stateless.compat-service.securityContexts" /tmp/contracts_render_strict_workload_fail.err
 
+! helm template contracts tests/contracts \
+  --set global.env=production \
+  --set global.validation.strict=true \
+  --set apps-daemonsets.compat-daemonset.replicas=3 \
+  >/tmp/contracts_render_strict_daemonset_fail.out 2>/tmp/contracts_render_strict_daemonset_fail.err
+
+grep -q "\[helm-apps:E_STRICT_UNKNOWN_KEY\]" /tmp/contracts_render_strict_daemonset_fail.err
+grep -q "path=apps-daemonsets.compat-daemonset.replicas" /tmp/contracts_render_strict_daemonset_fail.err
+
 echo "==> Legacy serviceAccount.clusterRole guard checks"
 cat > /tmp/contracts_legacy_serviceaccount_clusterrole.yaml <<'YAML'
 apps-stateless:

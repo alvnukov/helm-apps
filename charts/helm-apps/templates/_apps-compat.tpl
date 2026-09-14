@@ -233,6 +233,15 @@
   "podManagementPolicy"
   "volumeClaimTemplates"
   ) -}}
+{{- else if eq $type "apps-daemonsets" -}}
+  {{- $allowed = concat $allowed (list
+  "reloader"
+  "minReadySeconds"
+  "revisionHistoryLimit"
+  "updateStrategy"
+  "podDisruptionBudget"
+  "service"
+  ) -}}
 {{- else if eq $type "apps-jobs" -}}
   {{- $allowed = concat $allowed (list
   "completionMode"

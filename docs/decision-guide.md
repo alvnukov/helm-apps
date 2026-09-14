@@ -15,6 +15,7 @@
 |---|---|---|---|
 | HTTP/API, фоновые consumers с постоянными pod | `apps-stateless` | Простая масштабируемая модель на Deployment | [Cookbook 1](cookbook.md#example-basic-api) |
 | Stateful сервис с диском (DB, queue, broker) | `apps-stateful` | StatefulSet + устойчивые тома и порядок запуска | [Cookbook 12](cookbook.md#example-stateful-pvc) |
+| Агент на каждом узле (логи, метрики, CNI, storage) | `apps-daemonsets` | DaemonSet: один Pod на узел, без `replicas` | [Cookbook 21](cookbook.md#example-daemonset) |
 | Одноразовая задача (миграция, init) | `apps-jobs` | Запуск до завершения с контролем retry | [Cookbook 5](cookbook.md#5-one-shot-job-migration) |
 | Периодическая задача | `apps-cronjobs` | Cron schedule + история выполнений | [Cookbook 4](cookbook.md#example-cronjob) |
 

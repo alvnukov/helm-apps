@@ -599,6 +599,103 @@ spec:
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+    checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    helm-apps/version: TEST
+    testAnnotation: testVal
+  labels:
+    app: daemonset-1
+    chart: tests
+    repo: ""
+    testLabel: testVal
+  name: daemonset-1
+spec:
+  minReadySeconds: 5
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: daemonset-1
+  template:
+    metadata:
+      annotations:
+        checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        testAnnotation: testVal
+      labels:
+        app: daemonset-1
+        chart: tests
+        repo: ""
+        testLabel: testVal
+      name: daemonset-1
+    spec:
+      containers:
+      - env:
+        - name: NODE_AGENT_MODE
+          value: production
+        image: nginx:1.27
+        name: node-agent
+        ports:
+        - containerPort: 9100
+          name: metrics
+        resources:
+          limits:
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 256Mi
+      imagePullSecrets:
+      - name: registrysecret
+      priorityClassName: production-medium
+      terminationGracePeriodSeconds: 60
+      tolerations:
+      - operator: Exists
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 10%
+    type: RollingUpdate
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  annotations:
+    checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    helm-apps/version: TEST
+  labels:
+    app: daemonset-simple
+    chart: tests
+    repo: ""
+  name: daemonset-simple
+spec:
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app: daemonset-simple
+  template:
+    metadata:
+      annotations:
+        checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+      labels:
+        app: daemonset-simple
+        chart: tests
+        repo: ""
+      name: daemonset-simple
+    spec:
+      containers:
+      - image: REPO:TAG
+        name: main
+      imagePullSecrets:
+      - name: registrysecret
+      priorityClassName: production-medium
+      terminationGracePeriodSeconds: 60
+  updateStrategy:
+    rollingUpdate:
+      maxUnavailable: 1
+    type: RollingUpdate
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
@@ -2538,6 +2635,26 @@ kind: Service
 metadata:
   annotations:
     helm-apps/version: TEST
+    testAnnotation: testVal
+  labels:
+    app: daemonset-1
+    chart: tests
+    repo: ""
+  name: daemonset-1
+spec:
+  ports:
+  - name: metrics
+    port: 9100
+    targetPort: 9100
+  selector:
+    app: daemonset-1
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    helm-apps/version: TEST
   labels:
     app: hpa-app
     chart: tests
@@ -2961,6 +3078,47 @@ spec:
     name: cronjob-1
   updatePolicy:
     updateMode: Initial
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  annotations:
+    helm-apps/version: TEST
+    testAnnotation: testVal
+  labels:
+    app: daemonset-1
+    chart: tests
+    repo: ""
+  name: daemonset-1
+spec:
+  resourcePolicy: {}
+  targetRef:
+    apiVersion: apps/v1
+    kind: DaemonSet
+    name: daemonset-1
+  updatePolicy:
+    updateMode: "Off"
+---
+# Source: tests/templates/init-helm-apps-library.yaml
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  annotations:
+    helm-apps/version: TEST
+  labels:
+    app: daemonset-simple
+    chart: tests
+    repo: ""
+  name: daemonset-simple
+spec:
+  resourcePolicy: {}
+  targetRef:
+    apiVersion: apps/v1
+    kind: DaemonSet
+    name: daemonset-simple
+  updatePolicy:
+    updateMode: "Off"
 ---
 # Source: tests/templates/init-helm-apps-library.yaml
 apiVersion: autoscaling.k8s.io/v1

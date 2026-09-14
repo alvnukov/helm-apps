@@ -519,6 +519,37 @@ apps-stateful:
           port: 81
           targetPort: 8081
 
+apps-daemonsets:
+  compat-daemonset:
+    enabled: true
+    minReadySeconds: 5
+    revisionHistoryLimit: 3
+    updateStrategy: |
+      rollingUpdate:
+        maxUnavailable: 1
+      type: RollingUpdate
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        command: |
+          - sh
+        args: |
+          - -c
+          - sleep 3600
+        ports: |
+          - name: http
+            containerPort: 8082
+    service:
+      enabled: true
+      ports: |
+        - name: http
+          port: 82
+          targetPort: 8082
+    verticalPodAutoscaler:
+      enabled: true
+
 apps-cronjobs:
   compat-cron:
     enabled: true

@@ -58,6 +58,7 @@ Built-in groups:
 
 - `apps-stateless` - Deployment workloads.
 - `apps-stateful` - StatefulSet workloads.
+- `apps-daemonsets` - DaemonSet workloads.
 - `apps-jobs` - Job workloads.
 - `apps-cronjobs` - CronJob workloads.
 - `apps-services` - Service resources.
@@ -206,6 +207,7 @@ Use:
 
 - `apps-stateless` for Deployment.
 - `apps-stateful` for StatefulSet.
+- `apps-daemonsets` for DaemonSet.
 - `apps-jobs` for Job.
 - `apps-cronjobs` for CronJob.
 

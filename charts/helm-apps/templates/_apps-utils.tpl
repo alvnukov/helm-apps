@@ -348,6 +348,7 @@ Values
 {{- $Library := list
 "stateless"
 "stateful"
+"daemonsets"
 "ingresses"
 "cronjobs"
 "jobs"

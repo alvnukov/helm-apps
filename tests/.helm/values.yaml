@@ -1108,6 +1108,78 @@ apps-stateful:
         image:
           name: nginx
 
+## Ниже перечисляются DaemonSet'ы для развертывания.
+# Рендерится в apps/v1 DaemonSet: по одному Pod'у на каждый подходящий узел.
+# https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/
+apps-daemonsets:
+  ## Имя первого DaemonSet'а. Используется в основном для генерации имён ресурсов.
+  daemonset-1:
+    _include: ["apps-daemonsets-defaultDaemonSet"]
+    ## Дополнительные аннотации для DaemonSet/Pod.
+    annotations: |
+      testAnnotation: "testVal"
+    ## Дополнительные лейблы для всех ресурсов, создаваемых чартом.
+    labels: |
+      testLabel: "testVal"
+    ## Лимит количества старых ControllerRevision, остающихся после обновлений DaemonSet'а.
+    # https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.29/#daemonsetspec-v1-apps
+    revisionHistoryLimit: 3
+    ## Минимальное время готовности Pod'а, после которого он считается доступным.
+    minReadySeconds: 5
+    ## Стратегия обновления DaemonSet'а.
+    # Пробрасывается как есть в DaemonSet.spec.updateStrategy.
+    # Обратите внимание: у DaemonSet это updateStrategy, а не strategy как у Deployment.
+    updateStrategy:
+      _default: |
+        rollingUpdate:
+          maxUnavailable: 1
+        type: RollingUpdate
+      prod: |
+        rollingUpdate:
+          maxUnavailable: 10%
+        type: RollingUpdate
+    ## Размещение Pod'ов на узлах. Для DaemonSet обычно нужны tolerations на системные узлы.
+    tolerations: |
+      - operator: Exists
+    ## Контейнеры DaemonSet'а. Слой контейнеров общий со всеми workload-секциями.
+    containers:
+      node-agent:
+        _include: ["apps-daemonsets-defaultDaemonSetContainer"]
+        image:
+          name: nginx
+          staticTag: "1.27"
+        ports: |
+          - name: metrics
+            containerPort: 9100
+        envVars:
+          NODE_AGENT_MODE:
+            _default: "debug"
+            prod: "production"
+        ## Ресурсы контейнера. Указываются в mcpu/memoryMb, библиотека сама добавит суффиксы m/Mi.
+        # Лимит памяти держим равным реквесту, чтобы DaemonSet не выел узел.
+        # CPU-лимит не выставляем: он даёт троттлинг вместо вытеснения.
+        resources:
+          requests:
+            mcpu: 100
+            memoryMb: 256
+          limits:
+            mcpu: null
+            memoryMb: 256
+    ## Service для DaemonSet'а создаётся по тем же правилам, что и у stateless/stateful.
+    service:
+      enabled: true
+      ports: |
+        - name: metrics
+          port: 9100
+          targetPort: 9100
+  ## Минимальный DaemonSet без дополнительных настроек.
+  daemonset-simple:
+    _include: ["apps-daemonsets-defaultDaemonSet"]
+    containers:
+      main:
+        image:
+          name: nginx
+
 ## Имя чарта. Ниже перечисляются приложения для развертывания.
 # Указано в .helm/requirements.yaml в репозитории приложения в ключах dependencies.name или dependencies.alias.
 # https://helm.sh/docs/topics/charts/#managing-dependencies-with-the-dependencies-field

@@ -13,6 +13,9 @@
     "apps-cronjobs": {
       "$ref": "#/$defs/appMap"
     },
+    "apps-daemonsets": {
+      "$ref": "#/$defs/appMap"
+    },
     "apps-ingresses": {
       "$ref": "#/$defs/appMap"
     },

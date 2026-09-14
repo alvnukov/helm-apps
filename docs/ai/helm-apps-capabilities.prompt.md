@@ -1,6 +1,6 @@
 # helm-apps Capability Catalog (Prompt Input)
 
-Generated from code on 2026-02-27 14:38:51Z.
+Generated from code on 2026-09-14 13:47:57Z.
 
 Sources:
 - `/Users/zol/src/helm-apps/tests/.helm/values.schema.json`
@@ -14,6 +14,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-configmaps`
 - `apps-cronjobs`
 - `apps-custom-prometheus-rules`
+- `apps-daemonsets`
 - `apps-dex-authenticators`
 - `apps-dex-clients`
 - `apps-grafana-dashboards`
@@ -38,6 +39,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `global` -> `#/$defs/global`
 - `apps-configmaps` -> `#/$defs/appMap`
 - `apps-cronjobs` -> `#/$defs/appMap`
+- `apps-daemonsets` -> `#/$defs/appMap`
 - `apps-ingresses` -> `#/$defs/appMap`
 - `apps-jobs` -> `#/$defs/appMap`
 - `apps-secrets` -> `#/$defs/appMap`
@@ -67,9 +69,11 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `global.labels`
 - `global.releases`
 - `global.validation`
+- `global.werfReport`
 
 ## Global Validation Flags
 - `global.validation.allowNativeListsInBuiltInListFields`
+- `global.validation.forbidLegacyServiceAccountClusterRole`
 - `global.validation.strict`
 - `global.validation.validateTplDelimiters`
 
@@ -87,6 +91,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `applicationIngressClassName`
 - `backoffLimit`
 - `binaryData`
+- `childApps`
 - `class`
 - `clusterIssuer`
 - `concurrencyPolicy`
@@ -170,6 +175,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 ### image
 - `generateSignatureBasedTag`
 - `name`
+- `repository`
 - `staticTag`
 
 ### resources
@@ -273,6 +279,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-configmaps.render`
 - `apps-cronjobs.render`
 - `apps-custom-prometheus-rules.render`
+- `apps-daemonsets.render`
 - `apps-deckhouse-metrics.render`
 - `apps-dex-authenticators.render`
 - `apps-dex-clients.render`
@@ -305,17 +312,26 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-check-password`
 - `apps-compat.assertNoUnexpectedLists`
 - `apps-compat.enforceAllowedKeys`
+- `apps-compat.forbidLegacyServiceAccountClusterRole`
+- `apps-compat.hasEnvValueSelection`
 - `apps-compat.normalizeServiceSpec`
 - `apps-compat.normalizeStatefulSetSpec`
+- `apps-compat.renderListResolved`
+- `apps-compat.renderListText`
 - `apps-compat.renderRaw`
 - `apps-compat.renderRawResolved`
 - `apps-compat.resolveRawJson`
+- `apps-compat.selectEnvValueJson`
+- `apps-compat.strictEnabled`
 - `apps-compat.validateTopLevelStrict`
+- `apps-compat.workloadAllowedKeys`
 - `apps-components._generate-config-checksum`
 - `apps-components._service`
 - `apps-components.cerificate`
 - `apps-components.generate-config-checksum`
 - `apps-components.generateConfigMapsAndSecrets`
+- `apps-components.generateManagedResourceAnnotations`
+- `apps-components.generateSecretEnvVarsData`
 - `apps-components.horizontalPodAutoscaler`
 - `apps-components.podDisruptionBudget`
 - `apps-components.service`
@@ -326,6 +342,8 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-cronjobs.render`
 - `apps-custom-prometheus-rules`
 - `apps-custom-prometheus-rules.render`
+- `apps-daemonsets`
+- `apps-daemonsets.render`
 - `apps-deckhouse-metrics`
 - `apps-deckhouse-metrics.render`
 - `apps-deckhouse.metrics`
@@ -374,6 +392,8 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-network-policies.render`
 - `apps-pvcs`
 - `apps-pvcs.render`
+- `apps-release.autoEnableAppsEnabled`
+- `apps-release.logicDisabled`
 - `apps-release.prepareApp`
 - `apps-secrets`
 - `apps-secrets.render`
@@ -397,6 +417,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-stateless.render`
 - `apps-system.serviceAccount`
 - `apps-utils._includesFromFiles`
+- `apps-utils.childAppAllowedGroups`
 - `apps-utils.currentPath`
 - `apps-utils.enterScope`
 - `apps-utils.error`
@@ -408,6 +429,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-utils.preRenderHooks`
 - `apps-utils.printPath`
 - `apps-utils.renderApps`
+- `apps-utils.renderChildApps`
 - `apps-utils.requiredValue`
 - `apps-utils.tpl`
 - `apps-version.getLibraryVersion`
@@ -416,7 +438,6 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps.generateContainerEnvVars`
 - `apps.generateSecretEnvVars`
 - `apps.value`
-- `fl.Result`
 - `fl._concatLists`
 - `fl._expandValueReferences`
 - `fl._getJoinedIncludesInJson`
@@ -441,6 +462,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `fl.isFalse`
 - `fl.isTrue`
 - `fl.percentage`
+- `fl.Result`
 - `fl.tplDelimitersValidationEnabled`
 - `fl.value`
 - `fl.valueQuoted`

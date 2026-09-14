@@ -73,6 +73,7 @@ for i in $(seq 1 "${ITERATIONS}"); do
   # Keep at least one workload enabled so manifests are always meaningful.
   enable_stateless="true"
   enable_stateful="$(pick_bool)"
+  enable_daemonset="$(pick_bool)"
   enable_job="$(pick_bool)"
   enable_cron="$(pick_bool)"
   enable_ingress="$(pick_bool)"
@@ -102,6 +103,7 @@ for i in $(seq 1 "${ITERATIONS}"); do
     --set "global.deploy.enabled=${deploy_enabled}"
     --set "apps-stateless.compat-service.enabled=${enable_stateless}"
     --set "apps-stateful.compat-stateful.enabled=${enable_stateful}"
+    --set "apps-daemonsets.compat-daemonset.enabled=${enable_daemonset}"
     --set "apps-jobs.compat-job.enabled=${enable_job}"
     --set "apps-jobs.compat-job.restartPolicy=Never"
     --set "apps-cronjobs.compat-cron.enabled=${enable_cron}"

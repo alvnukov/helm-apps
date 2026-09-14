@@ -100,6 +100,7 @@ end
 def verify_required_entities!(docs)
   required = [
     ['StatefulSet', 'compat-stateful'],
+    ['DaemonSet', 'compat-daemonset'],
     ['CronJob', 'compat-cron'],
     ['Service', 'compat-standalone-service'],
     ['LimitRange', 'compat-limit-range'],
@@ -165,6 +166,18 @@ def verify_main!(paths)
   compat_job_vpa = find_one!(prod_docs, kind: 'VerticalPodAutoscaler', name: 'compat-job')
   assert_eq!(compat_job_vpa.dig('spec', 'targetRef', 'kind'), 'Job', 'compat-job VPA targetRef.kind')
   assert_eq!(compat_job_vpa.dig('spec', 'targetRef', 'apiVersion'), 'batch/v1', 'compat-job VPA targetRef.apiVersion')
+
+  compat_daemonset = find_one!(prod_docs, kind: 'DaemonSet', name: 'compat-daemonset')
+  assert_eq!(compat_daemonset['apiVersion'], 'apps/v1', 'compat-daemonset apiVersion')
+  assert_eq!(compat_daemonset.dig('spec', 'replicas'), nil, 'compat-daemonset.spec.replicas must be absent')
+  assert_eq!(compat_daemonset.dig('spec', 'strategy'), nil, 'compat-daemonset.spec.strategy must be absent')
+  assert_eq!(compat_daemonset.dig('spec', 'updateStrategy', 'type'), 'RollingUpdate', 'compat-daemonset.spec.updateStrategy.type')
+  assert_eq!(compat_daemonset.dig('spec', 'minReadySeconds'), 5, 'compat-daemonset.spec.minReadySeconds')
+  assert!(!compat_daemonset.dig('spec', 'selector', 'matchLabels').nil?, 'compat-daemonset.spec.selector.matchLabels must be present')
+  compat_daemonset_vpa = find_one!(prod_docs, kind: 'VerticalPodAutoscaler', name: 'compat-daemonset')
+  assert_eq!(compat_daemonset_vpa.dig('spec', 'targetRef', 'kind'), 'DaemonSet', 'compat-daemonset VPA targetRef.kind')
+  assert_eq!(compat_daemonset_vpa.dig('spec', 'targetRef', 'apiVersion'), 'apps/v1', 'compat-daemonset VPA targetRef.apiVersion')
+  find_one!(prod_docs, kind: 'Service', name: 'compat-daemonset')
 
   compat_cron_vpa = find_one!(prod_docs, kind: 'VerticalPodAutoscaler', name: 'compat-cron')
   assert_eq!(compat_cron_vpa.dig('spec', 'targetRef', 'kind'), 'CronJob', 'compat-cron VPA targetRef.kind')

@@ -82,6 +82,7 @@ helm template my-app .helm --set global.env=prod
 Библиотека поддерживает:
 - `apps-stateless` (`Deployment`);
 - `apps-stateful` (`StatefulSet`);
+- `apps-daemonsets` (`DaemonSet`);
 - `apps-jobs` (`Job`);
 - `apps-cronjobs` (`CronJob`);
 - `apps-ingresses` (`Ingress`, optional `Certificate`, optional `DexAuthenticator`);
@@ -340,6 +341,9 @@ apps-stateless:
 - `verticalPodAutoscaler`;
 - `horizontalPodAutoscaler` (для stateless);
 - `service`.
+
+Для `apps-daemonsets` доступен тот же набор, кроме `replicas`, `strategy` и `horizontalPodAutoscaler`;
+раскатка настраивается через `updateStrategy`.
 
 Для `apps-jobs`/`apps-cronjobs`:
 - `backoffLimit`, `activeDeadlineSeconds`, `restartPolicy`;

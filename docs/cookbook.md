@@ -23,6 +23,7 @@
 - [10. HPA](#10-hpa-для-api)
 - [11. ServiceAccount + ClusterRole](#11-serviceaccount--clusterrole)
 - [20. Как использовать cookbook](#20-как-использовать-cookbook)
+- [21. DaemonSet на каждом узле](#example-daemonset)
 
 ## 1. Базовый HTTP API (stateless)
 <a id="example-basic-api"></a>
@@ -575,6 +576,54 @@ apps-custom-prometheus-rules:
               labels:
                 severity_level: "3"
 ```
+
+## 21. DaemonSet: агент на каждом узле
+<a id="example-daemonset"></a>
+
+```yaml
+apps-daemonsets:
+  node-exporter:
+    _include: ["apps-daemonsets-defaultDaemonSet"]
+    ## У DaemonSet нет replicas и strategy: раскатка настраивается через updateStrategy.
+    updateStrategy:
+      _default: |
+        rollingUpdate:
+          maxUnavailable: 1
+        type: RollingUpdate
+      production: |
+        rollingUpdate:
+          maxUnavailable: 10%
+        type: RollingUpdate
+    ## Чтобы агент приехал и на системные узлы.
+    tolerations: |
+      - operator: Exists
+    hostNetwork: true
+    containers:
+      main:
+        image:
+          name: prom/node-exporter
+          staticTag: "v1.8.2"
+        ports: |
+          - name: metrics
+            containerPort: 9100
+        resources:
+          requests:
+            mcpu: 100
+            memoryMb: 256
+          limits:
+            mcpu: null
+            memoryMb: 256
+    service:
+      enabled: true
+      ports: |
+        - name: metrics
+          port: 9100
+          targetPort: 9100
+```
+
+Лимит памяти равен реквесту, чтобы агент не выел узел. CPU-лимит не задаём: он приводит к троттлингу вместо вытеснения.
+
+Параметры: [DaemonSets](reference-values.md#param-daemonsets)
 
 ## 20. Как использовать cookbook
 

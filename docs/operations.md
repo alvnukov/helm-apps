@@ -180,7 +180,7 @@ __GroupVars__:
 ## 4.4 Включен app, но не заданы контейнеры
 
 Признак:
-- `fail` из шаблонов `apps-stateless`/`apps-stateful`/`apps-jobs`/`apps-cronjobs`.
+- `fail` из шаблонов `apps-stateless`/`apps-stateful`/`apps-daemonsets`/`apps-jobs`/`apps-cronjobs`.
 
 Действия:
 1. Добавить `containers`.

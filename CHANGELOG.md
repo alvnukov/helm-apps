@@ -7,6 +7,11 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+- Added the `apps-daemonsets` built-in group rendering `apps/v1` `DaemonSet`, with the shared container, `childApps`, `service`, `serviceAccount`, `verticalPodAutoscaler` and `podDisruptionBudget` layers.
+- Added `apps-daemonsets-defaultDaemonSet`, `apps-daemonsets-defaultDaemonSetContainer` and `apps-daemonsets-defaultDaemonSetInitContainer` include profiles.
+- `apps-daemonsets` supports `updateStrategy`, `minReadySeconds` and `revisionHistoryLimit`; `replicas`, `strategy`, `progressDeadlineSeconds` and `horizontalPodAutoscaler` are rejected in strict mode because `DaemonSetSpec` has no such fields.
+
 ## [1.9.0] - 2026-07-14
 
 ### Added

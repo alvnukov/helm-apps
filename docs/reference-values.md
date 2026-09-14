@@ -28,6 +28,7 @@
 - `global`
 - `apps-stateless`
 - `apps-stateful`
+- `apps-daemonsets`
 - `apps-jobs`
 - `apps-cronjobs`
 - `apps-services`
@@ -84,7 +85,7 @@ global:
 - Текущая реализация strict-check покрывает:
   - top-level `apps-*` имена;
   - `apps-network-policies`;
-  - built-in workload-секции: `apps-stateless`, `apps-stateful`, `apps-jobs`, `apps-cronjobs`.
+  - built-in workload-секции: `apps-stateless`, `apps-stateful`, `apps-daemonsets`, `apps-jobs`, `apps-cronjobs`.
 - На top-level strict-check валидирует только `apps-*` имена:
   - встроенные `apps-*` группы разрешены;
   - custom-группы разрешены через `__GroupVars__.type`;
@@ -423,6 +424,7 @@ apps-stateless:
 Актуально для:
 - `apps-stateless`
 - `apps-stateful`
+- `apps-daemonsets`
 - `apps-jobs`
 - `apps-cronjobs`
 
@@ -445,7 +447,7 @@ apps-stateless:
 `childApps` позволяет держать рядом с workload связанные built-in ресурсы, но без неявного merge родителя в child.
 
 Правила:
-- поддерживается только у `apps-stateless`, `apps-stateful`, `apps-jobs`, `apps-cronjobs`;
+- поддерживается только у `apps-stateless`, `apps-stateful`, `apps-daemonsets`, `apps-jobs`, `apps-cronjobs`;
 - если parent workload не рендерится, весь `childApps` subtree игнорируется;
 - если parent workload рендерится, child app дальше живёт по своей обычной семантике;
 - child app рендерится из копии своего scope, а в шаблонах доступен `$.ParentApp`;
@@ -500,13 +502,57 @@ apps-stateless:
 - `podDisruptionBudget`
 - `service`
 - `selector`
-- `horizontalPodAutoscaler` (в основном для stateless)
+- `horizontalPodAutoscaler` (в основном для stateless; у `apps-daemonsets` не поддерживается)
 
 Stateful-specific:
 - `service.name` (для headless service),
 - `updateStrategy`,
 - `persistentVolumeClaimRetentionPolicy`,
 - `volumeClaimTemplates`.
+
+### 4.3.1 DaemonSets
+<a id="param-daemonsets"></a>
+
+`apps-daemonsets` рендерит `apps/v1` `DaemonSet`: по одному Pod'у на каждый подходящий узел.
+
+Слой контейнеров, `childApps`, `service`, `serviceAccount`, `verticalPodAutoscaler` и `podDisruptionBudget` работают так же, как у `apps-stateless`.
+
+DaemonSet-specific:
+- `updateStrategy` (вместо `strategy` у Deployment),
+- `minReadySeconds`,
+- `revisionHistoryLimit`.
+
+Не поддерживаются, потому что их нет в `DaemonSetSpec`:
+- `replicas` (число Pod'ов определяется числом узлов),
+- `strategy`,
+- `progressDeadlineSeconds`,
+- `horizontalPodAutoscaler`.
+
+В strict-режиме эти ключи дают `E_STRICT_UNKNOWN_KEY`.
+
+```yaml
+apps-daemonsets:
+  node-exporter:
+    _include: ["apps-daemonsets-defaultDaemonSet"]
+    updateStrategy: |
+      rollingUpdate:
+        maxUnavailable: 1
+      type: RollingUpdate
+    tolerations: |
+      - operator: Exists
+    containers:
+      main:
+        image:
+          name: prom/node-exporter
+          staticTag: "v1.8.2"
+        resources:
+          requests:
+            mcpu: 100
+            memoryMb: 256
+          limits:
+            mcpu: null
+            memoryMb: 256
+```
 
 ### 4.4 Jobs/CronJobs
 
