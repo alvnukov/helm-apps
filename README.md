@@ -33,6 +33,7 @@ https://github.com/flant/helm-charts/tree/master/.helm/charts/flant-lib
 - Выбор подхода под задачу: [`docs/decision-guide.md`](docs/decision-guide.md)
 - Полный reference по параметрам: [`docs/reference-values.md`](docs/reference-values.md)
 - Импорт image refs из `werf build report`: [`docs/werf-build-report.md`](docs/werf-build-report.md)
+- Скилл для AI-агентов: [`skills/helm-apps/SKILL.md`](skills/helm-apps/SKILL.md) — include, стенды, файлы, helpers и проверяемый пример чарта.
 - Старт docs: [`docs/README.md`](docs/README.md)
 
 ## Практическая польза для команды

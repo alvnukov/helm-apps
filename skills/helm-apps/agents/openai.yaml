@@ -1,0 +1,4 @@
+interface:
+  display_name: "Helm Apps"
+  short_description: "Понятные values и все возможности helm-apps"
+  default_prompt: "Используй $helm-apps, чтобы спроектировать понятные values и проверить рендер для моих стендов."

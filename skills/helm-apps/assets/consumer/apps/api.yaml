@@ -1,0 +1,13 @@
+api:
+  _include_files: [profiles/http.yaml]
+  _include: [workload, observability]
+  childApps:
+    apps-configmaps:
+      runtime:
+        enabled: true
+        name: '{{ $.ParentApp.name }}-runtime'
+        data: |
+          owner: {{ $.ParentApp.name | quote }}
+admin:
+  _include_files: [profiles/http.yaml]
+  _include: [workload, observability]

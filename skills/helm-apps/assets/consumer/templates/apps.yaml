@@ -1,0 +1,6 @@
+{{- range $path := list "profiles/base.yaml" "profiles/http.yaml" "apps/api.yaml" -}}
+{{- if not ($.Files.Get $path | trim) -}}
+{{- fail (printf "Required chart file missing or empty: %s" $path) -}}
+{{- end -}}
+{{- end -}}
+{{- include "apps-utils.init-library" $ }}

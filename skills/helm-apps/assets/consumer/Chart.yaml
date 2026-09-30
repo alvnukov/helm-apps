@@ -1,0 +1,7 @@
+apiVersion: v2
+name: helm-apps-skill-example
+version: 0.1.0
+dependencies:
+  - name: helm-apps
+    version: "1.10.1"
+    repository: https://alvnukov.github.io/helm-apps

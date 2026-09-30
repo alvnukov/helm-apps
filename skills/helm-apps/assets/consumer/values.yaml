@@ -1,0 +1,21 @@
+global:
+  env: dev
+  vars:
+    port: 8080
+    registry: docker.io/library
+    replicas:
+      _default: 1
+      production: 3
+      "^stage-.*$": 2
+    domain:
+      _default: dev.example.test
+      production: example.test
+  _includes:
+    workload:
+      _include_from_file: profiles/base.yaml
+    observability:
+      annotations: |
+        example.test/team: platform
+
+apps-stateless:
+  _include_from_file: apps/api.yaml

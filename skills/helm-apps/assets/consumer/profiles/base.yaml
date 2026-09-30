@@ -1,0 +1,34 @@
+enabled: true
+replicas: '$fl.value{global.vars.replicas}'
+containers:
+  main:
+    image:
+      repository: '$fl.value{global.vars.registry}'
+      name: nginx
+      staticTag: "1.27"
+    resources:
+      requests: {mcpu: 100, memoryMb: 128}
+      limits: {mcpu: 500, memoryMb: 256}
+    envVars:
+      APP_NAME: '{{ $.CurrentApp.name }}'
+      CONTAINER_NAME: '{{ $.CurrentContainer.name }}'
+      DOMAIN: '$fl.value{global.vars.domain}'
+      PUBLIC_URL: 'https://{{ $.CurrentApp.name }}.{{ include "fl.value" (list $ . $.Values.global.vars.domain) }}'
+    configFiles:
+      nginx.conf:
+        mountPath: /etc/nginx/nginx.conf
+        content: |
+          {{- tpl (required "files/nginx.conf.tpl is required" ($.Files.Get "files/nginx.conf.tpl")) $ }}
+    configFilesYAML:
+      application.yaml:
+        mountPath: /etc/app/application.yaml
+        content:
+          server:
+            timeoutSeconds: {_default: 30}
+            hostname: {_default: '{{ $.CurrentApp.name }}'}
+          debug:
+            _default: true
+            production: null
+          peers:
+            _default: [localhost]
+            production: [db-a, db-b]

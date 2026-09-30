@@ -1,0 +1,24 @@
+global:
+  deploy:
+    enabled: true
+    release: release-2026-10
+    autoEnableApps: true
+    annotateAllWithRelease: true
+  releases:
+    release-2026-10:
+      api: "1.30"
+  _includes:
+    workload:
+      # Local profile fields override profiles/base.yaml after file import.
+      enabled: false
+      containers:
+        main:
+          image:
+            staticTag: null
+apps-stateless:
+  api:
+    enabled: false
+    containers:
+      main:
+        image:
+          staticTag: null

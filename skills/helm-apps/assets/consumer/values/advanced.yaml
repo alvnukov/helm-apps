@@ -1,0 +1,14 @@
+runtime-settings:
+  __GroupVars__:
+    type: demo-configmaps
+  endpoint:
+    enabled: true
+    endpoint:
+      _default: https://dev.example.test
+      production: https://example.test
+    emitDetails:
+      _default: false
+      production: true
+  disabled:
+    enabled: false
+    endpoint: https://must-not-render.example.test

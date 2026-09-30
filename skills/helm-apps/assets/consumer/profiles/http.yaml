@@ -1,0 +1,15 @@
+containers:
+  main:
+    ports: |
+      - name: http
+        containerPort: {{ include "fl.value" (list $ . $.Values.global.vars.port) }}
+    readinessProbe: |
+      httpGet:
+        path: /
+        port: http
+service:
+  enabled: true
+  ports: |
+    - name: http
+      port: {{ include "fl.value" (list $ . $.Values.global.vars.port) }}
+      targetPort: http

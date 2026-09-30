@@ -1,0 +1,8 @@
+# Этот файл передаётся через Helm -f; библиотека не загружает его автоматически.
+apps-stateless:
+  api:
+    replicas: 6
+    containers:
+      main:
+        image:
+          staticTag: "1.28"

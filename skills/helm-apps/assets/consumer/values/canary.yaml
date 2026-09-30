@@ -1,0 +1,7 @@
+apps-stateless:
+  api:
+    replicas: 2
+    containers:
+      main:
+        image:
+          staticTag: "1.29"
