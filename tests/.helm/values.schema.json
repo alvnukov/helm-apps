@@ -200,7 +200,8 @@
       "type": "object",
       "properties": {
         "name": {
-          "$ref": "#/$defs/envValue"
+          "$ref": "#/$defs/envValue",
+          "description": "Existing ConfigMap or Secret name when content is absent; supports env-map and tpl resolution."
         },
         "mountPath": {
           "$ref": "#/$defs/envValue"
@@ -299,7 +300,8 @@
           "$ref": "#/$defs/envStringValue"
         },
         "volumes": {
-          "$ref": "#/$defs/envStringValue"
+          "$ref": "#/$defs/envStringValue",
+          "description": "Pod volumes contributed by this enabled container, merged with workload and managed volumes. Names must be unique across these sources."
         },
         "ports": {
           "$ref": "#/$defs/envStringValue"
@@ -453,6 +455,7 @@
     },
     "serviceAccount": {
       "type": "object",
+      "description": "Workload-local ServiceAccount configuration for Deployment, StatefulSet, DaemonSet, Job and CronJob. Use apps-service-accounts for explicit standalone RBAC.",
       "properties": {
         "enabled": {
           "$ref": "#/$defs/envValue"
@@ -879,7 +882,8 @@
           "$ref": "#/$defs/envValue"
         },
         "spec": {
-          "$ref": "#/$defs/yamlScalar"
+          "$ref": "#/$defs/yamlScalar",
+          "description": "Full NetworkPolicy spec, resolved once as a YAML block string, native map or env-map. Native list leaves still require documented list allowances."
         },
         "podSelector": {
           "$ref": "#/$defs/envStringValue"

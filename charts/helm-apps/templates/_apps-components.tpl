@@ -44,6 +44,9 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: {{ include "fl.value" (list $ . .name) }}
+  {{- with include "apps-helpers.generateAnnotations" (list $ .) | trim }}
+  {{- . | nindent 2 }}
+  {{- end }}
 spec:
   secretName: {{ include "fl.value" (list $ . .name) }}
   issuerRef:
@@ -72,13 +75,14 @@ spec:
 apiVersion: {{ include "apps-api-versions.podDisruptionBudget" $ }}
 kind: PodDisruptionBudget
 {{- include "apps-helpers.metadataGenerator" (list $ $podDisruptionBudget) }}
+{{- $selector := include "fl.value" (list $ $RelatedScope $.CurrentApp.selector) }}
 spec:
   selector:
     matchLabels:
-{{- if empty (include "fl.value" (list $ . $.CurrentApp.selector)) }}
+{{- if empty $selector }}
 {{- include "fl.generateSelectorLabels" (list $ . $.CurrentApp.name) | trim | nindent 6 }}
 {{- else }}
-{{- $.CurrentApp.selector | trim | nindent 6 }}
+{{- $selector | trim | nindent 6 }}
 {{- end }}
 {{- with include "fl.value" (list $ . .maxUnavailable) }}
   maxUnavailable: {{ . }}
@@ -325,13 +329,14 @@ data:{{ include "apps-components.generateSecretEnvVarsData" (list $ . .secretEnv
 {{- $allConfigMaps := "" }}
 {{- range $_, $containersType := list "initContainers" "containers" }}
 {{- range $_containerName, $_container := index $.CurrentApp $containersType }}
+{{- $_ := set . "name" $_containerName }}
 {{- $_ := set $ "CurrentContainer" . }}
 {{- if hasKey . "enabled" }}
 {{- if include "fl.isTrue" (list $ . .enabled) }}
-{{- $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" $) }}
+{{- $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" (list $ $containersType)) }}
 {{- end }}
 {{- else }}
-{{- $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" $) }}
+{{- $allConfigMaps = print $allConfigMaps (include "apps-components._generate-config-checksum" (list $ $containersType)) }}
 {{- end }}
 {{- end }}
 
@@ -340,7 +345,8 @@ data:{{ include "apps-components.generateSecretEnvVarsData" (list $ . .secretEnv
 {{- end }}
 
 {{- define "apps-components._generate-config-checksum" }}
-{{- $ := . }}
+{{- $ := index . 0 }}
+{{- $containersType := index . 1 }}
 {{- with $.CurrentApp }}
 {{- range $_, $configFile := $.CurrentContainer.configFiles }}
 {{- print (include "fl.value" (list $ . $configFile.content)) }}
@@ -352,6 +358,10 @@ data:{{ include "apps-components.generateSecretEnvVarsData" (list $ . .secretEnv
 
 {{- include "apps-helpers.generateConfigYAML" (list $ $configFile.content $configFile.content "content") }}
 {{- $configFile.content | toYaml }}
+{{- end }}
+{{- $secretData := include "apps-components.generateSecretEnvVarsData" (list $ $.CurrentContainer $.CurrentContainer.secretEnvVars) | trim }}
+{{- if $secretData }}
+{{- dict "secretEnvVars" (dict "containersType" $containersType "containerName" $.CurrentContainer.name "data" ($secretData | fromYaml)) | toJson }}
 {{- end }}
 {{- end }}
 {{- end }}

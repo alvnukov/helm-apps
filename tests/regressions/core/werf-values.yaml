@@ -1,0 +1,7 @@
+werf:
+  env: production
+apps-configmaps:
+  example:
+    enabled: true
+    data: |
+      key: value

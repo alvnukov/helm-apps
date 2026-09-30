@@ -1,11 +1,11 @@
 # helm-apps Capability Catalog (Prompt Input)
 
-Generated from code on 2026-09-14 13:47:57Z.
+Generated from the schema and templates.
 
 Sources:
-- `/Users/zol/src/helm-apps/tests/.helm/values.schema.json`
-- `/Users/zol/src/helm-apps/charts/helm-apps/templates`
-- `/Users/zol/src/helm-apps/AGENTS.md`
+- `tests/.helm/values.schema.json`
+- `charts/helm-apps/templates`
+- `AGENTS.md`
 
 Use this file as machine-oriented context for AI prompts about helm-apps values format and rendering behavior.
 
@@ -64,6 +64,7 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 ## Global Keys
 - `global._includes`
 - `global.ci_url`
+- `global.compat`
 - `global.deploy`
 - `global.env`
 - `global.labels`
@@ -304,8 +305,8 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `_getMapKeyValue`
 - `apps-adopt-utils.adopt-specs`
 - `apps-api-versions.cronJob`
-- `apps-api-versions.kafkaTopic`
 - `apps-api-versions.horizontalPodAutoscaler`
+- `apps-api-versions.kafkaTopic`
 - `apps-api-versions.podDisruptionBudget`
 - `apps-api-versions.verticalPodAutoscaler`
 - `apps-certificates`
@@ -441,12 +442,14 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-utils.renderChildApps`
 - `apps-utils.requiredValue`
 - `apps-utils.tpl`
+- `apps-utils.yamlMapHasError`
 - `apps-version.getLibraryVersion`
 - `apps.generateConfigMapData`
 - `apps.generateConfigMapEnvVars`
 - `apps.generateContainerEnvVars`
 - `apps.generateSecretEnvVars`
 - `apps.value`
+- `fl.Result`
 - `fl._concatLists`
 - `fl._expandValueReferences`
 - `fl._getJoinedIncludesInJson`
@@ -471,7 +474,6 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `fl.isFalse`
 - `fl.isTrue`
 - `fl.percentage`
-- `fl.Result`
 - `fl.tplDelimitersValidationEnabled`
 - `fl.value`
 - `fl.valueQuoted`

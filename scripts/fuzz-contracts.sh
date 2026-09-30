@@ -6,10 +6,11 @@ cd "${ROOT_DIR}"
 
 ITERATIONS=40
 SEED=20260216
+OUTPUT_DIR=/tmp
 
 usage() {
   cat <<'EOF'
-Usage: scripts/fuzz-contracts.sh [--iterations N] [--seed N]
+Usage: scripts/fuzz-contracts.sh [--iterations N] [--seed N] [--output-dir DIR]
 
 Property-based stability checks for tests/contracts:
 - random toggles for entity enablement and strict/release flags
@@ -28,6 +29,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --seed)
       SEED="${2:-}"
+      shift 2
+      ;;
+    --output-dir)
+      OUTPUT_DIR="${2:-}"
+      if [[ -z "${OUTPUT_DIR}" ]]; then
+        echo "output-dir must be non-empty" >&2
+        exit 2
+      fi
       shift 2
       ;;
     -h|--help)
@@ -52,16 +61,18 @@ if ! [[ "${SEED}" =~ ^[0-9]+$ ]]; then
 fi
 
 RANDOM="${SEED}"
+mkdir -p "${OUTPUT_DIR}"
 
 # Oldest supported release, the batch/v1 + policy/v1 boundary, and the gate
 # boundaries added by newer field sets (see _apps-compat.tpl).
 kube_versions=("1.19.16" "1.20.15" "1.23.17" "1.25.16" "1.27.16" "1.29.0" "1.31.0" "1.34.0")
 
 pick_bool() {
+  # Assign in this shell: command substitutions reseed RANDOM in subshells.
   if (( RANDOM % 2 )); then
-    echo "true"
+    printf -v "$1" '%s' true
   else
-    echo "false"
+    printf -v "$1" '%s' false
   fi
 }
 
@@ -69,37 +80,37 @@ echo "Fuzz contracts: iterations=${ITERATIONS}, seed=${SEED}"
 
 for i in $(seq 1 "${ITERATIONS}"); do
   kv="${kube_versions[$((RANDOM % ${#kube_versions[@]}))]}"
-  strict="$(pick_bool)"
-  deploy_enabled="$(pick_bool)"
+  pick_bool strict
+  pick_bool deploy_enabled
 
   # Keep at least one workload enabled so manifests are always meaningful.
   enable_stateless="true"
-  enable_modern_apis="$(pick_bool)"
-  enable_stateful="$(pick_bool)"
-  enable_daemonset="$(pick_bool)"
-  enable_job="$(pick_bool)"
-  enable_job_indexed="$(pick_bool)"
-  enable_cron="$(pick_bool)"
-  enable_ingress="$(pick_bool)"
-  enable_netpol="$(pick_bool)"
-  enable_cilium_netpol="$(pick_bool)"
-  enable_calico_netpol="$(pick_bool)"
-  enable_configmap="$(pick_bool)"
-  enable_secret="$(pick_bool)"
-  enable_pvc="$(pick_bool)"
-  enable_service="$(pick_bool)"
-  enable_limitrange="$(pick_bool)"
-  enable_certificate="$(pick_bool)"
-  enable_dex_auth="$(pick_bool)"
-  enable_dex_client="$(pick_bool)"
-  enable_prom_rules="$(pick_bool)"
-  enable_dashboard="$(pick_bool)"
-  enable_kafka="$(pick_bool)"
-  enable_infra_user="$(pick_bool)"
-  enable_infra_group="$(pick_bool)"
+  pick_bool enable_modern_apis
+  pick_bool enable_stateful
+  pick_bool enable_daemonset
+  pick_bool enable_job
+  pick_bool enable_job_indexed
+  pick_bool enable_cron
+  pick_bool enable_ingress
+  pick_bool enable_netpol
+  pick_bool enable_cilium_netpol
+  pick_bool enable_calico_netpol
+  pick_bool enable_configmap
+  pick_bool enable_secret
+  pick_bool enable_pvc
+  pick_bool enable_service
+  pick_bool enable_limitrange
+  pick_bool enable_certificate
+  pick_bool enable_dex_auth
+  pick_bool enable_dex_client
+  pick_bool enable_prom_rules
+  pick_bool enable_dashboard
+  pick_bool enable_kafka
+  pick_bool enable_infra_user
+  pick_bool enable_infra_group
 
-  out="/tmp/contracts_fuzz_${i}.yaml"
-  err="/tmp/contracts_fuzz_${i}.err"
+  out="${OUTPUT_DIR}/contracts_fuzz_${i}.yaml"
+  err="${OUTPUT_DIR}/contracts_fuzz_${i}.err"
 
   args=(
     --set "global.env=production"
@@ -134,8 +145,15 @@ for i in $(seq 1 "${ITERATIONS}"); do
   )
 
   if ! helm template contracts tests/contracts --kube-version "${kv}" "${args[@]}" >"${out}" 2>"${err}"; then
+    repro="${OUTPUT_DIR}/contracts_fuzz_${i}.repro.sh"
+    {
+      printf '#!/usr/bin/env bash\n# seed=%s iteration=%s\n' "${SEED}" "${i}"
+      printf 'cd %q\n' "${ROOT_DIR}"
+      printf '%q ' helm template contracts tests/contracts --kube-version "${kv}" "${args[@]}"
+      printf '\n'
+    } >"${repro}"
     echo "Fuzz iteration ${i} failed (kube=${kv}, strict=${strict}, deployEnabled=${deploy_enabled})" >&2
-    echo "See: ${err}" >&2
+    echo "See: ${err}; reproduce with: bash ${repro}" >&2
     sed -n '1,120p' "${err}" >&2 || true
     exit 1
   fi

@@ -756,7 +756,7 @@ kind: Deployment
 metadata:
   name: "compat-env-mixed"
   annotations:
-    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    checksum/config: "633906c8b955ec1f732cc28bfe05a0565c805c19542dfbbbc3feec098992b9b5"
     helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-mixed"
@@ -766,7 +766,7 @@ spec:
     metadata:
       name: "compat-env-mixed"
       annotations:
-        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        checksum/config: "633906c8b955ec1f732cc28bfe05a0565c805c19542dfbbbc3feec098992b9b5"
       labels:
         app: "compat-env-mixed"
         chart: "contracts"
@@ -808,7 +808,7 @@ kind: Deployment
 metadata:
   name: "compat-env-old"
   annotations:
-    checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    checksum/config: "633906c8b955ec1f732cc28bfe05a0565c805c19542dfbbbc3feec098992b9b5"
     helm-apps/version: "1.9.0"
   labels:
     app: "compat-env-old"
@@ -818,7 +818,7 @@ spec:
     metadata:
       name: "compat-env-old"
       annotations:
-        checksum/config: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        checksum/config: "633906c8b955ec1f732cc28bfe05a0565c805c19542dfbbbc3feec098992b9b5"
       labels:
         app: "compat-env-old"
         chart: "contracts"
@@ -1295,7 +1295,6 @@ spec:
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-cronjobs.compat-cron
-
 apiVersion: batch/v1
 kind: CronJob
 metadata:
@@ -1335,6 +1334,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: "compat-route"
+  annotations:
+    helm-apps/version: 1.10.0
   labels:
     app: "compat-route"
     chart: "contracts"
@@ -1358,6 +1359,8 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: "compat-ingress"
+  annotations:
+    helm-apps/version: 1.10.0
   labels:
     app: "compat-ingress"
     chart: "contracts"
@@ -1430,6 +1433,8 @@ apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
   name: compat-certificate
+  annotations:
+    helm-apps/version: "1.9.0"
 spec:
   secretName: compat-certificate
   issuerRef:
@@ -1999,7 +2004,6 @@ data:
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-jobs.compat-job
-
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -2058,7 +2062,6 @@ spec:
 ---
 # Source: contracts/templates/init-helm-apps-library.yaml
 # Helm Apps Library: apps-jobs.compat-job-indexed
-
 apiVersion: batch/v1
 kind: Job
 metadata:

@@ -238,7 +238,12 @@ Values
 {{- include "apps-utils.error" (list $ "E_CHILD_APPS_TYPE" "childApps must be a map keyed by built-in child app groups" "use childApps.<apps-group>.<appName>.<field>" "docs/reference-values.md#param-childapps") -}}
 {{- else -}}
 {{- $allowedGroups := include "apps-utils.childAppAllowedGroups" (list $) | fromJsonArray -}}
-{{- $parentCurrentApp := $.CurrentApp -}}
+{{- $parentContext := dict -}}
+{{- range $_, $key := list "CurrentApp" "CurrentGroupVars" "CurrentGroup" -}}
+{{- if hasKey $ $key -}}
+{{- $_ := set $parentContext $key (index $ $key) -}}
+{{- end -}}
+{{- end -}}
 {{- $childApps := $.CurrentApp.childApps -}}
 {{- $parentApp := deepCopy $.CurrentApp -}}
 {{- $hadParentApp := hasKey $ "ParentApp" -}}
@@ -260,7 +265,13 @@ Values
 {{- $groupScope := deepCopy $groupValue -}}
 {{- $_ := set $groupScope "__GroupVars__" (dict "type" $groupName "name" $groupName) -}}
 {{- include "apps-utils.renderApps" (list $ $groupScope) -}}
-{{- $_ := set $ "CurrentApp" $parentCurrentApp -}}
+{{- range $_, $key := list "CurrentApp" "CurrentGroupVars" "CurrentGroup" -}}
+{{- if hasKey $parentContext $key -}}
+{{- $_ := set $ $key (index $parentContext $key) -}}
+{{- else -}}
+{{- $_ := unset $ $key -}}
+{{- end -}}
+{{- end -}}
 {{- end }}
 {{- include "apps-utils.leaveScope" $ -}}
 {{- if $hadParentApp -}}
@@ -417,9 +428,49 @@ Values
 {{- end -}}
 
 {{- define "apps-utils.includesFromFiles" }}
+{{- if kindIs "invalid" .Values.global }}
+{{- $_ := set .Values "global" dict }}
+{{- end }}
 {{- $_ := set $ "HelmAppsArgs" (dict "owner" . "current" .Values "currentName" "Values")}}
 {{- include "apps-utils._includesFromFiles" (list . . .Values "Values") }}
 {{- end }}
+
+{{- define "apps-utils.yamlMapHasError" -}}
+{{/* Literal Error and empty maps can match fromYaml's error/null results.
+     Reparse ambiguous input under an outer key to inspect its structure.
+     YAML directives and document boundaries must remain at column zero. */}}
+{{- $raw := index . 0 -}}
+{{- $parsed := index . 1 -}}
+{{- $hasError := false -}}
+{{- if and (kindIs "map" $parsed) (or (eq (len $parsed) 0) (and (eq (len $parsed) 1) (hasKey $parsed "Error"))) -}}
+{{- $wrapped := "" -}}
+{{- $inDocument := false -}}
+{{- range $_, $line := splitList "\n" (trimPrefix "\uFEFF" $raw) -}}
+{{- $line = trimSuffix "\r" $line -}}
+{{- if and (not $inDocument) (or (eq (trim $line) "") (hasPrefix "#" (trim $line))) -}}
+{{- $wrapped = printf "%s%s\n" $wrapped $line -}}
+{{- else if hasPrefix "%" $line -}}
+{{- $wrapped = printf "%s%s\n" $wrapped $line -}}
+{{- else if regexMatch "^---($|[ \\t])" $line -}}
+{{- $content := regexReplaceAll "^---([ \\t]+)?" $line "" -}}
+{{- $wrapped = printf "%s---\n__helm_apps_include__:\n  %s\n" $wrapped $content -}}
+{{- $inDocument = true -}}
+{{- else if regexMatch "^\\.\\.\\.($|[ \\t])" $line -}}
+{{- $wrapped = printf "%s%s\n" $wrapped $line -}}
+{{- $inDocument = false -}}
+{{- else -}}
+{{- if not $inDocument -}}
+{{- $wrapped = printf "%s__helm_apps_include__:\n" $wrapped -}}
+{{- $inDocument = true -}}
+{{- end -}}
+{{- $wrapped = printf "%s  %s\n" $wrapped $line -}}
+{{- end -}}
+{{- end -}}
+{{- $probe := fromYaml $wrapped -}}
+{{- $hasError = not (and (hasKey $probe "__helm_apps_include__") (kindIs "map" (index $probe "__helm_apps_include__"))) -}}
+{{- end -}}
+{{- $hasError -}}
+{{- end -}}
 
 {{- define "apps-utils._includesFromFiles" }}
 {{- $ := index . 0 }}
@@ -431,7 +482,7 @@ Values
 {{- $fn := include "apps-utils.tpl" (list $ $current._include_from_file) }}
 {{- $rawContent := $.Files.Get $fn }}
 {{- $includeContent := $rawContent | fromYaml }}
-{{- if and (ne (trim (toString $rawContent)) "") (not $includeContent) }}
+{{- if and (ne (trim (toString $rawContent)) "") (or (not (kindIs "map" $includeContent)) (eq (include "apps-utils.yamlMapHasError" (list $rawContent $includeContent)) "true")) }}
 {{- $basePath := $currentName }}
 {{- if not (hasPrefix "Values" $basePath) }}
 {{- $basePath = printf "Values.%s" $basePath }}
@@ -445,12 +496,15 @@ Values
 {{- $_ = unset $current "_include_from_file"}}
 {{- end }}
 {{- if hasKey $current "_include_files" }}
+{{- if kindIs "invalid" $.Values.global._includes }}
+{{- $_ := set $.Values.global "_includes" dict }}
+{{- end }}
 {{- $newInclude := list }}
 {{- range $_, $fileName := $current._include_files }}
 {{- $fn := include "apps-utils.tpl" (list $ $fileName) }}
 {{- $rawContent := $.Files.Get $fn }}
 {{- $includeContent := $rawContent | fromYaml }}
-{{- if and (ne (trim (toString $rawContent)) "") (not $includeContent) }}
+{{- if and (ne (trim (toString $rawContent)) "") (or (not (kindIs "map" $includeContent)) (eq (include "apps-utils.yamlMapHasError" (list $rawContent $includeContent)) "true")) }}
 {{- $basePath := $currentName }}
 {{- if not (hasPrefix "Values" $basePath) }}
 {{- $basePath = printf "Values.%s" $basePath }}

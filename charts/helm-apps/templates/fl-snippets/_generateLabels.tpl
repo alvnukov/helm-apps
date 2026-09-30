@@ -5,7 +5,9 @@
 app: {{ $appName | quote }}
 chart: {{ $.Chart.Name | trunc 63 | quote }}
 {{- with $.Values.werf }}
-repo: {{ regexSplit "/" .repo -1 | rest | join "-" | trunc 63 | quote }}
+{{- with .repo }}
+repo: {{ regexSplit "/" . -1 | rest | join "-" | trunc 63 | quote }}
+{{- end }}
 {{- end }}
 {{- $addEnvLabel := false }}
 {{- if and (hasKey $.Values "global") (kindIs "map" $.Values.global) (hasKey $.Values.global "labels") (kindIs "map" $.Values.global.labels) (hasKey $.Values.global.labels "addEnv") }}

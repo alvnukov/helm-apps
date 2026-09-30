@@ -1,26 +1,20 @@
-# Chart Package Offline Docs
+# Chart Package Contents
 
-The `helm-apps` chart package includes documentation for air-gapped use without keeping a second copy under the chart source tree.
+The `helm-apps` chart archive contains runtime templates, `Chart.yaml` and `values.yaml`. Since version `1.8.13`, it intentionally excludes repository documentation and `AGENTS.md`; removing those files reduced the archive size by about 95%.
 
 Packaging contract:
 
-- `charts/helm-apps/AGENTS.md` is a symlink to `docs/ai/helm-apps-offline-agents.md`.
-- `charts/helm-apps/docs` is a symlink to the repository `docs/` directory.
-- `helm package charts/helm-apps` follows these symlinks and includes their contents in the chart archive.
+- Do not add `charts/helm-apps/docs` or `charts/helm-apps/AGENTS.md` symlinks.
+- `helm package charts/helm-apps` packages the runtime chart without the repository `docs/` tree.
+- Documentation is maintained in the repository `docs/` directory.
 
-Source of truth:
+For air-gapped work, transfer the documentation separately alongside the chart archive. Recommended reading order in that separate documentation copy:
 
-- Update documentation only in `docs/`.
-- Do not edit generated or copied chart-local documentation copies.
-- Do not replace chart symlinks with duplicated files.
+1. [Offline agent guide](ai/helm-apps-offline-agents.md) — syntax guardrails and verification steps.
+2. [Capability catalog](ai/helm-apps-capabilities.prompt.md) — machine-readable syntax summary.
+3. [Values reference](reference-values.md) — parameter semantics and validation flags.
+4. [Decision guide](decision-guide.md) — choosing the resource group and value shape.
+5. [Quick start](quickstart.md), [cookbook](cookbook.md) and [FAQ](faq.md) — examples and common mistakes.
+6. The chart's `templates/_apps-*.tpl` files — actual renderer behavior.
 
-Recommended offline reading order inside an unpacked chart package:
-
-1. `AGENTS.md` - LLM operating contract and syntax guardrails.
-2. `docs/ai/helm-apps-capabilities.prompt.md` - compact machine-readable syntax catalog.
-3. `docs/reference-values.md` - complete values reference and validation flags.
-4. `docs/decision-guide.md` - choosing the right `apps-*` group and value shape.
-5. `docs/quickstart.md`, `docs/cookbook.md`, and `docs/faq.md` - examples and common mistakes.
-6. `templates/_apps-*.tpl` - final source for renderer behavior when docs are ambiguous.
-
-If docs and templates disagree, trust rendered behavior from templates, then fix the docs in `docs/`.
+When schema, documentation and rendered output disagree, report the mismatch and verify it before changing consumer values.

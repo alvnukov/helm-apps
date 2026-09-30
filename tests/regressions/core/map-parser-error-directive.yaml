@@ -1,0 +1,5 @@
+%YAML 1.1
+%TAG !example! tag:example.com,2026:
+---
+Error: !example!diagnostic 'error converting YAML to JSON: diagnostic from an upstream parser'
+...

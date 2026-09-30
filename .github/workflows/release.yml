@@ -126,6 +126,11 @@ jobs:
           set -euo pipefail
           bash scripts/check-contracts.sh
 
+      - name: Review regression checks
+        run: |
+          set -euo pipefail
+          bash scripts/check-regressions.sh
+
       - name: Check chart release tag
         id: check_chart_release
         env:

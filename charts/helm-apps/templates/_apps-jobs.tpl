@@ -23,6 +23,7 @@
 {{- if and (kindIs "invalid" .jobTemplateExtraSpec) (not (kindIs "invalid" .extraSpec)) }}
 {{- $_ := set . "jobTemplateExtraSpec" .extraSpec }}
 {{- end }}
+{{- $serviceAccount := include "apps-system.serviceAccount" $ -}}
 apiVersion: batch/v1
 kind: Job
 {{- include "apps-helpers.metadataGenerator" (list $ .) -}}
@@ -32,6 +33,7 @@ kind: Job
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}
 
 {{- include "apps-components.verticalPodAutoscaler" (list $ . .verticalPodAutoscaler "Job") -}}
+{{ $serviceAccount -}}
 {{- include "apps-utils.renderChildApps" $ -}}
 
 {{- end }}

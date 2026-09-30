@@ -1,0 +1,6 @@
+global:
+  env: production
+apps-configmaps:
+  example:
+    enabled: true
+    _include_files: [profile.yaml]

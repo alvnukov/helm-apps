@@ -1,0 +1,7 @@
+global:
+  env: production
+apps-configmaps:
+  example:
+    enabled: true
+    data:
+      _include_files: [map-parser-error.yaml]

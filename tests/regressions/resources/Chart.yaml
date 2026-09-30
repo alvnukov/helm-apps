@@ -1,0 +1,7 @@
+apiVersion: v2
+name: resource-regressions
+version: 0.1.0
+dependencies:
+  - name: helm-apps
+    version: '*'
+    repository: file://../../../charts/helm-apps

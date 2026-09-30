@@ -1,0 +1,7 @@
+apiVersion: v2
+name: core-regressions
+version: 0.1.0
+dependencies:
+  - name: helm-apps
+    version: ">=1.10.0"
+    repository: file://../../../charts/helm-apps

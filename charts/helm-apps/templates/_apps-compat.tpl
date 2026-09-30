@@ -440,6 +440,10 @@ true
 {{- $ := index . 0 -}}
 {{- $value := index . 1 -}}
 {{- $path := index . 2 -}}
+{{- $state := dict "renderer" "" "path" list "group" false "childGroups" false -}}
+{{- if gt (len .) 3 -}}
+  {{- $state = index . 3 -}}
+{{- end -}}
 {{- $pathString := join "." $path -}}
 {{- if kindIs "slice" $value -}}
   {{- $last := "" -}}
@@ -452,8 +456,17 @@ true
   {{- $isAllowedConfigFilesYAMLContent := regexMatch "^Values\\..*\\.configFilesYAML\\..*\\.content\\..*" $pathString -}}
   {{- $isAllowedEnvYAML := regexMatch "^Values\\..*\\.envYAML\\..*" $pathString -}}
   {{- $isAllowedExtraFieldsAnyLevel := regexMatch "^Values\\..*\\.extraFields(\\..*)?$" $pathString -}}
-  {{- $isAllowedServiceAccountRbacRuleList := regexMatch "^Values\\.apps-service-accounts\\.[^.]+\\.(roles|clusterRoles)\\.[^.]+\\.rules\\.[^.]+\\.(apiGroups|resources|verbs|resourceNames|nonResourceURLs)$" $pathString -}}
-  {{- $isAllowedServiceAccountBindingSubjects := regexMatch "^Values\\.apps-service-accounts\\.[^.]+\\.(roles|clusterRoles)\\.[^.]+\\.binding\\.subjects$" $pathString -}}
+  {{- /* RBAC exceptions use actual YAML keys and the renderer of the containing app. */ -}}
+  {{- $isAllowedServiceAccountRbacRuleList := false -}}
+  {{- $isAllowedServiceAccountBindingSubjects := false -}}
+  {{- if eq $state.renderer "apps-service-accounts" -}}
+    {{- $appPath := $state.path -}}
+    {{- if and (eq (len $appPath) 5) (has (index $appPath 0) (list "roles" "clusterRoles")) -}}
+      {{- $isAllowedServiceAccountRbacRuleList = and (eq (index $appPath 2) "rules") (has (index $appPath 4) (list "apiGroups" "resources" "verbs" "resourceNames" "nonResourceURLs")) -}}
+    {{- else if and (eq (len $appPath) 4) (has (index $appPath 0) (list "roles" "clusterRoles")) -}}
+      {{- $isAllowedServiceAccountBindingSubjects = and (eq (index $appPath 2) "binding") (eq (index $appPath 3) "subjects") -}}
+    {{- end -}}
+  {{- end -}}
   {{- $isAllowedContainerSharedEnvConfigMaps := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvConfigMaps$" $pathString -}}
   {{- $isAllowedInitContainerSharedEnvConfigMaps := regexMatch "^Values\\..*\\.initContainers\\.[^.]+\\.sharedEnvConfigMaps$" $pathString -}}
   {{- $isAllowedContainerSharedEnvSecrets := regexMatch "^Values\\..*\\.containers\\.[^.]+\\.sharedEnvSecrets$" $pathString -}}
@@ -478,8 +491,43 @@ true
     {{- include "apps-utils.error" (list $ "E_UNEXPECTED_LIST" "native YAML list is not allowed here" "for Kubernetes list fields use YAML block string ('|'); native lists are allowed only for _include/_include_files and documented exceptions" "docs/faq.md#2-почему-list-в-values-почти-везде-запрещены" $pathString) -}}
   {{- end -}}
 {{- else if kindIs "map" $value -}}
+  {{- $workloads := list "apps-stateless" "apps-stateful" "apps-daemonsets" "apps-jobs" "apps-cronjobs" -}}
+  {{- $builtins := concat $workloads (include "apps-utils.childAppAllowedGroups" (list $) | fromJsonArray) (list "apps-limit-range" "apps-dex-clients" "apps-dex-authenticators" "apps-custom-prometheus-rules" "apps-grafana-dashboards" "apps-kafka-strimzi" "apps-infra") -}}
   {{- range $k, $v := $value -}}
-    {{- include "apps-compat.assertNoUnexpectedLists" (list $ $v (append $path $k)) -}}
+    {{- $next := dict "renderer" $state.renderer "path" (append $state.path $k) "group" false "childGroups" false -}}
+    {{- $resolveGroupType := true -}}
+    {{- if eq (len $path) 1 -}}
+      {{- if or (has $k $builtins) (and (kindIs "map" $v) (hasKey $v "__GroupVars__")) -}}
+        {{- $_ := set $next "group" true -}}
+        {{- $_ = set $next "renderer" $k -}}
+      {{- end -}}
+    {{- else if $state.group -}}
+      {{- $_ := set $next "path" list -}}
+      {{- if eq $k "__GroupVars__" -}}
+        {{- $_ = set $next "renderer" "" -}}
+      {{- else if kindIs "map" $v -}}
+        {{- if hasKey $v "__GroupVars__" -}}
+          {{- $_ = set $next "group" true -}}
+        {{- else if hasKey $v "__AppType__" -}}
+          {{- $_ = set $next "renderer" $v.__AppType__ -}}
+        {{- end -}}
+      {{- end -}}
+    {{- else if $state.childGroups -}}
+      {{- /* renderChildApps forces the built-in group type, ignoring supplied group vars. */ -}}
+      {{- $resolveGroupType = false -}}
+      {{- if has $k (include "apps-utils.childAppAllowedGroups" (list $) | fromJsonArray) -}}
+        {{- $_ := set $next "group" true -}}
+        {{- $_ = set $next "renderer" $k -}}
+        {{- $_ = set $next "path" list -}}
+      {{- end -}}
+    {{- else if and (has $state.renderer $workloads) (empty $state.path) (eq $k "childApps") -}}
+      {{- $_ := set $next "childGroups" true -}}
+      {{- $_ = set $next "path" list -}}
+    {{- end -}}
+    {{- if and $resolveGroupType $next.group (kindIs "map" $v) (kindIs "map" $v.__GroupVars__) (hasKey $v.__GroupVars__ "type") -}}
+      {{- $_ := set $next "renderer" (include "fl.value" (list $ $v $v.__GroupVars__.type)) -}}
+    {{- end -}}
+    {{- include "apps-compat.assertNoUnexpectedLists" (list $ $v (append $path $k) $next) -}}
   {{- end -}}
 {{- end -}}
 {{- end -}}

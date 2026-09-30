@@ -7,10 +7,9 @@ TMP="$(mktemp)"
 trap 'rm -f "$TMP"' EXIT
 
 # Regenerate and compare for drift.
-bash "$ROOT_DIR/scripts/generate-capabilities-prompt.sh" >/dev/null
-cp "$OUT" "$TMP"
+bash "$ROOT_DIR/scripts/generate-capabilities-prompt.sh" "$TMP" >/dev/null
 
-git -C "$ROOT_DIR" diff --exit-code -- "$OUT" >/dev/null || {
+cmp -s "$OUT" "$TMP" || {
   echo "capabilities prompt catalog is outdated: $OUT"
   echo "run: bash scripts/generate-capabilities-prompt.sh"
   exit 1

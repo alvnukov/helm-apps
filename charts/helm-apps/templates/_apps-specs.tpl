@@ -2,8 +2,45 @@
 {{- $ := index . 0 }}
 {{- $relativeScope := index . 1 }}
 {{- with $relativeScope }}
-{{ include "apps-compat.renderListResolved" (list $ . "volumes" .volumes) | trim | nindent 0 }}
-{{ include "apps-helpers.generateVolumes" (list $ .) | trim | nindent 0 }}
+{{- $volumes := include "apps-compat.renderListResolved" (list $ . "volumes" .volumes) | trim }}
+{{- $hadContainer := hasKey $ "CurrentContainer" }}
+{{- $previousContainer := $.CurrentContainer }}
+{{- $hadContainersType := hasKey $.CurrentApp "_currentContainersType" }}
+{{- $previousContainersType := $.CurrentApp._currentContainersType }}
+{{- range $containersType := list "initContainers" "containers" }}
+{{- range $containerName, $container := index $.CurrentApp $containersType }}
+{{- if include "fl.isTrue" (list $ $container $container.enabled) }}
+{{- $_ := set $container "name" $containerName }}
+{{- $_ = set $ "CurrentContainer" $container }}
+{{- $_ = set $.CurrentApp "_currentContainersType" $containersType }}
+{{- $volumes = list $volumes (include "apps-compat.renderListResolved" (list $ $container "volumes" $container.volumes) | trim) | join "\n" | trim }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- if $hadContainer }}
+{{- $_ := set $ "CurrentContainer" $previousContainer }}
+{{- else }}
+{{- $_ := unset $ "CurrentContainer" }}
+{{- end }}
+{{- if $hadContainersType }}
+{{- $_ := set $.CurrentApp "_currentContainersType" $previousContainersType }}
+{{- else }}
+{{- $_ := unset $.CurrentApp "_currentContainersType" }}
+{{- end }}
+{{- $volumes = list $volumes (include "apps-helpers.generateVolumes" (list $ .) | trim) | join "\n" | trim }}
+{{- if $volumes }}
+{{- $names := dict }}
+{{- range $volume := fromYamlArray $volumes }}
+{{- if and (kindIs "map" $volume) (hasKey $volume "name") }}
+{{- $name := toString $volume.name }}
+{{- if hasKey $names $name }}
+{{- include "apps-utils.error" (list $ "E_VOLUME_NAME_CONFLICT" (printf "duplicate pod volume name '%s'" $name) "use distinct names across app volumes, container volumes and managed config/secret volumes" "docs/reference-values.md#param-containers") }}
+{{- end }}
+{{- $_ := set $names $name true }}
+{{- end }}
+{{- end }}
+{{ $volumes | nindent 0 }}
+{{- end }}
 {{- $_ := set . "__specName__" "volumes"}}
 {{- end }}
 {{- end }}
@@ -12,11 +49,12 @@
 {{- $ := index . 0 }}
 {{- $relativeScope := index . 1 }}
 {{- with $relativeScope }}
+{{- $selector := include "fl.value" (list $ . .selector) }}
 matchLabels:
-{{- if empty (include "fl.value" (list $ . .selector)) }}
+{{- if empty $selector }}
 {{- include "fl.generateSelectorLabels" (list $ . .name) | nindent 2 }}
 {{- else }}
-{{- .selector | nindent 2}}
+{{- $selector | nindent 2}}
 {{- end }}
 {{- $_ := set . "__specName__" "selector" }}
 {{- end }}

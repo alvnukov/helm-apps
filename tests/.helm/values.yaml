@@ -2408,6 +2408,7 @@ test-env-overrides:
           SIMPLE_VALUE:
             _default: "from-default"
             production: "from-production"
+          APP_MODE: local-override
           REGEX_ENV_VALUE:
             _default: "fallback"
             "^prod.*$": "from-regex-prod"
@@ -2416,6 +2417,9 @@ test-env-overrides:
             _default: "value-exists"
             production: ""
         envYAML:
+          app:
+            mode:
+              _default: base-from-envyaml
           nested:
             level1:
               timeoutSeconds:
@@ -2424,3 +2428,30 @@ test-env-overrides:
               retries:
                 _default: 3
                 "^dev.*$": 1
+
+# Disabled examples of corrected env/tpl and container-volume handling.
+test-review-regressions:
+  __GroupVars__:
+    type: apps-stateless
+  fields:
+    enabled: false
+    alwaysRestart: true
+    selector:
+      _default: |
+        app: {{ $.CurrentApp.name }}
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1.27"
+        volumes: |
+          - name: scratch
+            emptyDir: {}
+        volumeMounts: |
+          - name: scratch
+            mountPath: /scratch
+        configFiles:
+          external.conf:
+            name:
+              _default: existing-config
+            mountPath: /etc/external.conf

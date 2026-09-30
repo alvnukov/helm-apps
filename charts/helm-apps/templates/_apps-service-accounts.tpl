@@ -126,6 +126,9 @@ rules:
 {{- $_ := set $roleScope "name" $rbacName -}}
 {{- $bindingScope := deepCopy $binding -}}
 {{- $_ := set $bindingScope "name" $bindingName -}}
+{{- if and $namespaced (empty (include "fl.value" (list $ $binding $binding.namespace) | trim)) -}}
+{{- $_ := set $bindingScope "namespace" (include "fl.value" (list $ $role $role.namespace) | trim) -}}
+{{- end -}}
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

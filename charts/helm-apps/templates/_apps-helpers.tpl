@@ -9,48 +9,57 @@
       {{- $_ = set $ "CurrentContainer" $_container }}
       {{- /* Mount ConfigMaps created by "configFiles:" option as volumes */ -}}
       {{- range $configFileName, $_ := .configFiles }}
+      {{- $configMapName := "" }}
       {{- if include "fl.value" (list $ . .content) }}
       {{- $_ := set . "name" (print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel") }}
+      {{- $configMapName = .name }}
       {{- else }}
-      {{- if not ( include "fl.value" (list $ . .name)) }}
+      {{- $configMapName = include "fl.value" (list $ . .name) }}
+      {{- if not $configMapName }}
       {{- include "apps-utils.error" (list $ "E_CONFIG_FILE_SOURCE" (printf "configFiles.%s must define content or name (container '%s')" $configFileName $.CurrentContainer.name) "set content to create ConfigMap automatically, or set name to mount existing ConfigMap" "docs/reference-values.md#param-configfiles") }}
       {{- end }}
       {{- end }}
 - name: {{ print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel" | quote }}
   configMap:
-    name: {{ .name | quote }}
+    name: {{ $configMapName | quote }}
       {{- with include "fl.value" (list $ . .defaultMode) }}
     defaultMode: {{ . }}
       {{- end }}
       {{- end }}
       {{- range $configFileName, $_ := .configFilesYAML }}
+      {{- $configMapName := "" }}
       {{- if kindIs "map" .content }}
       {{- $_ := set . "name" (print "config-yaml-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel") }}
+      {{- $configMapName = .name }}
       {{- else }}
-      {{- if not ( include "fl.value" (list $ . .name)) }}
+      {{- $configMapName = include "fl.value" (list $ . .name) }}
+      {{- if not $configMapName }}
       {{- include "apps-utils.error" (list $ "E_CONFIG_FILE_SOURCE" (printf "configFilesYAML.%s must define content or name (container '%s')" $configFileName $.CurrentContainer.name) "set content map to create ConfigMap automatically, or set name to mount existing ConfigMap" "docs/reference-values.md#param-configfilesyaml") }}
       {{- end }}
       {{- end }}
 - name: {{ print "config-yaml-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $configFileName | include "fl.formatStringAsDNSLabel" | quote }}
   configMap:
-    name: {{ .name | quote }}
+    name: {{ $configMapName | quote }}
       {{- with include "fl.value" (list $ . .defaultMode) }}
     defaultMode: {{ . }}
       {{- end }}
       {{- end }}
       {{- /* Mount Secrets created by "secretConfigFiles:" option as volumes */ -}}
       {{- range $secretConfigFileName, $_ := .secretConfigFiles }}
+      {{- $secretName := "" }}
       {{- if include "fl.value" (list $ . .content) }}
       {{- $_ := set . "name" (print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $secretConfigFileName | include "fl.formatStringAsDNSLabel") }}
+      {{- $secretName = .name }}
       {{- else }}
-      {{- if not (include "fl.value" (list $ . .name)) }}
+      {{- $secretName = include "fl.value" (list $ . .name) }}
+      {{- if not $secretName }}
       {{- include "apps-utils.error" (list $ "E_CONFIG_FILE_SOURCE" (printf "secretConfigFiles.%s must define content or name (container '%s')" $secretConfigFileName $.CurrentContainer.name) "set content to create Secret automatically, or set name to mount existing Secret" "docs/reference-values.md#param-secretconfigfiles") }}
       {{- end }}
       {{- end }}
-      {{- if or (include "fl.value" (list $ . .content)) (include "fl.value" (list $ . .name)) }}
+      {{- if $secretName }}
 - name: {{ print "config-" $containersType "-" $.CurrentApp.name "-" $.CurrentContainer.name "-" $secretConfigFileName | include "fl.formatStringAsDNSLabel" | quote }}
   secret:
-    secretName: {{ .name | quote }}
+    secretName: {{ $secretName | quote }}
     {{- with include "fl.value" (list $ . .defaultMode) }}
     defaultMode: {{ . }}
     {{- end }}
@@ -195,6 +204,9 @@ spec:
     {{- $RelatedScope := index . 1 }}
     {{- with $RelatedScope }}
     {{- if include "fl.isTrue" (list $ . $.CurrentApp.alwaysRestart) }}
+    {{- if not (kindIs "map" .envVars) }}
+    {{- $_ := set . "envVars" dict }}
+    {{- end }}
     {{- $_ := set .envVars "FL_APP_ALWAYS_RESTART" (randAlphaNum 20) }}
     {{- end }}
     {{- if kindIs "map" .envYAML }}
@@ -453,7 +465,9 @@ metadata:
     {{- $envName = $CurrentEnvDict.name }}
     {{- end }}
     {{- if hasKey $.CurrentContainer.envVars $envName }}
+    {{- if kindIs "map" (index $.CurrentContainer.envVars $envName) }}
     {{- $_ := set $.CurrentContainer.envVars $envName (mergeOverwrite $CurrentEnvDict (index $.CurrentContainer.envVars $envName)) }}
+    {{- end }}
     {{- else }}
     {{- $_ := set $.CurrentContainer.envVars $envName $CurrentEnvDict }}
     {{- end }}
@@ -521,7 +535,7 @@ metadata:
 {{- $_ := set $i "indicator" false }}
 {{- include "apps-helpers._generateConfigYAML.clean" (list $CurrentDict $i) }}
 {{- if $i.indicator }}
-{{- $_ := set $indicatorMap.indicator true }}
+{{- $_ := set $indicatorMap "indicator" true }}
 {{- end }}
 {{- end }}
 {{- end }}

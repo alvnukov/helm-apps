@@ -1,0 +1,28 @@
+global:
+  env: production
+apps-stateless:
+  a:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1"
+    childApps:
+      apps-configmaps:
+        config:
+          enabled: true
+          name: "{{ $.ParentApp.name }}-config"
+          data: |
+            parent: {{ $.ParentApp.name | quote }}
+  b:
+    enabled: true
+    annotations: |
+      context-group: {{ $.CurrentGroupVars.name | quote }}
+      context-type: {{ $.CurrentGroup.__GroupVars__.type | quote }}
+      context-parent: {{ hasKey $ "ParentApp" | quote }}
+    containers:
+      main:
+        image:
+          name: nginx
+          staticTag: "1"

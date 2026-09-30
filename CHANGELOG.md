@@ -7,6 +7,20 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+- Restore parent group context after `childApps`, keeping sibling workloads on the correct renderer.
+- Render Dex authentication annotations with ordinary Helm and use the release namespace; apply shared release annotations to Ingress and Certificate resources.
+- Initialize workload-local ServiceAccounts for Job and CronJob; resolve templated/environment-specific selectors and external config/secret names.
+- Include enabled container/initContainer volumes in the Pod and reject duplicate volume names; handle `alwaysRestart` without pre-existing `envVars`.
+- Preserve scalar `envVars` overrides of `envYAML`, fix nested empty `configFilesYAML` cleanup, and include managed `secretEnvVars` data in rollout checksums.
+- Reject malformed/non-map file includes, initialize optional include registries, and support `werf.env` without an optional repository label.
+- Preserve native NetworkPolicy spec maps, permit internal release metadata during strict validation, inherit Role namespaces in generated bindings, and recognize native RBAC lists in dotted app names/custom/child groups.
+- Make fuzz choices reproducible by seed and capabilities catalog generation deterministic and non-mutating during checks; add review regressions to CI and release checks.
+- Correct chart packaging documentation: repository docs remain intentionally excluded since `1.8.13`.
+
+### Compatibility
+- Existing workloads with managed `secretEnvVars` receive a rollout when the new checksum first appears. Duplicate Pod volume names now fail with `E_VOLUME_NAME_CONFLICT`.
+
 ## [1.10.0] - 2026-09-14
 
 ### Added

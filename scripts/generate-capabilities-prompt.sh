@@ -1,20 +1,23 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Stable ordering across developer and CI locales.
+export LC_ALL=C
+
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 SCHEMA="$ROOT_DIR/tests/.helm/values.schema.json"
 TEMPLATES_DIR="$ROOT_DIR/charts/helm-apps/templates"
-OUT="$ROOT_DIR/docs/ai/helm-apps-capabilities.prompt.md"
+OUT="${1:-$ROOT_DIR/docs/ai/helm-apps-capabilities.prompt.md}"
 
 mkdir -p "$(dirname "$OUT")"
 
 {
   printf '# helm-apps Capability Catalog (Prompt Input)\n\n'
-  printf 'Generated from code on %s.\n\n' "$(date -u +'%Y-%m-%d %H:%M:%SZ')"
+  printf 'Generated from the schema and templates.\n\n'
   printf 'Sources:\n'
-  printf -- '- `%s`\n' "$SCHEMA"
-  printf -- '- `%s`\n' "$TEMPLATES_DIR"
-  printf -- '- `%s`\n\n' "$ROOT_DIR/AGENTS.md"
+  printf -- '- `tests/.helm/values.schema.json`\n'
+  printf -- '- `charts/helm-apps/templates`\n'
+  printf -- '- `AGENTS.md`\n\n'
   printf 'Use this file as machine-oriented context for AI prompts about helm-apps values format and rendering behavior.\n\n'
 
   printf '## Top-Level Values Sections\n'

@@ -19,6 +19,7 @@
 {{- if not .containers }}
 {{- include "apps-utils.error" (list $ "E_APP_CONTAINERS_REQUIRED" (printf "cronjob '%s' is enabled but containers are not configured" $.CurrentApp.name) "set containers.<name>.image or disable the cronjob (enabled=false)" "docs/reference-values.md#param-containers") }}
 {{- end }}
+{{- $serviceAccount := include "apps-system.serviceAccount" $ -}}
 apiVersion: {{ include "apps-api-versions.cronJob" $ }}
 kind: CronJob
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
@@ -39,6 +40,7 @@ spec:
 {{- include "apps-components.generateConfigMapsAndSecrets" $ -}}
 
 {{- include "apps-components.verticalPodAutoscaler" (list $ . .verticalPodAutoscaler "CronJob") -}}
+{{ $serviceAccount -}}
 {{- include "apps-utils.renderChildApps" $ -}}
 
 {{- end }}

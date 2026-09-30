@@ -1,0 +1,4 @@
+# A directive does not make malformed content valid.
+%YAML 1.1
+---
+Error: [ broken yaml

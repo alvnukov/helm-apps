@@ -1,0 +1,55 @@
+global:
+  env: production
+
+apps-stateless:
+  review:
+    enabled: true
+    selector:
+      _default: |
+        app: {{ $.CurrentApp.name }}
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"
+        envVars:
+          APP_MODE: local-override
+        envYAML:
+          app:
+            mode:
+              _default: base-from-envyaml
+        secretEnvVars:
+          TOKEN:
+            _default: managed-value
+        volumes: |
+          - name: scratch
+            emptyDir: {}
+        volumeMounts: |
+          - name: scratch
+            mountPath: /scratch
+        configFiles:
+          external.conf:
+            name:
+              _default: existing-config
+            mountPath: /etc/external.conf
+        configFilesYAML:
+          generated.yaml:
+            mountPath: /etc/generated.yaml
+            content:
+              section:
+                _default:
+                  empty: {}
+    childApps:
+      apps-configmaps:
+        runtime:
+          enabled: true
+          name: '{{ $.ParentApp.name }}-runtime'
+          data: |
+            parent: {{ $.ParentApp.name | quote }}
+  z-followup:
+    enabled: true
+    containers:
+      main:
+        image:
+          name: alpine
+          staticTag: "3"

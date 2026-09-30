@@ -1,0 +1,7 @@
+global:
+  env: production
+  _includes: {}
+apps-configmaps:
+  example:
+    enabled: true
+    _include_files: [broken.yaml]

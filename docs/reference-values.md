@@ -436,6 +436,8 @@ apps-stateless:
 - внутри `apps-service-accounts` можно описывать `roles` и `clusterRoles`, а библиотека автоматически создаст binding'и на этот ServiceAccount;
 - остаточные top-level поля поддерживаются через `extraFields`.
 
+Если у `roles.<role>.namespace` задан отдельный namespace, автоматический `RoleBinding` наследует его; namespace ServiceAccount остаётся в `subjects`. Явный `binding.namespace` имеет приоритет. Native списки правил и `binding.subjects` работают также в custom-группах и `childApps`, включая app-ключи с точками.
+
 ## 4. Workload app-поля
 
 Актуально для:
@@ -460,6 +462,8 @@ apps-stateless:
 - `hostUsers` (1.25+)
 - `schedulingGates` (1.26+)
 - `resourceClaims` (1.31+)
+
+`serviceAccount` создаёт аккаунт и задаёт `serviceAccountName` также для Job и CronJob. `childApps` восстанавливает контекст родительской группы перед рендером следующего app.
 
 Поля с пометкой версии рендерятся только на кластерах этой версии и выше; на
 более старых библиотека их убирает. Подробности и полная таблица —
@@ -666,6 +670,10 @@ containers:
 - `resizePolicy` (1.27+, in-place resize)
 - `restartPolicy` (1.28+, native sidecar; имеет смысл только у `initContainers`)
 
+`volumes` включённого контейнера или initContainer добавляются в Pod вместе с workload-level `volumes` и автоматически создаваемыми config/secret volumes. Имена должны быть уникальны; конфликт даёт `E_VOLUME_NAME_CONFLICT`.
+
+`alwaysRestart: true` работает и без предварительно заданного `envVars`. Если `envVars` и `envYAML` задают одно имя, локальное scalar-значение `envVars` имеет приоритет; для env-map сохраняется рекурсивное объединение.
+
 ### 5.0 `envVars`
 <a id="param-envvars-usage"></a>
 
@@ -701,6 +709,7 @@ secretEnvVars:
 Контракт:
 - `__annotations__` добавляет metadata annotations только в generated Secret и не попадает в `Secret.data`;
 - для hook Job generated Secret наследует hook-аннотации Job, но `helm.sh/hook-delete-policy: hook-succeeded` заменяется на `before-hook-creation`, чтобы Secret не удалился до старта Pod.
+- resolved данные managed Secret входят в `checksum/config`, поэтому изменение `secretEnvVars` меняет Pod template и запускает rollout. Изменение только `__annotations__` checksum не меняет. Внешние Secret/ConfigMap сами по себе этим механизмом не отслеживаются.
 
 ### 5.0.2 `fromSecretsEnvVars`
 
@@ -833,6 +842,8 @@ resources:
 
 ### 8.1 `configFiles`
 
+При подключении существующего ConfigMap через `name` без `content` имя поддерживает env-map и `tpl`. То же правило действует для `configFilesYAML` и существующего Secret в `secretConfigFiles`.
+
 ```yaml
 configFiles:
   app.yaml:
@@ -920,6 +931,8 @@ secretConfigFiles:
 `dexAuth` поля:
 - `enabled`
 - `clusterDomain`
+
+Dex auth поддерживается при рендере через Helm и werf. В auth URL namespace берётся из `werf.namespace`, если он задан, иначе из `.Release.Namespace`. Ingress и Certificate получают общие аннотации библиотеки, включая release-аннотации при `global.deploy.annotateAllWithRelease`.
 
 Навигация: [Parameter Index](parameter-index.md#networking-and-scaling) | [Наверх](#top)
 
@@ -1089,6 +1102,8 @@ Dashboard definition читается из `dashboards/<name>.json`.
 - `kubernetes` -> `apiVersion: networking.k8s.io/v1`, `kind: NetworkPolicy`
 - `cilium` -> `apiVersion: cilium.io/v2`, `kind: CiliumNetworkPolicy`
 - `calico` -> `apiVersion: projectcalico.org/v3`, `kind: NetworkPolicy`
+
+Полный `spec` заменяет сборку provider-specific полей и принимает YAML block string, native map или env-map. Это исключение для map; native списки внутри `spec` по-прежнему подчиняются общей политике списков. Например, `spec: {podSelector: {}}` сохраняет пустой selector, а не подставляет app-label.
 
 Общие поля app:
 - `enabled`

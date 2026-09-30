@@ -1,7 +1,7 @@
-# AGENTS.md
+# Offline consumer guide
 
 This file is the offline operating guide for AI agents using the packaged `helm-apps` Helm library chart.
-It is intentionally stored inside the chart so it is available in air-gapped environments where repository docs are missing.
+Transfer this guide and the referenced repository docs separately when preparing an air-gapped environment. The compact chart archive contains runtime templates; documentation has been excluded since 1.8.13.
 
 No guide can make an LLM always correct without rendering and validation. The contract here is: do not guess syntax, prefer the patterns below, inspect chart templates when a field is unclear, and verify the result with Helm.
 
@@ -20,9 +20,9 @@ Do not call individual `apps-*` render templates directly from a consumer chart.
 
 ## 2. Offline Source Priority
 
-In a packaged chart, use sources in this order:
+When repository documentation has been transferred alongside the packaged chart, use sources in this order:
 
-1. This `AGENTS.md` for the strict offline operating contract.
+1. This guide for the offline operating contract.
 2. `docs/ai/helm-apps-capabilities.prompt.md` for compact machine-oriented syntax.
 3. `docs/reference-values.md` for parameter semantics and validation flags.
 4. `docs/decision-guide.md`, `docs/quickstart.md`, `docs/cookbook.md`, and `docs/faq.md` for examples and common decisions.
@@ -30,7 +30,7 @@ In a packaged chart, use sources in this order:
 6. `templates/_apps-*.tpl` for exact renderer behavior.
 7. Render output from `helm template` for final confirmation.
 
-If repository-level schema or tests are unavailable in airgap, do not invent missing syntax. Prefer documented patterns here, inspect the packaged templates, and verify with `helm template`.
+If only the chart archive is available, inspect `templates/_apps-default-values.yaml` and `templates/_apps-*.tpl`, then verify with `helm template`. Use this guide and repository schema/tests when they are available; do not infer that they are bundled in the chart.
 
 ## 3. Required Work Pattern
 

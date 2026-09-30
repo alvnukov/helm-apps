@@ -203,6 +203,9 @@ if [[ "${RUN_CONTRACTS}" -eq 1 ]]; then
 
   echo "==> Property-based fuzz checks"
   bash scripts/fuzz-contracts.sh --iterations 20 --seed 20260216
+
+  echo "==> Review regression checks"
+  bash scripts/check-regressions.sh
 fi
 
 echo "Local CI validate checks passed."

@@ -22,6 +22,7 @@
 "__AppType__"
 "enabled"
 "name"
+"versionKey"
 "randomName"
 "werfWeight"
 "annotations"
@@ -42,7 +43,7 @@
 "types"
 "extraSpec"
 }}
-{{- include "apps-compat.enforceAllowedKeys" (list $ . $allowedKeys (printf "apps-network-policies.%s" $.CurrentApp.name)) }}
+{{- include "apps-compat.enforceAllowedKeys" (list $ (omit . "CurrentAppVersion") $allowedKeys (printf "apps-network-policies.%s" $.CurrentApp.name)) }}
 {{- end }}
 {{- $type := include "fl.value" (list $ . .type) | default "kubernetes" }}
 {{- $apiVersion := include "fl.value" (list $ . .apiVersion) }}
@@ -73,8 +74,13 @@ apiVersion: {{ $apiVersion }}
 kind: {{ $kind }}
 {{- include "apps-helpers.metadataGenerator" (list $ .) }}
 spec:
-  {{- if include "fl.value" (list $ . .spec) }}
-  {{- include "apps-compat.renderRaw" (list $ . .spec) | trim | nindent 2 }}
+  {{- $spec := .spec }}
+  {{- if and (kindIs "map" $spec) (include "apps-compat.hasEnvValueSelection" (list $ $spec) | trim) }}
+  {{- $spec = (include "apps-compat.selectEnvValueJson" (list $ $spec) | fromJson).wrapper }}
+  {{- end }}
+  {{- $rawSpec := include "apps-compat.renderRaw" (list $ . $spec) | trim }}
+  {{- if $rawSpec }}
+  {{- $rawSpec | nindent 2 }}
   {{- else if eq $type "kubernetes" }}
   {{- with include "fl.value" (list $ . .podSelector) | trim }}
   podSelector:

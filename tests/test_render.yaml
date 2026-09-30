@@ -3,7 +3,8 @@
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels: {}
   name: custom-certificate-1
 spec:
@@ -20,7 +21,8 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels: {}
   name: custom-issuer-1
 spec:
@@ -37,7 +39,8 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels: {}
   name: ingress-3
 spec:
@@ -52,7 +55,8 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels: {}
   name: ingress-dex-auth
 spec:
@@ -67,7 +71,8 @@ spec:
 apiVersion: cert-manager.io/v1
 kind: Certificate
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels: {}
   name: nginx
 spec:
@@ -699,7 +704,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    checksum/config: 14aeb92c2c444a2623279fd0cf52ac8522bf5485f312a111a64b1a112a5beaad
+    checksum/config: acce364d590c070218c9143a5e2684522a9df15848567fa8b399f0fea405064b
     helm-apps/version: TEST
     testAnnotation: testVal
   labels:
@@ -722,7 +727,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 14aeb92c2c444a2623279fd0cf52ac8522bf5485f312a111a64b1a112a5beaad
+        checksum/config: acce364d590c070218c9143a5e2684522a9df15848567fa8b399f0fea405064b
         testAnnotation: testVal
       labels:
         app: app-1
@@ -971,7 +976,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    checksum/config: f0b89172b9c460ce9fe6c12abe9d5a02d3210d97827b134b7d04abf3c499c822
+    checksum/config: ed5f53a06f5373165a73f6d9244ece688a23f6d47422ed7fa0130f1cb5a575ee
     helm-apps/version: TEST
   labels:
     app: env-yaml-app
@@ -991,7 +996,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: f0b89172b9c460ce9fe6c12abe9d5a02d3210d97827b134b7d04abf3c499c822
+        checksum/config: ed5f53a06f5373165a73f6d9244ece688a23f6d47422ed7fa0130f1cb5a575ee
       labels:
         app: env-yaml-app
         chart: tests
@@ -1119,7 +1124,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    checksum/config: 19812d5210967fd69097dc991263af171c4071ebb455357bd49be2a0ca05acdd
+    checksum/config: c0140c54fde74a14c0f5ec57e6319d7c8e2f54093200857f5c62b86be9d287b0
     helm-apps/version: TEST
   labels:
     app: nginx
@@ -1140,7 +1145,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 19812d5210967fd69097dc991263af171c4071ebb455357bd49be2a0ca05acdd
+        checksum/config: c0140c54fde74a14c0f5ec57e6319d7c8e2f54093200857f5c62b86be9d287b0
       labels:
         app: nginx
         chart: tests
@@ -1263,7 +1268,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   annotations:
-    checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+    checksum/config: a345525f77d1862907a8b3b6e1a100a755257c197e86c24916c4292546d5b5eb
     helm-apps/version: TEST
   labels:
     app: shared-env-priority-app
@@ -1283,7 +1288,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        checksum/config: a345525f77d1862907a8b3b6e1a100a755257c197e86c24916c4292546d5b5eb
       labels:
         app: shared-env-priority-app
         chart: tests
@@ -1588,6 +1593,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    helm-apps/version: TEST
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/auth-url: example.org
   labels:
@@ -1615,6 +1621,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    helm-apps/version: TEST
     kubernetes.io/ingress.class: nginx
   labels:
     app: ingress-2
@@ -1639,6 +1646,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    helm-apps/version: TEST
     kubernetes.io/ingress.class: nginx
   labels:
     app: ingress-3
@@ -1665,6 +1673,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    helm-apps/version: TEST
     kubernetes.io/ingress.class: nginx
   labels:
     app: ingress-4
@@ -1690,6 +1699,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    helm-apps/version: TEST
     kubernetes.io/ingress.class: nginx
     nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-User,X-Auth-Request-Email,Authorization
     nginx.ingress.kubernetes.io/auth-signin: https://$host/dex-authenticator/sign_in
@@ -1720,6 +1730,7 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   annotations:
+    helm-apps/version: TEST
     kubernetes.io/ingress.class: nginx
   labels:
     app: nginx
@@ -1745,7 +1756,8 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels:
     app: route-contract-enabled
     chart: tests
@@ -1768,7 +1780,8 @@ spec:
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
-  annotations: {}
+  annotations:
+    helm-apps/version: TEST
   labels:
     app: test-app-ingress
     chart: tests
@@ -2762,7 +2775,7 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   annotations:
-    checksum/config: 14aeb92c2c444a2623279fd0cf52ac8522bf5485f312a111a64b1a112a5beaad
+    checksum/config: acce364d590c070218c9143a5e2684522a9df15848567fa8b399f0fea405064b
     helm-apps/version: TEST
     testAnnotation: testVal
   labels:
@@ -2781,7 +2794,7 @@ spec:
   template:
     metadata:
       annotations:
-        checksum/config: 14aeb92c2c444a2623279fd0cf52ac8522bf5485f312a111a64b1a112a5beaad
+        checksum/config: acce364d590c070218c9143a5e2684522a9df15848567fa8b399f0fea405064b
         testAnnotation: testVal
       labels:
         app: app-1

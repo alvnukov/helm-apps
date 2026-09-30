@@ -12,13 +12,14 @@
 {{- with $.CurrentApp }}
 {{- $_ := set $ "CurrentIngress" . }}
 {{- $ingressClass := include "fl.value" (list $ . .class) | trim }}
-{{- $userAnnotations := include "fl.value" (list $ . .annotations) | trim }}
-{{- if or (eq $userAnnotations "{}") (eq $userAnnotations "null") }}
-{{- $userAnnotations = "" }}
+{{- $sharedMetadata := include "apps-helpers.generateAnnotations" (list $ .) | fromYaml }}
+{{- $userAnnotations := "" }}
+{{- with $sharedMetadata.annotations }}
+{{- $userAnnotations = toYaml . | trim }}
 {{- end }}
 {{- $hasDexAuthAnnotations := false }}
 {{- with .dexAuth }}
-{{- if and (include "fl.isTrue" (list $ $.CurrentApp .enabled)) $.Values.werf }}
+{{- if include "fl.isTrue" (list $ $.CurrentApp .enabled) }}
 {{- $hasDexAuthAnnotations = true }}
 {{- end }}
 {{- end }}
@@ -37,8 +38,15 @@ metadata:
     {{- if $hasDexAuthAnnotations }}
     {{- with .dexAuth }}
     {{- include "apps-utils.enterScope" (list $ "dexAuth") }}
+    {{- $dexNamespace := "" }}
+    {{- if kindIs "map" $.Values.werf }}
+    {{- $dexNamespace = include "fl.value" (list $ . $.Values.werf.namespace) | trim }}
+    {{- end }}
+    {{- if empty $dexNamespace }}
+    {{- $dexNamespace = $.Release.Namespace }}
+    {{- end }}
     nginx.ingress.kubernetes.io/auth-signin: https://$host/dex-authenticator/sign_in
-    nginx.ingress.kubernetes.io/auth-url: https://{{ $.CurrentApp.name }}-dex-authenticator.{{ $.Values.werf.namespace }}.svc.{{ include "apps-utils.requiredValue" (list $ . "clusterDomain") }}/dex-authenticator/auth
+    nginx.ingress.kubernetes.io/auth-url: https://{{ $.CurrentApp.name }}-dex-authenticator.{{ $dexNamespace }}.svc.{{ include "apps-utils.requiredValue" (list $ . "clusterDomain") }}/dex-authenticator/auth
     nginx.ingress.kubernetes.io/auth-response-headers: X-Auth-Request-User,X-Auth-Request-Email,Authorization
     {{- include "apps-utils.leaveScope" $ }}
     {{- end }}
