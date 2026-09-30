@@ -7,6 +7,8 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.1] - 2026-10-01
+
 ### Fixed
 - Restore parent group context after `childApps`, keeping sibling workloads on the correct renderer.
 - Render Dex authentication annotations with ordinary Helm and use the release namespace; apply shared release annotations to Ingress and Certificate resources.
