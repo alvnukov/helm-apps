@@ -25,6 +25,11 @@ jobs:
         with:
           version: v2.57.1
 
+      - name: Install catalog dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y ripgrep jq
+
       - name: Install zq
         run: |
           set -euo pipefail
