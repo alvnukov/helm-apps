@@ -27,11 +27,18 @@ def values(entry, image = {})
     } } }
 end
 
-def run_render(input, *args)
+def run_render(input, validate_schema: true)
   path = File.join(@chart, 'case.yaml')
   File.write(path, YAML.dump(input))
+  schema_path = File.join(@chart, 'values.schema.json')
+  schema_backup = File.join(File.dirname(@chart), 'runtime-values.schema.json')
+  # Helm 3.15 lacks --skip-schema-validation. Model a schema-less consumer
+  # in the disposable chart, then restore its schema even after an error.
+  FileUtils.mv(schema_path, schema_backup) unless validate_schema
   Open3.capture3('helm', 'template', 'release-regressions', @chart,
-                '-f', path, '--kube-version', '1.29.0', *args)
+                '-f', path, '--kube-version', '1.29.0')
+ensure
+  FileUtils.mv(schema_backup, schema_path) if !validate_schema && schema_backup && File.file?(schema_backup)
 end
 
 def render(input)
@@ -233,7 +240,7 @@ end
     _, err, status = run_render(values(entry))
     assert(!status.success? && err.include?('schema'), "schema accepted #{name}: #{err}")
     # Exercise runtime validation separately, including schema-less consumers.
-    _, err, status = run_render(values(entry), '--skip-schema-validation')
+    _, err, status = run_render(values(entry), validate_schema: false)
     assert(!status.success? && err.include?("[helm-apps:#{code}]"), "wrong runtime error for #{name}: #{err}")
   end
 end
