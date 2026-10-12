@@ -31,8 +31,83 @@ true
 {{- end -}}
 {{- end -}}
 
+{{- /* Validate only extended entry fields; preserve the legacy scalar/env path. */ -}}
+{{- define "apps-release.validateValue" -}}
+{{- $ := index . 0 -}}
+{{- $value := index . 1 -}}
+{{- $path := index . 2 -}}
+{{- $stringsOnly := index . 3 -}}
+{{- $leaves := list $value -}}
+{{- if kindIs "map" $value -}}
+  {{- $leaves = values $value -}}
+{{- end -}}
+{{- range $leaf := $leaves -}}
+  {{- if or (kindIs "map" $leaf) (kindIs "slice" $leaf) (and $stringsOnly (not (kindIs "string" $leaf)) (ne (kindOf $leaf) "invalid")) -}}
+    {{- include "apps-utils.error" (list $ "E_RELEASE_VALUE_TYPE" "invalid extended release value type" "use a scalar or an env-map with scalar leaves; image fields require strings or null" "docs/reference-values.md#param-global-releases" $path) -}}
+  {{- end -}}
+{{- end -}}
+{{- end -}}
+
+{{- define "apps-release.resolveEntry" -}}
+{{- $ := index . 0 -}}
+{{- $relativeScope := index . 1 -}}
+{{- $entry := index . 2 -}}
+{{- $path := index . 3 -}}
+{{- $version := $entry -}}
+{{- $image := dict -}}
+{{- if and (kindIs "map" $entry) (hasKey $entry "version") -}}
+  {{- range $key, $_ := $entry -}}
+    {{- if not (has $key (list "version" "image")) -}}
+      {{- include "apps-utils.error" (list $ "E_RELEASE_ENTRY_KEY" (printf "unknown extended release field '%s'" $key) "use version and optional image; place env selectors inside version" "docs/reference-values.md#param-global-releases" $path) -}}
+    {{- end -}}
+  {{- end -}}
+  {{- $version = $entry.version -}}
+  {{- include "apps-release.validateValue" (list $ $version (printf "%s.version" $path) false) -}}
+  {{- if hasKey $entry "image" -}}
+    {{- if not (kindIs "map" $entry.image) -}}
+      {{- include "apps-utils.error" (list $ "E_RELEASE_IMAGE_TYPE" "extended release image must be a map" "set optional image.repository and/or image.name" "docs/reference-values.md#param-global-releases" (printf "%s.image" $path)) -}}
+    {{- end -}}
+    {{- $image = $entry.image -}}
+    {{- range $key, $value := $image -}}
+      {{- if not (has $key (list "repository" "name")) -}}
+        {{- include "apps-utils.error" (list $ "E_RELEASE_IMAGE_KEY" (printf "unknown release image field '%s'" $key) "use repository and/or name; the tag belongs in version" "docs/reference-values.md#param-global-releases" (printf "%s.image" $path)) -}}
+      {{- end -}}
+      {{- include "apps-release.validateValue" (list $ $value (printf "%s.image.%s" $path $key) true) -}}
+    {{- end -}}
+  {{- end -}}
+{{- end -}}
+{{- $resolvedVersion := include "fl.value" (list $ $relativeScope $version) | trim -}}
+{{- dict "version" $resolvedVersion "image" $image | toJson -}}
+{{- end -}}
+
+{{- /* Called only in the existing non-init, non-static release image branch. */ -}}
+{{- define "apps-release.imageName" -}}
+{{- $ := index . 0 -}}
+{{- $relativeScope := index . 1 -}}
+{{- $name := index . 2 -}}
+{{- $repository := index . 3 -}}
+{{- $image := $.CurrentReleaseImage -}}
+{{- if hasKey $image "name" -}}
+  {{- $name = include "fl.value" (list $ $relativeScope $image.name) -}}
+  {{- if eq (trim $name) "" -}}
+    {{- include "apps-utils.error" (list $ "E_RELEASE_IMAGE_EMPTY" "release image.name resolved to empty value" "set a non-empty name for this environment or omit the override" "docs/reference-values.md#param-global-releases") -}}
+  {{- end -}}
+{{- end -}}
+{{- if hasKey $image "repository" -}}
+  {{- $repository = include "fl.value" (list $ $relativeScope $image.repository) -}}
+{{- end -}}
+{{- if $repository -}}
+  {{- printf "%s/%s" (trimSuffix "/" $repository) (trimPrefix "/" $name) -}}
+{{- else -}}
+  {{- $name -}}
+{{- end -}}
+{{- end -}}
+
 {{- define "apps-release.prepareApp" -}}
 {{- $ := . -}}
+{{- if hasKey $ "CurrentReleaseImage" -}}
+  {{- $_ := unset $ "CurrentReleaseImage" -}}
+{{- end -}}
 {{- if hasKey $ "CurrentReleaseVersion" -}}
   {{- $_ := unset $ "CurrentReleaseVersion" -}}
 {{- end -}}
@@ -73,10 +148,14 @@ true
         {{- end -}}
 
         {{- if hasKey $releaseVersions $versionKey -}}
-          {{- $resolvedAppVersion := include "fl.value" (list $ $.CurrentApp (index $releaseVersions $versionKey)) | trim -}}
+          {{- $entry := include "apps-release.resolveEntry" (list $ $.CurrentApp (index $releaseVersions $versionKey) (printf "global.releases.%s.%s" $currentRelease $versionKey)) | fromJson -}}
+          {{- $resolvedAppVersion := $entry.version -}}
           {{- if not (empty $resolvedAppVersion) -}}
           {{- $_ := set $ "CurrentReleaseVersion" $currentRelease -}}
           {{- $_ := set $.CurrentApp "CurrentAppVersion" $resolvedAppVersion -}}
+          {{- if not (empty $entry.image) -}}
+            {{- $_ := set $ "CurrentReleaseImage" $entry.image -}}
+          {{- end -}}
           {{- if $autoEnableApps -}}
             {{- $_ := set $.CurrentApp "enabled" true -}}
           {{- end -}}

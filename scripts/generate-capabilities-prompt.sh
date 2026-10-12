@@ -100,6 +100,13 @@ mkdir -p "$(dirname "$OUT")"
   printf -- '- `$$fl.value{global.path}` escapes a literal marker; missing paths, invalid syntax and cycles fail explicitly\n'
   printf -- '- values without the marker keep existing behavior\n\n'
 
+  printf '## Release Matrix Entry Formats\n'
+  printf -- '- `global.releases.<release>.<appKey>` accepts a short scalar/env-map or an extended map with reserved `version`\n'
+  printf -- '- Extended `version` is required; optional `image.repository` and `image.name` inherit container values when absent\n'
+  printf -- '- Env/tpl values belong inside the fields; unknown extended keys/types fail explicitly\n'
+  printf -- '- Overrides affect only the ordinary-container release branch; staticTag, initContainers and disabled-release werf fallbacks are unchanged\n'
+  printf -- '- An empty resolved version does not auto-enable an app; app-version annotations remain strings\n\n'
+
   printf '## Library Entry Point\n'
   printf -- '- Consumer chart must call: `{{ include "apps-utils.init-library" $ }}`\n\n'
 

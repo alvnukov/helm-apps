@@ -1,0 +1,41 @@
+# Standalone release-image contract; also consumed by check-regressions-release.rb.
+global:
+  env: production
+  validation:
+    strict: true
+  deploy:
+    enabled: true
+    release: release-images-v1
+    autoEnableApps: true
+  releases:
+    release-images-v1:
+      release-short: "1.0.0"
+      release-version-only:
+        version: "1.0.0"
+      release-custom:
+        version: "0.0.1"
+        image:
+          repository: other.example/team
+          name: stage/custom
+  _includes:
+    release-image-container:
+      image:
+        repository: registry.example/team
+        name: app
+
+apps-stateless:
+  release-short:
+    enabled: false
+    containers:
+      main:
+        _include: ["release-image-container"]
+  release-version-only:
+    enabled: false
+    containers:
+      main:
+        _include: ["release-image-container"]
+  release-custom:
+    enabled: false
+    containers:
+      main:
+        _include: ["release-image-container"]

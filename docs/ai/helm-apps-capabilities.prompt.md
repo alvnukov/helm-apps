@@ -403,8 +403,11 @@ Use this file as machine-oriented context for AI prompts about helm-apps values 
 - `apps-pvcs`
 - `apps-pvcs.render`
 - `apps-release.autoEnableAppsEnabled`
+- `apps-release.imageName`
 - `apps-release.logicDisabled`
 - `apps-release.prepareApp`
+- `apps-release.resolveEntry`
+- `apps-release.validateValue`
 - `apps-secrets`
 - `apps-secrets.render`
 - `apps-service-accounts`
@@ -512,6 +515,13 @@ Native lists are generally forbidden, except allowed paths/fields detected in co
 - paths are relative to `.Values`; embedded, multiple, env-aware and recursive references are supported
 - `$$fl.value{global.path}` escapes a literal marker; missing paths, invalid syntax and cycles fail explicitly
 - values without the marker keep existing behavior
+
+## Release Matrix Entry Formats
+- `global.releases.<release>.<appKey>` accepts a short scalar/env-map or an extended map with reserved `version`
+- Extended `version` is required; optional `image.repository` and `image.name` inherit container values when absent
+- Env/tpl values belong inside the fields; unknown extended keys/types fail explicitly
+- Overrides affect only the ordinary-container release branch; staticTag, initContainers and disabled-release werf fallbacks are unchanged
+- An empty resolved version does not auto-enable an app; app-version annotations remain strings
 
 ## Library Entry Point
 - Consumer chart must call: `{{ include "apps-utils.init-library" $ }}`

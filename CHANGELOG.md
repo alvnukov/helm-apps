@@ -7,6 +7,15 @@ This project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.2] - 2026-10-12
+
+### Added
+- Support mixed short tag/env-map and extended `version` entries in `global.releases`. Optional `image.repository` and `image.name` override the registry/path for release-derived ordinary-container images, while missing fields inherit container values.
+- Validate extended entry fields in both the values schema and runtime; add isolated release image regressions covering defaults, env/templates, partial overrides, annotations and image-resolution boundaries.
+
+### Compatibility
+- Short entries retain their existing behavior. `version` is reserved as the extended-entry discriminator; environment selectors named `version` belong inside the extended `version` field. Static tags, initContainers and disabled-release werf fallbacks retain their priority.
+
 ## [1.10.1] - 2026-10-01
 
 ### Fixed

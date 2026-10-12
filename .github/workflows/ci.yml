@@ -119,7 +119,7 @@ jobs:
           set -euo pipefail
           bash scripts/check-contracts.sh
 
-      - name: Review regression checks
+      - name: Review and release image regression checks
         run: |
           set -euo pipefail
           bash scripts/check-regressions.sh

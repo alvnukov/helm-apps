@@ -127,6 +127,33 @@
         }
       ]
     },
+    "releaseEntry": {
+      "description": "Tag/env-map, or an extended entry identified by the reserved version key.",
+      "oneOf": [
+        {
+          "allOf": [
+            { "$ref": "#/$defs/envValue" },
+            { "not": { "type": "object", "required": ["version"] } }
+          ]
+        },
+        {
+          "type": "object",
+          "required": ["version"],
+          "properties": {
+            "version": { "$ref": "#/$defs/envValue" },
+            "image": {
+              "type": "object",
+              "properties": {
+                "repository": { "$ref": "#/$defs/envStringValue" },
+                "name": { "$ref": "#/$defs/envStringValue" }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "resourceAnnotations": {
       "type": "object",
       "additionalProperties": {
@@ -1118,7 +1145,7 @@
           "additionalProperties": {
             "type": "object",
             "additionalProperties": {
-              "$ref": "#/$defs/envValue"
+              "$ref": "#/$defs/releaseEntry"
             }
           }
         }

@@ -184,7 +184,7 @@ apps-stateless:
 - `global.deploy.enabled`: strict master-switch built-in release logic; если ключ не задан, built-in release logic выключена;
 - `global.deploy.autoEnableApps`: автоматически включает app, если для него найдена версия;
 - `global.deploy.annotateAllWithRelease`: если `true`, аннотация `helm-apps/release` ставится на все ресурсы текущего деплоя;
-- `global.releases`: матрица `релиз -> appKey -> tag/version`.
+- `global.releases`: матрица `релиз -> appKey -> tag/env-map или расширенная запись`.
 
 Связанные app-параметры:
 - `versionKey` — ключ приложения в `global.releases.<release>`.
@@ -222,8 +222,39 @@ apps-stateless:
           name: alpine
 ```
 
+В одном релизе можно смешивать короткие и расширенные записи:
+
+```yaml
+global:
+  releases:
+    production-v1:
+      release-web: "3.19"
+      release-version-only:
+        version: "3.19"
+      release-custom:
+        version: "0.0.1"
+        image:
+          repository: registry.example/team
+          name: stage/custom
+```
+
+- scalar или прежний env-map без ключа `version` сохраняет старый путь выбора тега;
+- map с ключом `version` является расширенной записью; `version` обязателен и допускает scalar/env-map;
+- `image` опционален; `image.repository` и `image.name` опциональны независимо и наследуют container values, если отсутствуют;
+- `{version: "3.19"}` и `{version: "3.19", image: {}}` эквивалентны короткой записи `"3.19"`;
+- image-поля принимают строки/null либо env-map строк/null; `repository: ""` явно убирает префикс repository, а пустой resolved `name` является ошибкой;
+- env-map, regex и tpl/`$fl.value{...}` работают внутри `version`, `image.repository` и `image.name`; image-поля резолвятся в контексте текущего контейнера только при использовании release-derived image;
+- `version` зарезервирован на уровне записи приложения: если окружение так называется, его селектор размещается внутри поля `version`;
+- неизвестные поля и неверные типы расширенной записи отклоняются схемой и runtime-валидацией; неверная расширенная запись не превращается молча в legacy env-map;
+- в примере custom image получается `registry.example/team/stage/custom:0.0.1`; version/tag сохраняется буквально, без добавления `v`;
+- overrides являются app-level: они применяются ко всем обычным контейнерам app, использующим release-version ветку. Для независимо закреплённого sidecar задайте его собственный `staticTag`;
+- полные image refs/digests не являются новым строковым форматом: короткая строка по-прежнему означает тег.
+
+Исполняемый пример с includes: `tests/contracts/values.release-images.yaml`;
+регрессии: `ruby scripts/check-regressions-release.rb`.
+
 Поведение:
-- библиотека выставляет `CurrentReleaseVersion` и `CurrentAppVersion` только для app, которые найдены в `global.releases.<release>`;
+- библиотека выставляет `CurrentReleaseVersion` и строковый `CurrentAppVersion` только для app с непустой разрешённой версией в `global.releases.<release>`;
 - `helm-apps/release` по умолчанию ставится только для app, найденных в release map;
 - при `global.deploy.annotateAllWithRelease=true` `helm-apps/release` ставится всем ресурсам текущего деплоя;
 - при `global.deploy.enabled` не задан или равен `false`, built-in release logic полностью отключается: библиотека не резолвит `CurrentReleaseVersion`/`CurrentAppVersion`, не авто-включает app и игнорирует `annotateAllWithRelease`;
@@ -232,6 +263,7 @@ apps-stateless:
 - если задан `image.repository`, библиотека сама собирает tag-based image как `repository/name:tag`;
 - при `image.repository` поле `image.name` должно быть именем образа или suffix path, а не полным image ref;
 - если `image.staticTag` не задан, для обычных `containers` используется `CurrentAppVersion`;
+- только в этой ветке применяются расширенные image overrides; `staticTag` использует исходные container values, а werf lookup остаётся по исходному `image.name`;
 - для `initContainers` release-derived `CurrentAppVersion` не применяется;
 - если `CurrentAppVersion` тоже не задан, image резолвится через стандартный путь `Values.werf.image`;
 - если `Values.werf.image` тоже не задан, используется последний fallback `Values.global.werfReport.image`;

@@ -6,5 +6,6 @@ cd "${ROOT_DIR}"
 
 ruby scripts/check-regressions-core.rb
 ruby scripts/check-regressions-workloads.rb
+ruby scripts/check-regressions-release.rb
 ruby scripts/check-regressions-resources.rb
 ruby scripts/check-regressions-tooling.rb

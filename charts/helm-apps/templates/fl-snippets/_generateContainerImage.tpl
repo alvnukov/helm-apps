@@ -32,6 +32,9 @@
   {{- if include "fl.value" (list $ . $imageConfig.staticTag) }}
     {{- $taggedImageName }}:{{ include "fl.value" (list $ . $imageConfig.staticTag) }}
   {{- else if and (not $releaseLogicDisabled) (not $isInitContainer) (hasKey $.CurrentApp "CurrentAppVersion") }}
+    {{- if hasKey $ "CurrentReleaseImage" }}
+      {{- $taggedImageName = include "apps-release.imageName" (list $ $relativeScope $imageName $imageRepository) }}
+    {{- end }}
     {{- $taggedImageName }}:{{ include "fl.value" (list $ . $.CurrentApp.CurrentAppVersion) }}
   {{- else if $werfImage }}
     {{- $werfImage }}
